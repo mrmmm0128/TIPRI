@@ -746,6 +746,7 @@ class _YellowActionButton extends StatelessWidget {
   final String label;
   final IconData? icon;
   final VoidCallback? onPressed;
+  final bool loading;
 
   /// 背景色。未指定(null)なら AppPalette.yellow を使用
   final Color? color;
@@ -755,11 +756,15 @@ class _YellowActionButton extends StatelessWidget {
     this.icon,
     this.onPressed,
     this.color,
+    this.loading = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final bg = color ?? AppPalette.yellow;
+    final spinnerColor = bg.computeLuminance() < 0.5
+        ? Colors.white
+        : Colors.black;
 
     final child = Row(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -786,9 +791,10 @@ class _YellowActionButton extends StatelessWidget {
 
     return Material(
       color: bg, // ← 指定があればその色、なければ黄色
+
       borderRadius: BorderRadius.circular(AppDims.radius),
       child: InkWell(
-        onTap: onPressed,
+        onTap: loading ? null : onPressed, // ← loading中は無効化
         borderRadius: BorderRadius.circular(AppDims.radius),
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 12),
@@ -797,7 +803,25 @@ class _YellowActionButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(AppDims.radius),
             border: Border.all(color: AppPalette.border, width: AppDims.border),
           ),
-          child: child,
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 180),
+            transitionBuilder: (c, a) => FadeTransition(opacity: a, child: c),
+            child: loading
+                ? SizedBox(
+                    key: const ValueKey('spinner'),
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation(spinnerColor),
+                    ),
+                  )
+                : DefaultTextStyle.merge(
+                    key: const ValueKey('content'),
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                    child: child,
+                  ),
+          ),
         ),
       ),
     );
@@ -1149,34 +1173,39 @@ class _StoreTipBottomSheetState extends State<_StoreTipBottomSheet> {
               ),
             ),
             const SizedBox(height: 12),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 8,
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              child: Row(
                 children: _presets.map((v) {
                   final active = _amount == v;
-                  return ChoiceChip(
-                    side: BorderSide(
-                      color: AppPalette.border,
-                      width: AppDims.border,
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 2),
+                    child: ChoiceChip(
+                      side: BorderSide(
+                        color: AppPalette.border,
+                        width: AppDims.border2,
+                      ),
+                      label: Text('¥${_fmt(v)}'),
+                      selected: active,
+                      showCheckmark: false,
+                      backgroundColor: active
+                          ? AppPalette.black
+                          : AppPalette.white,
+                      selectedColor: AppPalette.black,
+                      labelStyle: TextStyle(
+                        color: active
+                            ? AppPalette.white
+                            : AppPalette.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      onSelected: (_) => _setAmount(v),
                     ),
-                    label: Text('¥${_fmt(v)}'),
-                    selected: active,
-                    showCheckmark: false,
-                    backgroundColor: active
-                        ? AppPalette.black
-                        : AppPalette.white,
-                    selectedColor: AppPalette.black,
-                    labelStyle: TextStyle(
-                      color: active ? AppPalette.white : AppPalette.textPrimary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    onSelected: (_) => _setAmount(v),
                   );
                 }).toList(),
               ),
             ),
+
             const SizedBox(height: 12),
             _Keypad(
               onTapDigit: _appendDigit,

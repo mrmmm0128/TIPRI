@@ -100,9 +100,8 @@ class _PublicStaffQrListPageState extends State<PublicStaffQrListPage> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      '各スタッフの「QRポスターを作る」ボタンから、本人ページへ誘導するQR付きポスターを作成できます。'
-                      '\n・顔写真と名前を確認して該当のカードを選んでください'
-                      '\n・PDFをダウンロードして印刷、店内に掲示してください',
+                      'スタッフ個別のチップ送信ページへ誘導するQR付きポスターを作成できます。'
+                      '\n・PDFをダウンロードして印刷、店内に掲示してください。',
                       style: const TextStyle(
                         color: Colors.black87,
                         height: 1.35,

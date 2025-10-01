@@ -7,12 +7,9 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-
-// ★ 追加：Firebase（匿名で読むだけ）
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-// ↓ FlutterFire CLI で生成済みなら使う（無ければ独自の Options を渡してください）
-import 'package:yourpay/firebase_options.dart'; // ← パスはプロジェクトに合わせて
+import 'package:yourpay/firebase_options.dart';
 
 class QrPosterBuilderPage extends StatefulWidget {
   const QrPosterBuilderPage({super.key});
@@ -131,7 +128,7 @@ class _QrPosterBuilderPageState extends State<QrPosterBuilderPage> {
     }
     const fb = String.fromEnvironment(
       'PUBLIC_BASE',
-      defaultValue: 'https://venerable-mermaid-fcf8c8.netlify.app',
+      defaultValue: 'https://tipri.jp',
     );
     return fb;
   }
@@ -481,16 +478,9 @@ class _QrPosterBuilderPageState extends State<QrPosterBuilderPage> {
                           children: [
                             Positioned.fill(
                               child: _photoBytes == null
-                                  ? Container(
-                                      color: Colors.black12,
-                                      child: const Center(
-                                        child: Text(
-                                          '写真なし',
-                                          style: TextStyle(
-                                            fontFamily: 'LINEseed',
-                                          ),
-                                        ),
-                                      ),
+                                  ? Image.asset(
+                                      "assets/posters/store_poster.png",
+                                      width: 70,
                                     )
                                   : Image.memory(
                                       _photoBytes!,

@@ -41,48 +41,46 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyDePrpR8CD5xWf19828aGwdgVve5s4EYOc',
-    appId: '1:362152912464:web:223f3abe2183994303d355',
-    messagingSenderId: '362152912464',
-    projectId: 'muscleshare-b34dd',
-    authDomain: 'muscleshare-b34dd.firebaseapp.com',
-    storageBucket: 'muscleshare-b34dd.firebasestorage.app',
-    measurementId: 'G-DH77D7G3L3',
+    apiKey: 'AIzaSyAIfxdoGM5TWDVRjtfazvWZ9LnLlMnOuZ4',
+    appId: '1:1005883564338:web:ad2b27b5bbd8c0993d772b',
+    messagingSenderId: '1005883564338',
+    projectId: 'yourpay-c5aaf',
+    authDomain: 'yourpay-c5aaf.firebaseapp.com',
+    storageBucket: 'yourpay-c5aaf.firebasestorage.app',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyDBZJjV-rlL-QbUdjTmoTpQ_Lta52VJE1k',
-    appId: '1:362152912464:android:e9fd977eebd07ae703d355',
-    messagingSenderId: '362152912464',
-    projectId: 'muscleshare-b34dd',
-    storageBucket: 'muscleshare-b34dd.firebasestorage.app',
+    apiKey: 'AIzaSyA6b_CgJzzbyGnwzUr6f8II2TrGref3PIs',
+    appId: '1:1005883564338:android:842c9bda50a93c513d772b',
+    messagingSenderId: '1005883564338',
+    projectId: 'yourpay-c5aaf',
+    storageBucket: 'yourpay-c5aaf.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyBqiNa-uKqFB96vmXmTx1wzyTOqmt1RnqI',
-    appId: '1:362152912464:ios:ed949e7f07b14e5203d355',
-    messagingSenderId: '362152912464',
-    projectId: 'muscleshare-b34dd',
-    storageBucket: 'muscleshare-b34dd.firebasestorage.app',
+    apiKey: 'AIzaSyAcDOqBARShc9W_r1Ug1moJVhEN67QUng4',
+    appId: '1:1005883564338:ios:558990a354be4d443d772b',
+    messagingSenderId: '1005883564338',
+    projectId: 'yourpay-c5aaf',
+    storageBucket: 'yourpay-c5aaf.firebasestorage.app',
     iosBundleId: 'com.example.yourpay',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyBqiNa-uKqFB96vmXmTx1wzyTOqmt1RnqI',
-    appId: '1:362152912464:ios:ed949e7f07b14e5203d355',
-    messagingSenderId: '362152912464',
-    projectId: 'muscleshare-b34dd',
-    storageBucket: 'muscleshare-b34dd.firebasestorage.app',
+    apiKey: 'AIzaSyAcDOqBARShc9W_r1Ug1moJVhEN67QUng4',
+    appId: '1:1005883564338:ios:558990a354be4d443d772b',
+    messagingSenderId: '1005883564338',
+    projectId: 'yourpay-c5aaf',
+    storageBucket: 'yourpay-c5aaf.firebasestorage.app',
     iosBundleId: 'com.example.yourpay',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyDePrpR8CD5xWf19828aGwdgVve5s4EYOc',
-    appId: '1:362152912464:web:eeedee488d8d4f9f03d355',
-    messagingSenderId: '362152912464',
-    projectId: 'muscleshare-b34dd',
-    authDomain: 'muscleshare-b34dd.firebaseapp.com',
-    storageBucket: 'muscleshare-b34dd.firebasestorage.app',
-    measurementId: 'G-BZ1MEYZYDM',
+    apiKey: 'AIzaSyAIfxdoGM5TWDVRjtfazvWZ9LnLlMnOuZ4',
+    appId: '1:1005883564338:web:feffb7ddfd91f8e73d772b',
+    messagingSenderId: '1005883564338',
+    projectId: 'yourpay-c5aaf',
+    authDomain: 'yourpay-c5aaf.firebaseapp.com',
+    storageBucket: 'yourpay-c5aaf.firebasestorage.app',
   );
 }

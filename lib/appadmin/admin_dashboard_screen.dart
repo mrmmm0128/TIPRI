@@ -410,11 +410,6 @@ class _AdminDashboardHomeState extends State<AdminDashboardHome> {
               },
               icon: const Icon(Icons.campaign_outlined),
             ),
-            IconButton(
-              tooltip: '再読込',
-              onPressed: () => setState(() => _revCache.clear()),
-              icon: const Icon(Icons.refresh),
-            ),
           ],
         ),
         body: Column(

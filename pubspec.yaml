@@ -92,6 +92,10 @@ flutter:
     - assets/pdf/tipri_page-0003.jpg
     - assets/pdf/tipri_page-0004.jpg
     - assets/pdf/tipri_page-0005.jpg
+    - assets/icons/staff_qr.png
+    - assets/icons/no_subscription.png
+    - assets/icons/50.png
+    - assets/icons/free.png
     
 
   # An image asset can refer to one or more resolution-specific "variants", see

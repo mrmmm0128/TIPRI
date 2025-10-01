@@ -1,4 +1,3 @@
-// lib/tenant/store_detail/tabs/store_qr_tab.dart
 import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
@@ -14,19 +13,22 @@ import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
 import 'package:barcode/barcode.dart';
 import 'package:url_launcher/url_launcher_string.dart';
+import 'package:yourpay/endUser/utils/image_scrol.dart';
 import 'package:yourpay/tenant/method/fetchPlan.dart';
-import 'package:yourpay/tenant/newTenant/onboardingSheet.dart';
+import 'package:yourpay/tenant/newTenant/onboardingSheet_2.dart';
+import 'dart:async'; // 追加
 
 class StoreQrTab extends StatefulWidget {
   final String tenantId;
   final String? tenantName;
   final String posterAssetPath; // 例: 'assets/posters/store_poster.png'
   final String? ownerId;
+  final bool? agency;
   const StoreQrTab({
     super.key,
     required this.tenantId,
     this.tenantName,
-
+    this.agency,
     this.posterAssetPath = 'assets/posters/store_poster.png',
     this.ownerId,
   });
@@ -177,6 +179,9 @@ class _StoreQrTabState extends State<StoreQrTab> {
   late CollectionReference<Map<String, dynamic>> _postersRef;
   Stream<QuerySnapshot<Map<String, dynamic>>>? _postersStream;
   QuerySnapshot<Map<String, dynamic>>? _initialPosters; // 初期表示用(キャッシュ)
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>?
+  _tenantListen; // 追加
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _tenantStatusSub;
 
   // 用紙：UI表示は setState、プレビューは _paperVN で用紙変更時のみ再描画
   _Paper _paper = _Paper.a4;
@@ -185,8 +190,11 @@ class _StoreQrTabState extends State<StoreQrTab> {
   Offset _qrPos = const Offset(0.5, 0.5);
   bool isC = false;
   _QrDesign _qrDesign = _QrDesign.classic;
+  bool agency = false;
 
   bool? _connected; // ← 一度だけ取得して保持
+  bool? _subscStatus = false;
+  bool _loggingOut = false;
 
   @override
   void initState() {
@@ -200,10 +208,14 @@ class _StoreQrTabState extends State<StoreQrTab> {
         .doc(widget.tenantId)
         .collection('posters');
 
+    if (widget.agency != null) {
+      agency = widget.agency!;
+    }
     _postersStream = _postersRef.snapshots(); // ← 初回から張る
 
     _primeInitialPosters(); // ← 下の #2 参照
-    _loadConnectedOnce();
+    _listenTenantAndControl(); // ← これに差し替え
+    _startWatchTenantStatus();
     _initialize();
   }
 
@@ -227,9 +239,138 @@ class _StoreQrTabState extends State<StoreQrTab> {
       });
 
       _primeInitialPosters(); // ★ 新テナントの初期データも取り直す
-      _loadConnectedOnce();
+      _listenTenantAndControl(); // ← これに差し替え
+      _startWatchTenantStatus();
       _initialize();
     }
+  }
+
+  Future<void> logout() async {
+    if (_loggingOut) return;
+    setState(() => _loggingOut = true);
+    try {
+      await FirebaseAuth.instance.signOut();
+      if (!mounted) return;
+
+      // 画面スタックを全消しして /login (BootGate) へ
+      Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('ログアウトに失敗: $e')));
+    } finally {
+      if (mounted) setState(() => _loggingOut = false);
+    }
+  }
+
+  static Future<void> showTipriInfoDialog(BuildContext context) async {
+    // 表示する画像（あなたのアセットパスに合わせて変更）
+    final assets = <String>[
+      'assets/pdf/tipri_page-0001.jpg',
+      'assets/pdf/tipri_page-0002.jpg',
+      'assets/pdf/tipri_page-0003.jpg',
+      'assets/pdf/tipri_page-0004.jpg',
+      'assets/pdf/tipri_page-0005.jpg',
+    ];
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        final size = MediaQuery.of(ctx).size;
+        final maxWidth = size.width < 480
+            ? size.width
+            : 560.0; // スマホは画面幅、タブレット/PCは最大560
+        final height = size.height * 0.82; // 画面高の8割
+
+        return SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: maxWidth,
+                maxHeight: height,
+              ),
+              child: SizedBox(
+                width: maxWidth,
+                height: height,
+                child: Column(
+                  children: [
+                    // ヘッダ
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 8, 6),
+                      child: Row(
+                        children: [
+                          const Text(
+                            'チップリについて',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 16,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          const Spacer(),
+                          IconButton(
+                            tooltip: '閉じる',
+                            icon: const Icon(Icons.close),
+                            onPressed: () => Navigator.pop(ctx),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1),
+
+                    // 本体ビューア
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: ImagesScroller(assets: assets, borderRadius: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _startWatchTenantStatus() {
+    _tenantStatusSub?.cancel();
+    final ownerId = widget.ownerId;
+    final tenantId = widget.tenantId;
+    if (ownerId == null || tenantId.isEmpty) return;
+
+    final tenantRef = FirebaseFirestore.instance
+        .collection(ownerId)
+        .doc(tenantId);
+
+    _tenantStatusSub = tenantRef.snapshots().listen((snap) {
+      final data = snap.data();
+      bool next = false;
+
+      if (data != null) {
+        // 1) subscription.status を優先、なければ status を使う
+        final subStatus = (data['subscription'] as Map?)?['status'] as String?;
+        final rootStatus = data['status'] as String?;
+        final s = (subStatus ?? rootStatus)?.trim().toLowerCase();
+
+        // active / trialing / 過去の未払い状態(past_due, unpaid)は “接続中” とみなす
+        next =
+            s != null &&
+            ['active', 'trialing', 'past_due', 'unpaid'].contains(s);
+      }
+
+      if (_subscStatus != next && mounted) {
+        setState(() => _subscStatus = next);
+      }
+    });
   }
 
   Future<void> _initialize() async {
@@ -240,28 +381,6 @@ class _StoreQrTabState extends State<StoreQrTab> {
     );
     if (!mounted) return;
     setState(() => isC = c); // ★ 取得後に描画更新
-  }
-
-  Future<void> _loadConnectedOnce() async {
-    try {
-      final doc = await FirebaseFirestore.instance
-          .collection(widget.ownerId!)
-          .doc(widget.tenantId)
-          .get();
-
-      final connect = (doc.data()?['connect'] as Map<String, dynamic>?) ?? {};
-
-      final chargesEnabled = (connect['charges_enabled'] as bool?) ?? false;
-      final payoutsEnabled = (connect['payouts_enabled'] as bool?) ?? false;
-      final detailsSubmitted = (connect['details_submitted'] as bool?) ?? false;
-
-      // 3 つすべて true のときのみ QR 関連 UI を有効化
-      final allReady = chargesEnabled && payoutsEnabled && detailsSubmitted;
-
-      if (mounted) setState(() => _connected = allReady);
-    } catch (_) {
-      if (mounted) setState(() => _connected = false);
-    }
   }
 
   Future<void> _primeInitialPosters() async {
@@ -275,6 +394,38 @@ class _StoreQrTabState extends State<StoreQrTab> {
     } catch (_) {
       // キャッシュが無い・失敗は無視でOK
     }
+  }
+
+  void _listenTenantAndControl() {
+    // 既存購読があれば外す
+    _tenantListen?.cancel();
+
+    final docRef = FirebaseFirestore.instance
+        .collection(widget.ownerId!)
+        .doc(widget.tenantId);
+
+    _tenantListen = docRef.snapshots().listen(
+      (doc) {
+        final data = doc.data() ?? <String, dynamic>{};
+        final connect = (data['connect'] as Map<String, dynamic>?) ?? {};
+
+        final chargesEnabled = (connect['charges_enabled'] as bool?) ?? false;
+        final payoutsEnabled = (connect['payouts_enabled'] as bool?) ?? false;
+        final detailsSubmitted =
+            (connect['details_submitted'] as bool?) ?? false;
+
+        final allReady = chargesEnabled && payoutsEnabled && detailsSubmitted;
+
+        if (mounted) {
+          setState(() => _connected = allReady);
+        } else {
+          _connected = allReady;
+        }
+      },
+      onError: (_) {
+        if (mounted) setState(() => _connected = false);
+      },
+    );
   }
 
   String _buildStoreUrl() {
@@ -574,6 +725,8 @@ class _StoreQrTabState extends State<StoreQrTab> {
   @override
   void dispose() {
     _paperVN.dispose();
+    _tenantListen?.cancel();
+    _tenantStatusSub?.cancel();
     super.dispose();
   }
 
@@ -591,582 +744,686 @@ class _StoreQrTabState extends State<StoreQrTab> {
     final waitingConnect = _connected == null;
 
     // ---------------- UI ----------------
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: _postersStream,
-      initialData: _initialPosters,
-      builder: (context, postersSnap) {
-        // ★ 読み込みエラーは画面にも出し、SnackBar でも通知
-        if (postersSnap.hasError) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('ポスターの読み込みに失敗しました: ${postersSnap.error}'),
-                ),
+    return _subscStatus!
+        ? StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: _postersStream,
+            initialData: _initialPosters,
+            builder: (context, postersSnap) {
+              // ★ 読み込みエラーは画面にも出し、SnackBar でも通知
+              if (postersSnap.hasError) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('ポスターの読み込みに失敗しました: ${postersSnap.error}'),
+                      ),
+                    );
+                  }
+                });
+              }
+
+              final remoteDocs = (postersSnap.data?.docs ?? []);
+              final options = <_PosterOption>[
+                _PosterOption.asset(widget.posterAssetPath, label: 'テンプレ'),
+                ...remoteDocs.map((d) {
+                  final m = d.data();
+                  return _PosterOption.remote(
+                    d.id,
+                    (m['url'] ?? '') as String,
+                    label: (""),
+                  );
+                }),
+              ];
+
+              // ★ 楽観挿入の重複防止：同じIDがサーバーから来たら破棄
+              if (_optimisticPoster != null &&
+                  options.any((o) => o.id == _optimisticPoster!.id)) {
+                _optimisticPoster = null;
+              }
+
+              // ★ まだ入っていなければ一時的に挿入（アップロード直後にすぐ見える）
+              if (_optimisticPoster != null &&
+                  !options.any((o) => o.id == _optimisticPoster!.id)) {
+                options.insert(1, _optimisticPoster!);
+              }
+
+              final currentPosterId =
+                  options.any((o) => o.id == _selectedPosterId)
+                  ? _selectedPosterId
+                  : (options.isNotEmpty ? options.first.id : null);
+
+              final shouldDrawQr =
+                  (_connected == true) &&
+                  _publicStoreUrl != null &&
+                  _publicStoreUrl!.isNotEmpty;
+
+              Widget paperSelector() => Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  InputDecorator(
+                    decoration: InputDecoration(
+                      labelText: '用紙サイズ',
+                      labelStyle: TextStyle(color: black78),
+                      hintStyle: TextStyle(color: black78),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<_Paper>(
+                        key: const ValueKey('paper-dd'),
+                        value: _paper,
+                        isDense: true,
+                        onChanged: (v) {
+                          if (v == null) return;
+                          // 表示用の値と、プレビュー用の Notifier を更新
+                          setState(() => _paper = v);
+                          _paperVN.value = v; // ← これでプレビューは用紙変更時だけ再描画
+                        },
+                        items: _paperDefs.entries
+                            .map(
+                              (e) => DropdownMenuItem(
+                                value: e.key,
+                                child: Text(
+                                  e.value.label,
+                                  style: const TextStyle(
+                                    fontFamily: 'LINEseed',
+                                  ),
+                                ),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SwitchListTile(
+                    title: const Text(
+                      '横向き',
+                      style: TextStyle(
+                        color: Colors.black87,
+                        fontFamily: 'LINEseed',
+                      ),
+                    ),
+                    value: _landscape,
+                    dense: true,
+                    onChanged: (v) => setState(() => _landscape = v),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ],
               );
-            }
-          });
-        }
 
-        final remoteDocs = (postersSnap.data?.docs ?? []);
-        final options = <_PosterOption>[
-          _PosterOption.asset(widget.posterAssetPath, label: 'テンプレ'),
-          ...remoteDocs.map((d) {
-            final m = d.data();
-            return _PosterOption.remote(
-              d.id,
-              (m['url'] ?? '') as String,
-              label: (""),
-            );
-          }),
-        ];
-
-        // ★ 楽観挿入の重複防止：同じIDがサーバーから来たら破棄
-        if (_optimisticPoster != null &&
-            options.any((o) => o.id == _optimisticPoster!.id)) {
-          _optimisticPoster = null;
-        }
-
-        // ★ まだ入っていなければ一時的に挿入（アップロード直後にすぐ見える）
-        if (_optimisticPoster != null &&
-            !options.any((o) => o.id == _optimisticPoster!.id)) {
-          options.insert(1, _optimisticPoster!);
-        }
-
-        final currentPosterId = options.any((o) => o.id == _selectedPosterId)
-            ? _selectedPosterId
-            : (options.isNotEmpty ? options.first.id : null);
-
-        final shouldDrawQr =
-            (_connected == true) &&
-            _publicStoreUrl != null &&
-            _publicStoreUrl!.isNotEmpty;
-
-        Widget paperSelector() => Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            InputDecorator(
-              decoration: InputDecoration(
-                labelText: '用紙サイズ',
-                labelStyle: TextStyle(color: black78),
-                hintStyle: TextStyle(color: black78),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<_Paper>(
-                  key: const ValueKey('paper-dd'),
-                  value: _paper,
-                  isDense: true,
-                  onChanged: (v) {
-                    if (v == null) return;
-                    // 表示用の値と、プレビュー用の Notifier を更新
-                    setState(() => _paper = v);
-                    _paperVN.value = v; // ← これでプレビューは用紙変更時だけ再描画
-                  },
-                  items: _paperDefs.entries
-                      .map(
-                        (e) => DropdownMenuItem(
-                          value: e.key,
-                          child: Text(
-                            e.value.label,
-                            style: const TextStyle(fontFamily: 'LINEseed'),
-                          ),
-                        ),
-                      )
-                      .toList(),
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            SwitchListTile(
-              title: const Text(
-                '横向き',
-                style: TextStyle(color: Colors.black87, fontFamily: 'LINEseed'),
-              ),
-              value: _landscape,
-              dense: true,
-              onChanged: (v) => setState(() => _landscape = v),
-              contentPadding: EdgeInsets.zero,
-            ),
-          ],
-        );
-
-        Widget pdfButton() => FilledButton.icon(
-          style: primary,
-          onPressed: (_connected! && _publicStoreUrl != null)
-              ? () => _exportPdf(options)
-              : null,
-          icon: const Icon(Icons.file_download),
-          label: const Text(
-            'PDFをダウンロード',
-            style: TextStyle(fontFamily: 'LINEseed'),
-          ),
-        );
-
-        Widget uploadButton({required bool isC}) {
-          final canUpload = (_connected ?? false) && isC;
-
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              OutlinedButton.icon(
-                onPressed: canUpload ? _addPosterFromFile : null,
-                icon: const Icon(Icons.add_photo_alternate_outlined),
+              Widget pdfButton() => FilledButton.icon(
+                style: primary,
+                onPressed: (_connected! && _publicStoreUrl != null)
+                    ? () => _exportPdf(options)
+                    : null,
+                icon: const Icon(Icons.file_download),
                 label: const Text(
-                  'アップロード（Cプラン）',
+                  'PDFをダウンロード',
                   style: TextStyle(fontFamily: 'LINEseed'),
                 ),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: black78,
-                  side: const BorderSide(color: Colors.black54),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 12,
-                  ),
-                ),
-              ),
-            ],
-          );
-        }
-
-        Widget posterPicker() => Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Text(
-            //   'ポスターを選択',
-            //   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            //     color: black78,
-            //     fontFamily: "LINEseed",
-            //   ),
-            // ),
-            const SizedBox(height: 8),
-            SizedBox(
-              height: 108,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: options.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 10),
-                itemBuilder: (_, i) {
-                  final opt = options[i];
-                  final selected =
-                      (currentPosterId != null && opt.id == currentPosterId);
-
-                  return GestureDetector(
-                    onTap: () => setState(() => _selectedPosterId = opt.id),
-                    child: Column(
-                      children: [
-                        Container(
-                          width: 80,
-                          height: 80,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: selected ? Colors.black : Colors.black12,
-                              width: selected ? 2 : 1,
-                            ),
-                          ),
-                          clipBehavior: Clip.antiAlias,
-                          child: opt.isAsset
-                              ? Image.asset(opt.assetPath!, fit: BoxFit.cover)
-                              : isC
-                              ? Image.network(
-                                  opt.url!,
-                                  fit: BoxFit.cover,
-                                  loadingBuilder: (ctx, child, progress) =>
-                                      progress == null
-                                      ? child
-                                      : const Center(
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                          ),
-                                        ),
-                                  errorBuilder: (ctx, err, st) => const Center(
-                                    child: Icon(Icons.broken_image),
-                                  ),
-                                )
-                              : Center(child: Text("使用不可")),
-                        ),
-                        const SizedBox(height: 6),
-                        SizedBox(
-                          width: 90,
-                          child: Text(
-                            opt.label,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontFamily: 'LINEseed',
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
-        );
-
-        Widget urlButton(BuildContext context) {
-          final url = _publicStoreUrl;
-          if (url == null || url.isEmpty) return const SizedBox.shrink();
-
-          return FilledButton.icon(
-            style: FilledButton.styleFrom(
-              backgroundColor: Colors.black,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            onPressed: () async {
-              final ok = await launchUrlString(
-                url,
-                mode: LaunchMode.externalApplication,
-                webOnlyWindowName: '_self',
               );
-              if (!ok && context.mounted) {
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(const SnackBar(content: Text('リンクを開けませんでした')));
-              }
-            },
-            icon: const Icon(Icons.open_in_new),
-            label: const Text('ページ確認'),
-          );
-        }
 
-        Widget qrControls() => DefaultTextStyle.merge(
-          style: TextStyle(color: black78),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('QRデザイン'),
-                trailing: DropdownButton<_QrDesign>(
-                  value: _qrDesign,
-                  onChanged: (v) => setState(() => _qrDesign = v!),
-                  items: const [
-                    DropdownMenuItem(
-                      value: _QrDesign.classic,
-                      child: Text('デフォルト（四角）'),
-                    ),
-                    DropdownMenuItem(
-                      value: _QrDesign.roundEyes,
-                      child: Text('丸い目＋四角ドット'),
-                    ),
-                    DropdownMenuItem(
-                      value: _QrDesign.dots,
-                      child: Text('丸ドット'),
+              Widget uploadButton({required bool isC}) {
+                final canUpload = (_connected ?? false) && isC;
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: canUpload ? _addPosterFromFile : null,
+                      icon: const Icon(Icons.add_photo_alternate_outlined),
+                      label: const Text(
+                        'アップロード（Cプラン）',
+                        style: TextStyle(fontFamily: 'LINEseed'),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: black78,
+                        side: const BorderSide(color: Colors.black54),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
+                      ),
                     ),
                   ],
-                ),
-              ),
-              _SliderTile(
-                label: 'QRサイズ（%）',
-                value: _qrScale,
-                min: 0.20,
-                max: 0.60,
-                displayAsPercent: true,
-                onChanged: (v) => setState(() => _qrScale = v),
-              ),
-              _SliderTile(
-                label: 'QRの余白（mm）',
-                value: _qrPaddingMm,
-                min: 0,
-                max: 20,
-                onChanged: (v) => setState(() => _qrPaddingMm = v),
-              ),
-              SwitchListTile(
-                title: const Text(
-                  'QRの背景を白で敷く',
-                  style: TextStyle(
-                    color: Colors.black87,
-                    fontFamily: 'LINEseed',
-                  ),
-                ),
-                value: _putWhiteBg,
-                onChanged: (v) => setState(() => _putWhiteBg = v),
-                contentPadding: EdgeInsets.zero,
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'ヒント：プレビュー内のQRをドラッグで移動／ダブルタップで中央に戻せます。',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.black54,
-                  fontFamily: 'LINEseed',
-                ),
-              ),
-            ],
-          ),
-        );
+                );
+              }
 
-        Widget connectNotice() => (!_connected!)
-            ? Column(
+              Widget posterPicker() => Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Card(
-                    elevation: 4,
-                    shadowColor: Colors.black26,
+                  // Text(
+                  //   'ポスターを選択',
+                  //   style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  //     color: black78,
+                  //     fontFamily: "LINEseed",
+                  //   ),
+                  // ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 108,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: options.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 10),
+                      itemBuilder: (_, i) {
+                        final opt = options[i];
+                        final selected =
+                            (currentPosterId != null &&
+                            opt.id == currentPosterId);
+
+                        return GestureDetector(
+                          onTap: () =>
+                              setState(() => _selectedPosterId = opt.id),
+                          child: Column(
+                            children: [
+                              Container(
+                                width: 80,
+                                height: 80,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: selected
+                                        ? Colors.black
+                                        : Colors.black12,
+                                    width: selected ? 2 : 1,
+                                  ),
+                                ),
+                                clipBehavior: Clip.antiAlias,
+                                child: opt.isAsset
+                                    ? Image.asset(
+                                        opt.assetPath!,
+                                        fit: BoxFit.cover,
+                                      )
+                                    : isC
+                                    ? Image.network(
+                                        opt.url!,
+                                        fit: BoxFit.cover,
+                                        loadingBuilder:
+                                            (
+                                              ctx,
+                                              child,
+                                              progress,
+                                            ) => progress == null
+                                            ? child
+                                            : const Center(
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                    ),
+                                              ),
+                                        errorBuilder: (ctx, err, st) =>
+                                            const Center(
+                                              child: Icon(Icons.broken_image),
+                                            ),
+                                      )
+                                    : Center(child: Text("使用不可")),
+                              ),
+                              const SizedBox(height: 6),
+                              SizedBox(
+                                width: 90,
+                                child: Text(
+                                  opt.label,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontFamily: 'LINEseed',
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              );
+
+              Widget urlButton(BuildContext context) {
+                final url = _publicStoreUrl;
+                if (url == null || url.isEmpty) return const SizedBox.shrink();
+
+                return FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.black,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: ListTile(
-                      leading: const CircleAvatar(
-                        backgroundColor: Colors.amber,
-                        foregroundColor: Colors.black,
-                        child: Icon(Icons.info_outline),
-                      ),
+                  ),
+                  onPressed: () async {
+                    final ok = await launchUrlString(
+                      url,
+                      mode: LaunchMode.externalApplication,
+                      webOnlyWindowName: '_self',
+                    );
+                    if (!ok && context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('リンクを開けませんでした')),
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.open_in_new),
+                  label: const Text('ページ確認'),
+                );
+              }
 
-                      trailing: FilledButton(
-                        style: primary,
-                        onPressed: () => startOnboarding(
-                          widget.tenantId,
-                          widget.tenantName!,
-                        ),
-                        child: const Text(
-                          'コネクトアカウント作成未完了',
-                          style: TextStyle(fontFamily: 'LINEseed'),
-                        ),
+              Widget qrControls() => DefaultTextStyle.merge(
+                style: TextStyle(color: black78),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('QRデザイン'),
+                      trailing: DropdownButton<_QrDesign>(
+                        value: _qrDesign,
+                        onChanged: (v) => setState(() => _qrDesign = v!),
+                        items: const [
+                          DropdownMenuItem(
+                            value: _QrDesign.classic,
+                            child: Text('デフォルト（四角）'),
+                          ),
+                          DropdownMenuItem(
+                            value: _QrDesign.roundEyes,
+                            child: Text('丸い目＋四角ドット'),
+                          ),
+                          DropdownMenuItem(
+                            value: _QrDesign.dots,
+                            child: Text('丸ドット'),
+                          ),
+                        ],
                       ),
                     ),
-                  ),
-                  Text(
-                    "コネクトアカウントを作成し、チップを受け取る準備を完了しましょう\n QRコードが表示され、お客様がチップ送信ページに遷移可能に",
-                  ),
-                ],
-              )
-            : const SizedBox.shrink();
-
-        // 右側プレビュー：用紙変更時だけ再レイアウト（_paperVN）
-        Widget previewPane() => ValueListenableBuilder<_Paper>(
-          valueListenable: _paperVN,
-          builder: (_, paper, __) {
-            final def = _paperDefs[paper]!;
-            final wMm = _landscape ? def.heightMm : def.widthMm;
-            final hMm = _landscape ? def.widthMm : def.heightMm;
-            final aspect = wMm / hMm;
-
-            return AspectRatio(
-              aspectRatio: aspect,
-              child: LayoutBuilder(
-                builder: (context, c) {
-                  final w = c.maxWidth;
-                  final h = c.maxHeight;
-                  final minSide = w < h ? w : h;
-
-                  final widthMm = _landscape ? def.heightMm : def.widthMm;
-                  final pxPerMm = w / widthMm;
-                  final padPx = _qrPaddingMm * pxPerMm;
-                  final qrSidePx = minSide * _qrScale;
-                  final boxSidePx = qrSidePx + (_putWhiteBg ? padPx * 2 : 0);
-
-                  final halfX = (boxSidePx / 2) / w;
-                  final halfY = (boxSidePx / 2) / h;
-
-                  final selected = options.firstWhere(
-                    (o) => o.id == _selectedPosterId,
-                    orElse: () => options.first,
-                  );
-                  final posterWidget = selected.isAsset
-                      ? Image.asset(selected.assetPath!, fit: BoxFit.cover)
-                      : isC
-                      ? Image.network(selected.url!, fit: BoxFit.cover)
-                      : null;
-
-                  final left = _qrPos.dx * w - boxSidePx / 2;
-                  final top = _qrPos.dy * h - boxSidePx / 2;
-
-                  final showQr =
-                      (_connected == true) &&
-                      _publicStoreUrl != null &&
-                      _publicStoreUrl!.isNotEmpty;
-
-                  // ★ ここを必ず return する！
-                  return Stack(
-                    children: [
-                      Positioned.fill(
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: posterWidget,
+                    _SliderTile(
+                      label: 'QRサイズ（%）',
+                      value: _qrScale,
+                      min: 0.20,
+                      max: 0.60,
+                      displayAsPercent: true,
+                      onChanged: (v) => setState(() => _qrScale = v),
+                    ),
+                    _SliderTile(
+                      label: 'QRの余白（mm）',
+                      value: _qrPaddingMm,
+                      min: 0,
+                      max: 20,
+                      onChanged: (v) => setState(() => _qrPaddingMm = v),
+                    ),
+                    SwitchListTile(
+                      title: const Text(
+                        'QRの背景を白で敷く',
+                        style: TextStyle(
+                          color: Colors.black87,
+                          fontFamily: 'LINEseed',
                         ),
                       ),
-                      if (showQr)
-                        Positioned(
-                          left: left,
-                          top: top,
-                          width: boxSidePx,
-                          height: boxSidePx,
-                          child: GestureDetector(
-                            onPanUpdate: (details) {
-                              setState(() {
-                                final nx = (_qrPos.dx + details.delta.dx / w)
-                                    .clamp(halfX, 1 - halfX)
-                                    .toDouble(); // ★ clamp の戻り値を double に
-                                final ny = (_qrPos.dy + details.delta.dy / h)
-                                    .clamp(halfY, 1 - halfY)
-                                    .toDouble();
-                                _qrPos = Offset(nx, ny);
-                              });
-                            },
-                            onDoubleTap: () =>
-                                setState(() => _qrPos = const Offset(0.5, 0.5)),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: _putWhiteBg
-                                    ? Colors.white
-                                    : Colors.transparent,
-                                borderRadius: BorderRadius.circular(8),
-                                boxShadow: _putWhiteBg
-                                    ? const [
-                                        BoxShadow(
-                                          color: Color(0x22000000),
-                                          blurRadius: 6,
-                                          offset: Offset(0, 2),
-                                        ),
-                                      ]
-                                    : null,
-                                border: Border.all(color: Colors.black12),
-                              ),
-                              alignment: Alignment.center,
-                              child: Padding(
-                                padding: EdgeInsets.all(
-                                  _putWhiteBg ? padPx : 0,
-                                ),
-                                child: QrImageView(
-                                  data: _publicStoreUrl!,
-                                  version: QrVersions.auto,
-                                  gapless: true,
-                                  size: qrSidePx,
-                                  eyeStyle: QrEyeStyle(
-                                    color: Colors.black,
-                                    eyeShape:
-                                        _qrDesign == _QrDesign.dots ||
-                                            _qrDesign == _QrDesign.roundEyes
-                                        ? QrEyeShape.circle
-                                        : QrEyeShape.square,
-                                  ),
-                                  dataModuleStyle: QrDataModuleStyle(
-                                    color: Colors.black,
-                                    dataModuleShape: _qrDesign == _QrDesign.dots
-                                        ? QrDataModuleShape.circle
-                                        : QrDataModuleShape.square,
-                                  ),
-                                ),
+                      value: _putWhiteBg,
+                      onChanged: (v) => setState(() => _putWhiteBg = v),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'ヒント：プレビュー内のQRをドラッグで移動／ダブルタップで中央に戻せます。',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.black54,
+                        fontFamily: 'LINEseed',
+                      ),
+                    ),
+                  ],
+                ),
+              );
+
+              Widget connectNotice() => (!_connected!)
+                  ? Column(
+                      children: [
+                        Card(
+                          elevation: 4,
+                          shadowColor: Colors.black26,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: ListTile(
+                            leading: const CircleAvatar(
+                              backgroundColor: Colors.amber,
+                              foregroundColor: Colors.black,
+                              child: Icon(Icons.info_outline),
+                            ),
+
+                            trailing: FilledButton(
+                              style: primary,
+                              onPressed: agency
+                                  ? null
+                                  : () => startOnboarding(
+                                      widget.tenantId,
+                                      widget.tenantName!,
+                                    ),
+                              child: const Text(
+                                'コネクトアカウント作成未完了',
+                                style: TextStyle(fontFamily: 'LINEseed'),
                               ),
                             ),
                           ),
                         ),
-                    ],
+                      ],
+                    )
+                  : const SizedBox.shrink();
+
+              // 右側プレビュー：用紙変更時だけ再レイアウト（_paperVN）
+              Widget previewPane() => ValueListenableBuilder<_Paper>(
+                valueListenable: _paperVN,
+                builder: (_, paper, __) {
+                  final def = _paperDefs[paper]!;
+                  final wMm = _landscape ? def.heightMm : def.widthMm;
+                  final hMm = _landscape ? def.widthMm : def.heightMm;
+                  final aspect = wMm / hMm;
+
+                  return AspectRatio(
+                    aspectRatio: aspect,
+                    child: LayoutBuilder(
+                      builder: (context, c) {
+                        final w = c.maxWidth;
+                        final h = c.maxHeight;
+                        final minSide = w < h ? w : h;
+
+                        final widthMm = _landscape ? def.heightMm : def.widthMm;
+                        final pxPerMm = w / widthMm;
+                        final padPx = _qrPaddingMm * pxPerMm;
+                        final qrSidePx = minSide * _qrScale;
+                        final boxSidePx =
+                            qrSidePx + (_putWhiteBg ? padPx * 2 : 0);
+
+                        final halfX = (boxSidePx / 2) / w;
+                        final halfY = (boxSidePx / 2) / h;
+
+                        final selected = options.firstWhere(
+                          (o) => o.id == _selectedPosterId,
+                          orElse: () => options.first,
+                        );
+                        final posterWidget = selected.isAsset
+                            ? Image.asset(
+                                selected.assetPath!,
+                                fit: BoxFit.cover,
+                              )
+                            : isC
+                            ? Image.network(selected.url!, fit: BoxFit.cover)
+                            : null;
+
+                        final left = _qrPos.dx * w - boxSidePx / 2;
+                        final top = _qrPos.dy * h - boxSidePx / 2;
+
+                        final showQr =
+                            (_connected == true) &&
+                            _publicStoreUrl != null &&
+                            _publicStoreUrl!.isNotEmpty;
+
+                        // ★ ここを必ず return する！
+                        return Stack(
+                          children: [
+                            Positioned.fill(
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: posterWidget,
+                              ),
+                            ),
+                            if (showQr)
+                              Positioned(
+                                left: left,
+                                top: top,
+                                width: boxSidePx,
+                                height: boxSidePx,
+                                child: GestureDetector(
+                                  onPanUpdate: (details) {
+                                    setState(() {
+                                      final nx = (_qrPos.dx + details.delta.dx / w)
+                                          .clamp(halfX, 1 - halfX)
+                                          .toDouble(); // ★ clamp の戻り値を double に
+                                      final ny =
+                                          (_qrPos.dy + details.delta.dy / h)
+                                              .clamp(halfY, 1 - halfY)
+                                              .toDouble();
+                                      _qrPos = Offset(nx, ny);
+                                    });
+                                  },
+                                  onDoubleTap: () => setState(
+                                    () => _qrPos = const Offset(0.5, 0.5),
+                                  ),
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: _putWhiteBg
+                                          ? Colors.white
+                                          : Colors.transparent,
+                                      borderRadius: BorderRadius.circular(8),
+                                      boxShadow: _putWhiteBg
+                                          ? const [
+                                              BoxShadow(
+                                                color: Color(0x22000000),
+                                                blurRadius: 6,
+                                                offset: Offset(0, 2),
+                                              ),
+                                            ]
+                                          : null,
+                                      border: Border.all(color: Colors.black12),
+                                    ),
+                                    alignment: Alignment.center,
+                                    child: Padding(
+                                      padding: EdgeInsets.all(
+                                        _putWhiteBg ? padPx : 0,
+                                      ),
+                                      child: QrImageView(
+                                        data: _publicStoreUrl!,
+                                        version: QrVersions.auto,
+                                        gapless: true,
+                                        size: qrSidePx,
+                                        eyeStyle: QrEyeStyle(
+                                          color: Colors.black,
+                                          eyeShape:
+                                              _qrDesign == _QrDesign.dots ||
+                                                  _qrDesign ==
+                                                      _QrDesign.roundEyes
+                                              ? QrEyeShape.circle
+                                              : QrEyeShape.square,
+                                        ),
+                                        dataModuleStyle: QrDataModuleStyle(
+                                          color: Colors.black,
+                                          dataModuleShape:
+                                              _qrDesign == _QrDesign.dots
+                                              ? QrDataModuleShape.circle
+                                              : QrDataModuleShape.square,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        );
+                      },
+                    ),
                   );
                 },
-              ),
-            );
-          },
-        );
+              );
 
-        final isWide = MediaQuery.of(context).size.width >= 900;
+              final isWide = MediaQuery.of(context).size.width >= 900;
 
-        if (isWide) {
-          return Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 460),
-                  child: SingleChildScrollView(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        connectNotice(),
-                        if (_connected!) ...[
-                          paperSelector(),
-                          const SizedBox(height: 12),
-                          Row(
+              if (isWide) {
+                return Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 460),
+                        child: SingleChildScrollView(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              Expanded(child: pdfButton()),
-                              const SizedBox(width: 12),
-                              Expanded(child: uploadButton(isC: isC)),
+                              connectNotice(),
+                              if (_connected!) ...[
+                                paperSelector(),
+                                const SizedBox(height: 12),
+                                Row(
+                                  children: [
+                                    Expanded(child: pdfButton()),
+                                    const SizedBox(width: 12),
+                                    Expanded(child: uploadButton(isC: isC)),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+                              ],
+                              posterPicker(),
+                              const SizedBox(height: 16),
+                              qrControls(),
+                              const SizedBox(height: 12),
+                              if (_connected!) ...[urlButton(context)],
                             ],
-                          ),
-                          const SizedBox(height: 16),
-                        ],
-                        posterPicker(),
-                        const SizedBox(height: 16),
-                        qrControls(),
-                        const SizedBox(height: 12),
-                        if (_connected!) ...[urlButton(context)],
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                _connected!
-                    ? Expanded(
-                        child: Align(
-                          alignment: Alignment.topCenter,
-                          child: previewPane(),
-                        ),
-                      )
-                    : Expanded(
-                        child: Center(
-                          child: Text(
-                            "コネクトアカウントを作成すると、QRコードを含んだポスターを作成することができます",
                           ),
                         ),
                       ),
-              ],
-            ),
-          );
-        } else {
-          if (waitingConnect) const LinearProgressIndicator(minHeight: 2);
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (waitingConnect)
-                  const LinearProgressIndicator(minHeight: 2), // ← こう
-                connectNotice(),
-                if (_connected!) ...[
-                  paperSelector(),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(child: pdfButton()),
-                      const SizedBox(width: 12),
-                      Expanded(child: uploadButton(isC: isC)),
+                      const SizedBox(width: 16),
+                      _connected!
+                          ? Expanded(
+                              child: Align(
+                                alignment: Alignment.topCenter,
+                                child: previewPane(),
+                              ),
+                            )
+                          : Expanded(
+                              child: Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Image.asset(
+                                      "assets/icons/staff_qr.png",
+                                      width: 70,
+                                    ),
+                                    const SizedBox(height: 30),
+                                    Center(
+                                      child: Text(
+                                        "コネクトアカウントを作成すると、QRコードを含んだポスターを作成することができます",
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
                     ],
                   ),
-                  const SizedBox(height: 16),
+                );
+              } else {
+                if (waitingConnect) const LinearProgressIndicator(minHeight: 2);
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (waitingConnect)
+                        const LinearProgressIndicator(minHeight: 2), // ← こう
+                      connectNotice(),
+                      if (_connected!) ...[
+                        paperSelector(),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(child: pdfButton()),
+                            const SizedBox(width: 12),
+                            Expanded(child: uploadButton(isC: isC)),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                      posterPicker(),
+                      const SizedBox(height: 16),
+                      previewPane(),
+                      const SizedBox(height: 12),
+                      if (_connected!) ...[urlButton(context)],
+                      const SizedBox(height: 16),
+                      qrControls(),
+                    ],
+                  ),
+                );
+              }
+            },
+          )
+        : Scaffold(
+            body: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Image.asset("assets/icons/no_subscription.png", width: 50),
+                  const SizedBox(height: 30),
+                  Center(child: Text("サブスクリプションを登録してください")),
+                  const SizedBox(height: 30),
+                  TextButton.icon(
+                    onPressed: () => showTipriInfoDialog(context),
+                    icon: const Icon(Icons.info_outline),
+                    label: const Text(
+                      'チップリについて',
+                      style: TextStyle(color: Color(0xFFFCC400)),
+                    ),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 30),
+                  Container(
+                    margin: const EdgeInsets.symmetric(
+                      vertical: 8,
+                      horizontal: 16,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border.all(color: Colors.black26),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(999),
+                      onTap: logout,
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(
+                          vertical: 12,
+                          horizontal: 20,
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.logout, color: Colors.black87, size: 18),
+                            SizedBox(width: 8),
+                            Text(
+                              'ログアウト',
+                              style: TextStyle(
+                                color: Colors.black87,
+                                fontWeight: FontWeight.w700,
+                                fontFamily: "LINEseed",
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
-                posterPicker(),
-                const SizedBox(height: 16),
-                previewPane(),
-                const SizedBox(height: 12),
-                if (_connected!) ...[urlButton(context)],
-                const SizedBox(height: 16),
-                qrControls(),
-              ],
+              ),
             ),
           );
-        }
-      },
-    );
   }
 }
 

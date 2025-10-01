@@ -217,6 +217,162 @@ class OnboardingSheetState extends State<OnboardingSheet> {
     );
   }
 
+  Widget _planComparisonTable(String trialStatus) {
+    // ここは自由に調整可：あなたの説明文に寄せました
+    const rows = <_FeatureRow>[
+      _FeatureRow('チップ受け取り', {'A': true, 'B': true, 'C': true}),
+      _FeatureRow('公式LINE案内', {'A': false, 'B': true, 'C': true}),
+      _FeatureRow('お礼コメント受取', {'A': false, 'B': true, 'C': true}),
+      _FeatureRow('Googleレビュー案内', {'A': false, 'B': false, 'C': true}),
+      _FeatureRow('オリジナルポスター作成', {'A': false, 'B': false, 'C': true}),
+      _FeatureRow('お客様への感謝動画', {'A': false, 'B': false, 'C': true}),
+    ];
+
+    Widget cellBody(Widget child, {TextAlign align = TextAlign.left}) =>
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+          child: DefaultTextStyle(
+            style: const TextStyle(
+              color: Colors.black87,
+              fontFamily: 'LINEseed',
+            ),
+            child: Align(
+              alignment: align == TextAlign.left
+                  ? Alignment.centerLeft
+                  : Alignment.center,
+              child: child,
+            ),
+          ),
+        );
+
+    Widget mark(bool ok) => Icon(
+      ok ? Icons.circle : Icons.close,
+      size: 16,
+      color: ok ? Colors.black : Colors.black45,
+    );
+
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.black12),
+        borderRadius: BorderRadius.circular(12),
+        color: Colors.white,
+      ),
+      child: Column(
+        children: [
+          // 見出し（紫帯）
+          Container(
+            decoration: BoxDecoration(
+              color: _kAccent,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(12),
+              ),
+            ),
+            child: Row(
+              children: const [
+                Expanded(
+                  flex: 6,
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 8),
+                    child: SizedBox(
+                      height: 40,
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          '機能比較',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                            fontFamily: 'LINEseed',
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  flex: 2,
+                  child: Center(
+                    child: Text(
+                      'A',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        fontFamily: 'LINEseed',
+                      ),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  flex: 2,
+                  child: Center(
+                    child: Text(
+                      'B',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        fontFamily: 'LINEseed',
+                      ),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  flex: 2,
+                  child: Center(
+                    child: Text(
+                      'C',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        fontFamily: 'LINEseed',
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // ボディ
+          ...rows.map(
+            (r) => Container(
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(color: Colors.black12.withOpacity(.5)),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Expanded(flex: 6, child: cellBody(Text(r.label))),
+                  Expanded(
+                    flex: 2,
+                    child: cellBody(
+                      mark(r.included['A'] == true),
+                      align: TextAlign.center,
+                    ),
+                  ),
+                  Expanded(
+                    flex: 2,
+                    child: cellBody(
+                      mark(r.included['B'] == true),
+                      align: TextAlign.center,
+                    ),
+                  ),
+                  Expanded(
+                    flex: 2,
+                    child: cellBody(
+                      mark(r.included['C'] == true),
+                      align: TextAlign.center,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ダイアログ用の小パーツ
   Widget _sectionHeader(String text) => Padding(
     padding: const EdgeInsets.only(bottom: 6),
@@ -277,7 +433,7 @@ class OnboardingSheetState extends State<OnboardingSheet> {
         await launchUrlString(
           url,
           mode: LaunchMode.platformDefault,
-          webOnlyWindowName: '_blank',
+          webOnlyWindowName: '_self',
         );
       } else {
         if (!mounted) return;
@@ -463,63 +619,6 @@ class OnboardingSheetState extends State<OnboardingSheet> {
     await _loadDraft();
   }
 
-  // ====== アクション：初期費用 ======
-  Future<void> _openInitialFeeCheckout() async {
-    if (_creatingInitial) return;
-    setState(() => _creatingInitial = true);
-
-    try {
-      final res = await widget.functions
-          .httpsCallable('createInitialFeeCheckout')
-          .call({
-            'tenantId': widget.tenantId,
-            'email': FirebaseAuth.instance.currentUser?.email,
-            'name': tenantName,
-          });
-      final data = res.data as Map;
-      final url = data['url'] as String?;
-      if (url != null && url.isNotEmpty) {
-        await launchUrlString(
-          url,
-          mode: LaunchMode.platformDefault,
-          webOnlyWindowName: '_self',
-        );
-      } else if (data['alreadyPaid'] == true) {
-        setState(() => _initialFeePaidLocal = true);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                '初期費用はすでにお支払い済みです',
-                style: TextStyle(fontFamily: 'LINEseed'),
-              ),
-            ),
-          );
-        }
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('初期費用リンクを取得できませんでした', style: TextStyle()),
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '初期費用の決済開始に失敗: $e',
-            style: TextStyle(fontFamily: 'LINEseed'),
-          ),
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => _creatingInitial = false);
-    }
-  }
-
   // ====== アクション：サブスク ======
   Future<void> _openSubscriptionCheckout() async {
     if (_creatingSub) return;
@@ -610,41 +709,6 @@ class OnboardingSheetState extends State<OnboardingSheet> {
       );
     } finally {
       if (mounted) setState(() => _creatingConnect = false);
-    }
-  }
-
-  Future<void> _checkConnectLatest() async {
-    if (_checkingConnect) return;
-    setState(() => _checkingConnect = true);
-    try {
-      final doc = await FirebaseFirestore.instance
-          .collection(uid)
-          .doc(widget.tenantId)
-          .get();
-      final c = (doc.data()?['connect'] as Map?) ?? {};
-      final ok =
-          (c['charges_enabled'] == true) && (c['payouts_enabled'] == true);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            ok ? '接続は有効です' : 'まだ提出が必要です',
-            style: TextStyle(fontFamily: 'LINEseed'),
-          ),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '状態の取得に失敗: $e',
-            style: TextStyle(fontFamily: 'LINEseed'),
-          ),
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => _checkingConnect = false);
     }
   }
 
@@ -752,10 +816,7 @@ class OnboardingSheetState extends State<OnboardingSheet> {
       // 本体とインデックスを同時に更新
       await Future.wait([
         userRef.set(data, SetOptions(merge: true)),
-        indexRef.set({
-          ...data,
-          'uid': uid, // インデックスにはオーナーuidも持たせる
-        }, SetOptions(merge: true)),
+        indexRef.set({...data}, SetOptions(merge: true)),
       ]);
 
       // 代理店コードがあればリンクを試み、contracts を draft で作成/更新
@@ -1010,6 +1071,596 @@ class OnboardingSheetState extends State<OnboardingSheet> {
     fixedCtrl.dispose();
   }
 
+  static const _kAccent = Color(0xFF6C3AF2); // 見出し等に使う紫
+
+  // Widget _planRadioList(String trialStatus) {
+  //   // 既存 _Plan 定義を利用
+  //   const plans = <_Plan>[
+  //     _Plan(
+  //       code: 'A',
+  //       title: 'Aプラン',
+  //       monthly: 1980,
+  //       feePct: 35,
+  //       features: ['月額1980円で手軽に今すぐ開始'],
+  //     ),
+  //     _Plan(
+  //       code: 'B',
+  //       title: 'Bプラン',
+  //       monthly: 7960,
+  //       feePct: 25,
+  //       features: ['公式ライン案内', "チップとともにコメントの送信"],
+  //     ),
+  //     _Plan(
+  //       code: 'C',
+  //       title: 'Cプラン',
+  //       monthly: 19600,
+  //       feePct: 15,
+  //       features: [
+  //         '公式ライン案内',
+  //         "チップとともにコメントの送信",
+  //         'Googleレビュー導線の設置',
+  //         "オリジナルポスター作成",
+  //         "お客様への感謝動画",
+  //       ],
+  //     ),
+  //   ];
+
+  //   String priceLabel(_Plan p) {
+  //     if (trialStatus != "none") {
+  //       // トライアル中は「定価に取り消し線 + 無料」
+  //       return '¥${p.monthly}/月 → 無料';
+  //     }
+  //     return p.monthly == 0 ? '無料' : '¥${p.monthly}/月';
+  //   }
+
+  //   return Container(
+  //     decoration: BoxDecoration(
+  //       color: Colors.white,
+  //       borderRadius: BorderRadius.circular(12),
+  //       border: Border.all(color: Colors.black12),
+  //     ),
+  //     child: Column(
+  //       children: plans.map((p) {
+  //         final sel = selectedPlan == p.code;
+  //         return InkWell(
+  //           onTap: () => setState(() => selectedPlan = p.code),
+  //           child: Container(
+  //             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+  //             decoration: BoxDecoration(
+  //               border: Border(
+  //                 bottom: BorderSide(color: Colors.black12.withOpacity(.4)),
+  //               ),
+  //             ),
+  //             child: Row(
+  //               children: [
+  //                 Column(
+  //                   children: [
+  //                     Text(
+  //                       "オススメ",
+  //                       style: TextStyle(
+  //                         fontFamily: 'LINEseed',
+  //                         fontSize: 10,
+  //                         fontWeight: FontWeight.w700,
+  //                         color: Colors.red,
+  //                       ),
+  //                     ),
+  //                     Radio<String>(
+  //                       value: p.code,
+  //                       groupValue: selectedPlan,
+  //                       onChanged: (v) => setState(() => selectedPlan = v!),
+  //                       activeColor: Colors.black,
+  //                     ),
+  //                   ],
+  //                 ),
+  //                 const SizedBox(width: 4),
+  //                 Expanded(
+  //                   child: Column(
+  //                     crossAxisAlignment: CrossAxisAlignment.start,
+  //                     children: [
+  //                       Container(
+  //                         padding: const EdgeInsets.symmetric(
+  //                           horizontal: 8,
+  //                           vertical: 3,
+  //                         ),
+  //                         decoration: BoxDecoration(
+  //                           color: Colors.red,
+  //                           borderRadius: BorderRadius.circular(6),
+  //                         ),
+  //                         child: DefaultTextStyle(
+  //                           style: const TextStyle(
+  //                             color: Colors.white,
+  //                             fontWeight: FontWeight.w900,
+  //                             height: 1.0,
+  //                           ),
+  //                           child: Row(
+  //                             mainAxisSize: MainAxisSize.min,
+  //                             children: [
+  //                               // 「売上」+ 白い下線
+  //                               IntrinsicWidth(
+  //                                 child: Column(
+  //                                   mainAxisSize: MainAxisSize.min,
+  //                                   crossAxisAlignment:
+  //                                       CrossAxisAlignment.start,
+  //                                   children: [
+  //                                     const Text(
+  //                                       '売上',
+  //                                       style: TextStyle(fontSize: 10),
+  //                                     ),
+  //                                     const SizedBox(height: 1),
+  //                                     Container(
+  //                                       height: 2,
+  //                                       color: Colors.white,
+  //                                     ), // 下線
+  //                                   ],
+  //                                 ),
+  //                               ),
+  //                               const SizedBox(width: 6),
+  //                               const Text(
+  //                                 'No.1',
+  //                                 style: TextStyle(fontSize: 12),
+  //                               ),
+  //                             ],
+  //                           ),
+  //                         ),
+  //                       ),
+  //                       Text(
+  //                         p.title,
+  //                         style: TextStyle(
+  //                           fontFamily: 'LINEseed',
+  //                           fontWeight: FontWeight.w700,
+  //                           color: Colors.black87,
+  //                         ),
+  //                       ),
+  //                       const SizedBox(height: 2),
+  //                       Text(
+  //                         'チップ手数料 ${p.feePct}%',
+  //                         style: const TextStyle(
+  //                           fontSize: 9,
+  //                           color: Colors.black54,
+  //                           fontFamily: 'LINEseed',
+  //                         ),
+  //                       ),
+  //                     ],
+  //                   ),
+  //                 ),
+  //                 const SizedBox(width: 8),
+  //                 // 価格表示（トライアル時は取り消し線＋無料バッジ風）
+  //                 if (trialStatus != "none") ...[
+  //                   Text(
+  //                     '¥${p.monthly}/月',
+  //                     style: const TextStyle(
+  //                       decoration: TextDecoration.lineThrough,
+  //                       decorationThickness: 2,
+  //                       fontWeight: FontWeight.w600,
+  //                       fontFamily: 'LINEseed',
+  //                     ),
+  //                   ),
+  //                   const SizedBox(width: 8),
+  //                   Container(
+  //                     padding: const EdgeInsets.symmetric(
+  //                       horizontal: 8,
+  //                       vertical: 4,
+  //                     ),
+  //                     decoration: BoxDecoration(
+  //                       border: Border.all(color: Colors.black87),
+  //                       borderRadius: BorderRadius.circular(6),
+  //                     ),
+  //                     child: const Text(
+  //                       '無料',
+  //                       style: TextStyle(
+  //                         fontWeight: FontWeight.w800,
+  //                         fontFamily: 'LINEseed',
+  //                       ),
+  //                     ),
+  //                   ),
+  //                 ] else
+  //                   Text(
+  //                     priceLabel(p),
+  //                     style: const TextStyle(
+  //                       fontWeight: FontWeight.w700,
+  //                       fontFamily: 'LINEseed',
+  //                     ),
+  //                   ),
+  //               ],
+  //             ),
+  //           ),
+  //         );
+  //       }).toList(),
+  //     ),
+  //   );
+  // }
+
+  Widget _planSelector({
+    required VoidCallback onStart,
+    bool creating = false,
+    bool disabled = false,
+    required String trialStatus,
+  }) {
+    // 画像の表記に寄せたラインナップ（数は自由でOK）
+    const plans = <_Plan>[
+      _Plan(code: 'A', title: 'Aプラン', monthly: 0, feePct: 35),
+      _Plan(code: 'B', title: 'Bプラン', monthly: 3980, feePct: 25),
+      _Plan(code: 'C', title: 'Cプラン', monthly: 9800, feePct: 15),
+    ];
+    final bool trialOnlyC = trialStatus != "none"; // ← トライアル有効なら true
+
+    Future<void> _showTrialOnlyDialog(BuildContext context) async {
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: Colors.white, // ← 白背景
+          surfaceTintColor: Colors.white, // ← M3の色乗りを防ぐ
+          title: const Text('無料トライアルについて'),
+          content: const Text(
+            '無料トライアルは全ての機能が使えるCプランのみとなります。\n'
+            '契約後トライアル中にA、Bプランに変更が可能です。',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    void _handleSelectPlan(_Plan p) {
+      if (disabled) return;
+      setState(() => selectedPlan = p.code);
+    }
+
+    String price(_Plan p) {
+      if (p.monthly == 0) return '0';
+      final s = p.monthly.toString();
+      final withComma = s.replaceAllMapped(
+        RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
+        (m) => '${m[1]},',
+      );
+      return withComma;
+    }
+
+    const double rowHeight = 70;
+
+    Widget item(_Plan p) {
+      // A は「無料」、B/C は「50% OFF」吹き出し
+      Widget? bubble;
+      if (p.code == 'A') {
+        bubble = const _Bubble('無料', color: Color(0xFF00C853));
+      } else if (p.code == 'B' || p.code == 'C') {
+        bubble = const _Bubble('50% OFF', color: Color(0xFFFF6D00));
+      }
+
+      return InkWell(
+        onTap: disabled ? null : () => _handleSelectPlan(p),
+        child: Container(
+          height: rowHeight, // ← 3行の縦幅を統一
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: const BoxDecoration(
+            border: Border(bottom: BorderSide(color: Color(0x1F000000))),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // 左：ラジオ（常に縦中央）＋ Cプランだけ「オススメ」バッジ
+              SizedBox(
+                width: 48,
+                height: rowHeight,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Radio<String>(
+                      value: p.code,
+                      groupValue: selectedPlan,
+                      onChanged: disabled ? null : (v) => _handleSelectPlan(p),
+                      activeColor: Colors.orange,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    if (p.title == 'Cプラン')
+                      const Positioned(
+                        top: 14,
+                        child: Text(
+                          'オススメ',
+                          style: TextStyle(
+                            fontFamily: 'LINEseed',
+                            fontSize: 7,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.red,
+                            height: 1.0,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 4),
+
+              // 中央：テキスト群（縦中央に寄せる）
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (p.title == "Cプラン")
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const DefaultTextStyle(
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 7,
+                            height: 1,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text('売上'),
+                              SizedBox(width: 3),
+                              Text('No.1'),
+                            ],
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 4),
+                    Text(
+                      p.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontFamily: 'LINEseed',
+                        fontWeight: FontWeight.w800,
+                        color: Colors.black87,
+                        fontSize: 16,
+                        height: 1.1, // ← 追加
+                      ),
+                    ),
+                    Text(
+                      'チップ手数料 ${p.feePct}％',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontFamily: 'LINEseed',
+                        color: Colors.black54,
+                        fontSize: 9,
+                        height: 1.1, // ← 追加
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(width: 8),
+              Baseline(
+                baseline: 20,
+                baselineType: TextBaseline.alphabetic,
+                child: Row(
+                  children: [
+                    RichText(
+                      text: TextSpan(
+                        children: [
+                          const TextSpan(
+                            text: '￥ ',
+                            style: TextStyle(
+                              fontFamily: 'LINEseed',
+                              color: Colors.black54,
+                              fontSize: 7,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          TextSpan(
+                            text: p.title == "Aプラン"
+                                ? "1,980"
+                                : p.title == "Bプラン"
+                                ? "7,960"
+                                : "19,600",
+                            style: const TextStyle(
+                              fontFamily: 'LINEseed',
+                              color: Colors.black87,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 2),
+                    Icon(Icons.arrow_forward, size: 15, weight: 30),
+                    const SizedBox(width: 2),
+                  ],
+                ),
+              ),
+              // const SizedBox(width: 2),
+              // Icon(Icons.arrow_forward, size: 15, weight: 15),
+              // const SizedBox(width: 2),
+
+              // 右：価格とその「上」に吹き出しを重ねる
+              Stack(
+                clipBehavior: Clip.none,
+                alignment: Alignment.centerRight,
+                children: [
+                  if (bubble != null)
+                    if (p.title == "Aプラン") ...[
+                      Positioned(
+                        top: -27,
+                        right: 0,
+                        child: Image.asset("assets/icons/free.png", width: 60),
+                      ),
+                    ],
+                  if (p.title == "Bプラン") ...[
+                    Positioned(
+                      top: -27,
+                      right: 15,
+                      child: Image.asset("assets/icons/50.png", width: 60),
+                    ),
+                  ],
+
+                  if (p.title == "Cプラン") ...[
+                    Positioned(
+                      top: -27,
+                      right: 25,
+                      child: Image.asset("assets/icons/50.png", width: 60),
+                    ),
+                  ],
+                  Baseline(
+                    baseline: 22,
+                    baselineType: TextBaseline.alphabetic,
+                    child: RichText(
+                      text: TextSpan(
+                        children: [
+                          const TextSpan(
+                            text: '￥ ',
+                            style: TextStyle(
+                              fontFamily: 'LINEseed',
+                              color: Colors.black54,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          TextSpan(
+                            text: price(p),
+                            style: const TextStyle(
+                              fontFamily: 'LINEseed',
+                              color: Colors.black87,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const TextSpan(
+                            text: ' /月',
+                            style: TextStyle(
+                              fontFamily: 'LINEseed',
+                              color: Colors.black54,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.black12),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x14000000),
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 紫ヘッダー
+          Container(
+            decoration: BoxDecoration(
+              color: _kAccent,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(12),
+              ),
+            ),
+            child: Row(
+              children: const [
+                Expanded(
+                  flex: 6,
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 8),
+                    child: SizedBox(
+                      height: 40,
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'プラン選択',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                            fontFamily: 'LINEseed',
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // ラジオ行
+          ...plans.map(item),
+
+          // 下部CTA
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+            child: SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: (disabled || creating)
+                    ? null
+                    : () async {
+                        if (trialOnlyC && selectedPlan != 'C') {
+                          await _showTrialOnlyDialog(context); // ← ここで白ダイアログ
+                          return; // 中断（確定しない）
+                        }
+                        onStart(); // 問題なければ実行
+                      },
+                style: FilledButton.styleFrom(
+                  backgroundColor: Colors.black,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 14,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                child: creating
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : trialStatus != "none"
+                    ? const Text(
+                        '無料で始める',
+                        style: TextStyle(
+                          fontFamily: 'LINEseed',
+                          fontWeight: FontWeight.w800,
+                        ),
+                      )
+                    : Text(
+                        '始める',
+                        style: TextStyle(
+                          fontFamily: 'LINEseed',
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ====== UI ======
   @override
   Widget build(BuildContext context) {
@@ -1097,101 +1748,82 @@ class OnboardingSheetState extends State<OnboardingSheet> {
                 ),
                 const SizedBox(height: 12),
 
-                // const Text(
-                //   '新規店舗作成\nサポート費用、サブスクリプションの登録、コネクトアカウントの登録を完了し、チップを受け取る準備を完了しましょう。',
-                //   style: TextStyle(
-                //     fontSize: 16,
-                //     fontWeight: FontWeight.w700,
-                //     color: Colors.black87,
-                //     fontFamily: 'LINEseed',
-                //   ),
-                // ),
-
-                // const SizedBox(height: 12),
-
-                // // ==== 3ボタンを同一モーダルで並べる ====
-                // _actionCard(
-                //   title: 'サポート料金(初回のみ)',
-                //   description: '初回限定で9800円でポスターの手配等、1か月間のサポートを行います。',
-                //   trailing: _statusPill(initialFeePaid),
-                //   child: FilledButton.icon(
-                //     onPressed: (initialFeePaid || _creatingInitial)
-                //         ? null
-                //         : _openInitialFeeCheckout,
-                //     icon: _creatingInitial
-                //         ? const SizedBox(
-                //             width: 16,
-                //             height: 16,
-                //             child: CircularProgressIndicator(strokeWidth: 2),
-                //           )
-                //         : const Icon(Icons.open_in_new),
-                //     label: Text(
-                //       initialFeePaid ? '支払い済み' : 'サポート料金を支払う',
-                //       style: TextStyle(fontFamily: 'LINEseed'),
-                //     ),
-                //   ),
-                // ),
-                const SizedBox(height: 10),
-
                 _actionCard(
                   title: 'サブスクリプション登録',
-                  description:
-                      'プランを選択し、登録へ進んでください。サブスクリプションの初回請求には、初期費用9800円の支払いが含まれます。',
+                  description: '',
                   trailing: _statusPill(subscribed),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      trialStatus == "none"
-                          ? Text("")
-                          : Text.rich(
+                      if (trialStatus != "none")
+                        Text.rich(
+                          TextSpan(
+                            style: const TextStyle(fontFamily: 'LINEseed'),
+                            children: const [
+                              TextSpan(text: 'トライアル期間（30日間）'),
                               TextSpan(
-                                style: const TextStyle(fontFamily: 'LINEseed'),
-                                children: const [
-                                  TextSpan(text: '始めの3ヶ月はトライアル期間により、'),
-                                  TextSpan(
-                                    text: '無料',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.red,
-                                    ),
-                                  ),
-                                  TextSpan(text: 'で使用することができます。'),
-                                ],
-                              ),
-                            ),
-
-                      _planChips(trialStatus),
-                      const SizedBox(height: 8),
-                      FilledButton.icon(
-                        onPressed: (subscribed || _creatingSub)
-                            ? null
-                            : _openSubscriptionCheckout,
-                        icon: _creatingSub
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
+                                text: '無料',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.red,
                                 ),
-                              )
-                            : const Icon(Icons.open_in_new),
-                        label: Text(
-                          subscribed ? '登録済み' : 'サブスク登録へ進む',
-                          style: TextStyle(fontFamily: 'LINEseed'),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                      const SizedBox(height: 10),
+
+                      // ▼▼ 新：ラジオ型プラン選択（上段）
+                      _planSelector(
+                        onStart: _openSubscriptionCheckout,
+                        creating: _creatingSub,
+                        disabled: subscribed,
+                        trialStatus: trialStatus,
+                      ),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          "※初回請求時にサポート費用（19,800円）が合算されます",
+                          style: const TextStyle(fontSize: 10),
+                          textAlign: TextAlign.right,
                         ),
                       ),
-                      const SizedBox(height: 5),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              "※チップ手数料＋振込手数料＋決済手数料がチップの手数料となります",
-                              style: TextStyle(fontSize: 10),
-                            ),
-                          ),
-                        ],
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          "※振込手数料＋決済手数料（3.6~3.98%）は店舗側の負担となります",
+                          style: const TextStyle(fontSize: 10),
+                          textAlign: TextAlign.right,
+                        ),
                       ),
+
+                      const SizedBox(height: 16),
+
+                      // ▼▼ 新：プラン比較表（下段）
+                      _planComparisonTable(trialStatus),
+
+                      const SizedBox(height: 12),
+
+                      // FilledButton.icon(
+                      //   onPressed: (subscribed || _creatingSub)
+                      //       ? null
+                      //       : _openSubscriptionCheckout,
+                      //   icon: _creatingSub
+                      //       ? const SizedBox(
+                      //           width: 16,
+                      //           height: 16,
+                      //           child: CircularProgressIndicator(
+                      //             strokeWidth: 2,
+                      //           ),
+                      //         )
+                      //       : const Icon(Icons.open_in_new),
+                      //   label: Text(
+                      //     subscribed ? '登録済み' : 'サブスク登録へ進む',
+                      //     style: const TextStyle(fontFamily: 'LINEseed'),
+                      //   ),
+                      // ),
+                      const SizedBox(height: 6),
                     ],
                   ),
                 ),
@@ -1199,7 +1831,7 @@ class OnboardingSheetState extends State<OnboardingSheet> {
                 const SizedBox(height: 10),
                 _actionCard(
                   title: 'Stripe Connect',
-                  description: '売上受け取り用のコネクトアカウントを作成します（本人確認・口座登録）',
+                  description: '',
                   trailing: _statusPill(connectOk),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1300,24 +1932,8 @@ class OnboardingSheetState extends State<OnboardingSheet> {
                             ),
                         ],
                       ),
-                      Text.rich(
-                        TextSpan(
-                          style: const TextStyle(fontFamily: 'LINEseed'),
-                          children: const [
-                            TextSpan(text: 'こちらに登録いただいた口座へ'),
-                            TextSpan(
-                              text: '毎月1日',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.red,
-                              ),
-                            ),
-                            TextSpan(text: 'にチップが振り込まれます。'),
-                          ],
-                        ),
-                      ),
+                      const SizedBox(height: 8),
 
-                      // 申請前は説明だけ、申請後は軽いヒントだけ（詳細はダイアログへ）
                       if (!hasConnectStarted) ...[
                         const SizedBox(height: 8),
                         const Text(
@@ -1450,14 +2066,17 @@ class OnboardingSheetState extends State<OnboardingSheet> {
             ],
           ),
           const SizedBox(height: 6),
-          Text(
-            description,
-            style: const TextStyle(
-              color: Colors.black87,
-              fontFamily: 'LINEseed',
+          if (description != "") ...[
+            Text(
+              description,
+              style: const TextStyle(
+                color: Colors.black87,
+                fontFamily: 'LINEseed',
+              ),
             ),
-          ),
-          const SizedBox(height: 10),
+            const SizedBox(height: 10),
+          ],
+
           child,
         ],
       ),
@@ -1492,209 +2111,6 @@ class OnboardingSheetState extends State<OnboardingSheet> {
       ),
     );
   }
-
-  Widget _planChips(String trialStatus) {
-    const plans = <_Plan>[
-      _Plan(
-        code: 'A',
-        title: 'Aプラン',
-        monthly: 1980,
-        feePct: 35,
-        features: ['月額1980円で手軽に今すぐ開始'],
-      ),
-      _Plan(
-        code: 'B',
-        title: 'Bプラン',
-        monthly: 7960,
-        feePct: 25,
-        features: ['公式ライン案内', "チップとともにコメントの送信"],
-      ),
-      _Plan(
-        code: 'C',
-        title: 'Cプラン',
-        monthly: 19600,
-        feePct: 15,
-        features: [
-          '公式ライン案内',
-          "チップとともにコメントの送信",
-          'Googleレビュー導線の設置',
-          "オリジナルポスター作成",
-          "お客様への感謝動画",
-        ],
-      ),
-    ];
-
-    Widget item(_Plan p) {
-      final sel = selectedPlan == p.code;
-      final fg = sel ? Colors.white : Colors.black87;
-      return ChoiceChip(
-        selected: sel,
-        onSelected: (_) => setState(() => selectedPlan = p.code),
-        backgroundColor: Colors.white,
-        selectedColor: Colors.black,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: sel ? Colors.black : Colors.black26),
-        ),
-        label: ConstrainedBox(
-          constraints: const BoxConstraints(minWidth: 220),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-            child: DefaultTextStyle(
-              style: TextStyle(color: fg, fontSize: 13),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: sel ? Colors.white : Colors.black,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          p.code,
-                          style: TextStyle(
-                            color: sel ? Colors.black : Colors.white,
-                            fontWeight: FontWeight.w800,
-                            fontFamily: 'LINEseed',
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          p.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: fg,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 15,
-                            fontFamily: 'LINEseed',
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      // B/C は「定価に取り消し線 + 無料」、それ以外（A）は従来どおり
-                      ((p.code == "A" || p.code == 'B' || p.code == 'C') &&
-                              trialStatus != "none")
-                          ? Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                // 定価（取り消し線）
-                                Text(
-                                  '¥${p.monthly}/月',
-                                  style: TextStyle(
-                                    color: fg.withOpacity(.9),
-                                    fontWeight: FontWeight.w700,
-                                    fontFamily: 'LINEseed',
-                                    decoration: TextDecoration.lineThrough,
-                                    decorationThickness: 2,
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                // 「無料」バッジ風
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: sel ? Colors.black : Colors.white,
-                                    borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(color: fg, width: 1),
-                                  ),
-                                  child: Text(
-                                    '無料',
-                                    style: TextStyle(
-                                      color: sel
-                                          ? Colors.white
-                                          : Colors.black87,
-                                      fontWeight: FontWeight.w800,
-                                      fontFamily: 'LINEseed',
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            )
-                          : Text(
-                              p.monthly == 0 ? '無料' : '¥${p.monthly}/月',
-                              style: TextStyle(
-                                color: fg,
-                                fontWeight: FontWeight.w700,
-                                fontFamily: 'LINEseed',
-                              ),
-                            ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'チップ手数料 ${p.feePct}%',
-                    style: TextStyle(
-                      color: fg.withOpacity(.8),
-                      fontFamily: 'LINEseed',
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  ...p.features.map(
-                    (f) => Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 1.5),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(Icons.check, size: 14, color: fg),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              f,
-                              style: TextStyle(
-                                color: fg,
-                                height: 1.2,
-                                fontFamily: 'LINEseed',
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth > 600) {
-          // PC表示 → 横並び
-          return IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (int i = 0; i < plans.length; i++) ...[
-                  Expanded(child: item(plans[i])),
-                  if (i < plans.length - 1) const SizedBox(width: 10),
-                ],
-              ],
-            ),
-          );
-        } else {
-          // モバイル表示 → 縦並び
-          return Column(children: plans.map((p) => item(p)).toList());
-        }
-      },
-    );
-  }
 }
 
 // ===== サポート =====
@@ -1703,13 +2119,13 @@ class _Plan {
   final String title;
   final int monthly; // JPY
   final int feePct; // %
-  final List<String> features;
+  final List<String>? features;
   const _Plan({
     required this.code,
     required this.title,
     required this.monthly,
     required this.feePct,
-    required this.features,
+    this.features,
   });
 }
 
@@ -1736,4 +2152,56 @@ Future<_AgentLink?> _tryLinkAgencyByCodeInternal({
   final agent = qs.docs.first;
   final pct = (agent.data()['commissionPercent'] as num?)?.toInt() ?? 0;
   return _AgentLink(agent.id, pct);
+}
+
+class _FeatureRow {
+  final String label;
+  final Map<String, bool> included; // planCode -> ○/×
+  const _FeatureRow(this.label, this.included);
+}
+
+class _Bubble extends StatelessWidget {
+  final String text;
+  final Color color;
+  final Color textColor;
+  const _Bubble(
+    this.text, {
+    this.color = const Color(0xFF00C853), // デフォ緑
+    this.textColor = Colors.white,
+    super.key,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            text,
+            style: const TextStyle(
+              fontFamily: 'LINEseed',
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+              height: 1.0,
+              color: Colors.white,
+            ),
+          ),
+        ),
+        Positioned(
+          bottom: -5,
+          left: 14,
+          child: Transform.rotate(
+            angle: 0.785398, // 45°
+            child: Container(width: 10, height: 10, color: color),
+          ),
+        ),
+      ],
+    );
+  }
 }

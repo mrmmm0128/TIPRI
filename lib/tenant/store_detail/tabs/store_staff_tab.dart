@@ -6,8 +6,10 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // クリップボード
+import 'package:yourpay/endUser/utils/image_scrol.dart';
 import 'package:yourpay/tenant/widget/store_staff/staff_detail.dart';
 import 'package:yourpay/tenant/widget/store_staff/staff_entry.dart';
+import 'dart:async';
 
 class StoreStaffTab extends StatefulWidget {
   final String tenantId;
@@ -24,9 +26,58 @@ class _StoreStaffTabState extends State<StoreStaffTab> {
   Uint8List? _empPhotoBytes;
   String? _empPhotoName;
   final uid = FirebaseAuth.instance.currentUser?.uid;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _tenantStatusSub;
   bool _addingEmp = false;
   bool _connected = false;
   bool _loggingOut = false;
+
+  void _startWatchTenantStatus() {
+    _tenantStatusSub?.cancel();
+    final ownerId = widget.ownerId;
+    final tenantId = widget.tenantId;
+    if (ownerId == null || tenantId.isEmpty) return;
+
+    final tenantRef = FirebaseFirestore.instance
+        .collection(ownerId)
+        .doc(tenantId);
+
+    _tenantStatusSub = tenantRef.snapshots().listen((snap) {
+      final data = snap.data();
+      bool next = false;
+
+      if (data != null) {
+        // 1) subscription.status を優先、なければ status を使う
+        final subStatus = (data['subscription'] as Map?)?['status'] as String?;
+        final rootStatus = data['status'] as String?;
+        final s = (subStatus ?? rootStatus)?.trim().toLowerCase();
+
+        // active / trialing / 過去の未払い状態(past_due, unpaid)は “接続中” とみなす
+        next =
+            s != null &&
+            ['active', 'trialing', 'past_due', 'unpaid'].contains(s);
+      }
+
+      if (_connected != next && mounted) {
+        setState(() => _connected = next);
+      }
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant StoreStaffTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 親から tenantId が変わった時だけ再読込（タップでメニュー開いただけでは変わらない）
+    if (oldWidget.tenantId != widget.tenantId) {
+      setState(() {});
+      _startWatchTenantStatus();
+    }
+  }
+
+  @override
+  void dispose() {
+    _tenantStatusSub?.cancel(); // ← 追加：購読を確実に解放
+    super.dispose();
+  }
 
   // 公開ページのベースURL（末尾スラなし）
   String get _publicBase {
@@ -304,6 +355,83 @@ class _StoreStaffTabState extends State<StoreStaffTab> {
     );
   }
 
+  static Future<void> showTipriInfoDialog(BuildContext context) async {
+    // 表示する画像（あなたのアセットパスに合わせて変更）
+    final assets = <String>[
+      'assets/pdf/tipri_page-0001.jpg',
+      'assets/pdf/tipri_page-0002.jpg',
+      'assets/pdf/tipri_page-0003.jpg',
+      'assets/pdf/tipri_page-0004.jpg',
+      'assets/pdf/tipri_page-0005.jpg',
+    ];
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        final size = MediaQuery.of(ctx).size;
+        final maxWidth = size.width < 480
+            ? size.width
+            : 560.0; // スマホは画面幅、タブレット/PCは最大560
+        final height = size.height * 0.82; // 画面高の8割
+
+        return SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: maxWidth,
+                maxHeight: height,
+              ),
+              child: SizedBox(
+                width: maxWidth,
+                height: height,
+                child: Column(
+                  children: [
+                    // ヘッダ
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 8, 6),
+                      child: Row(
+                        children: [
+                          const Text(
+                            'チップリについて',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 16,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          const Spacer(),
+                          IconButton(
+                            tooltip: '閉じる',
+                            icon: const Icon(Icons.close),
+                            onPressed: () => Navigator.pop(ctx),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1),
+
+                    // 本体ビューア
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: ImagesScroller(assets: assets, borderRadius: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   ThemeData _withLineSeed(ThemeData base) =>
       base.copyWith(textTheme: base.textTheme.apply(fontFamily: 'LINEseed'));
 
@@ -313,8 +441,6 @@ class _StoreStaffTabState extends State<StoreStaffTab> {
     final mq = MediaQuery.of(context);
     const fabHeight = 44.0;
     const fabBottomMargin = 16.0;
-
-    _loadConnectedOnce();
 
     final primaryBtnStyle = FilledButton.styleFrom(
       minimumSize: const Size(0, fabHeight),
@@ -459,7 +585,21 @@ class _StoreStaffTabState extends State<StoreStaffTab> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
+                  Image.asset("assets/icons/no_subscription.png", width: 50),
+                  const SizedBox(height: 30),
                   Center(child: Text("サブスクリプションを登録してください")),
+                  const SizedBox(height: 30),
+                  TextButton.icon(
+                    onPressed: () => showTipriInfoDialog(context),
+                    icon: const Icon(Icons.info_outline),
+                    label: const Text(
+                      'チップリについて',
+                      style: TextStyle(color: Color(0xFFFCC400)),
+                    ),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.black87,
+                    ),
+                  ),
                   const SizedBox(height: 30),
                   Container(
                     margin: const EdgeInsets.symmetric(

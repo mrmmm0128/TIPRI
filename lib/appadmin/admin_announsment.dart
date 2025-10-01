@@ -4,7 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-enum _TargetScope { all, tenantIds, filters }
+enum _TargetScope { all, tenantIds, filters, selectByName }
 
 class AdminAnnouncementPage extends StatefulWidget {
   const AdminAnnouncementPage({super.key});
@@ -19,6 +19,12 @@ class _AdminAnnouncementPageState extends State<AdminAnnouncementPage> {
   final _urlCtrl = TextEditingController();
   final _tenantIdsCtrl = TextEditingController();
 
+  // 新規: 店舗名検索
+  final _nameSearchCtrl = TextEditingController();
+  bool _searching = false;
+  List<Map<String, String>> _searchResults = []; // [{tenantId, ownerUid, name}]
+  final Set<String> _selectedTenantIds = {}; // tenantId 選択セット
+
   _TargetScope _scope = _TargetScope.all;
   bool _filterActiveOnly = true;
   bool _filterChargesEnabledOnly = false;
@@ -30,6 +36,7 @@ class _AdminAnnouncementPageState extends State<AdminAnnouncementPage> {
     _bodyCtrl.dispose();
     _urlCtrl.dispose();
     _tenantIdsCtrl.dispose();
+    _nameSearchCtrl.dispose();
     super.dispose();
   }
 
@@ -56,7 +63,7 @@ class _AdminAnnouncementPageState extends State<AdminAnnouncementPage> {
     final List<Map<String, String>> out = [];
 
     if (scope == _TargetScope.tenantIds) {
-      // 個別指定は ID で引く
+      // 個別ID指定
       for (final id in tenantIds) {
         final doc = await idxCol.doc(id).get();
         if (!doc.exists) continue;
@@ -64,7 +71,6 @@ class _AdminAnnouncementPageState extends State<AdminAnnouncementPage> {
         final uid = (data['uid'] as String?) ?? '';
         if (uid.isEmpty) continue;
 
-        // クライアントフィルタ（要件に合わせて緩く判定）
         if (activeOnly && ((data['status'] as String?) ?? '') != 'active') {
           continue;
         }
@@ -78,7 +84,20 @@ class _AdminAnnouncementPageState extends State<AdminAnnouncementPage> {
       return out;
     }
 
-    // all / filters は全件を取ってクライアントでフィルタ（件数が多い場合は Functions 化を検討）
+    if (scope == _TargetScope.selectByName) {
+      // チェックで選ばれたものをそのまま採用
+      for (final id in _selectedTenantIds) {
+        final doc = await idxCol.doc(id).get();
+        if (!doc.exists) continue;
+        final data = doc.data()!;
+        final uid = (data['uid'] as String?) ?? '';
+        if (uid.isEmpty) continue;
+        out.add({'tenantId': id, 'ownerUid': uid});
+      }
+      return out;
+    }
+
+    // all / filters は全件を取得してクライアントフィルタ
     final snap = await idxCol.get();
     for (final d in snap.docs) {
       final data = d.data();
@@ -148,6 +167,12 @@ class _AdminAnnouncementPageState extends State<AdminAnnouncementPage> {
         return;
       }
     }
+    if (_scope == _TargetScope.selectByName && _selectedTenantIds.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('送信先を1件以上選択してください')));
+      return;
+    }
 
     setState(() => _sending = true);
     try {
@@ -169,7 +194,7 @@ class _AdminAnnouncementPageState extends State<AdminAnnouncementPage> {
         return;
       }
 
-      // alerts に書くペイロード（※読み側の実装に合わせて message / read を必須で入れる）
+      // alerts ペイロード（既存の読み側と整合）
       final currentUser = FirebaseAuth.instance.currentUser;
       final alertPayloadBase = <String, dynamic>{
         'type': 'admin_announcement',
@@ -198,8 +223,147 @@ class _AdminAnnouncementPageState extends State<AdminAnnouncementPage> {
     }
   }
 
+  // ========= 店舗名検索系 =========
+
+  Future<void> _searchByName() async {
+    final q = _nameSearchCtrl.text.trim().toLowerCase();
+    setState(() {
+      _searching = true;
+      _searchResults = [];
+    });
+
+    try {
+      // シンプル実装：全件取得→クライアントで部分一致フィルタ
+      // 件数が非常に多い場合は Functions 側で nameLower への prefix 検索を推奨。
+      final snap = await FirebaseFirestore.instance
+          .collection('tenantIndex')
+          .get();
+
+      final List<Map<String, String>> rows = [];
+      for (final d in snap.docs) {
+        final data = d.data();
+        final name = (data['name'] as String? ?? '').trim();
+        final uid = (data['uid'] as String? ?? '').trim();
+        if (uid.isEmpty || name.isEmpty) continue;
+        if (q.isEmpty || name.toLowerCase().contains(q)) {
+          rows.add({'tenantId': d.id, 'ownerUid': uid, 'name': name});
+        }
+      }
+      rows.sort((a, b) => a['name']!.compareTo(b['name']!));
+
+      setState(() {
+        _searchResults = rows;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('検索に失敗: $e')));
+    } finally {
+      if (mounted) setState(() => _searching = false);
+    }
+  }
+
+  Widget _buildSelectByNameSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('店舗名で検索して選択', style: TextStyle(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _nameSearchCtrl,
+                decoration: const InputDecoration(
+                  hintText: '店舗名の一部で検索（例: 渋谷, ramen, ...）',
+                  border: OutlineInputBorder(),
+                ),
+                onSubmitted: (_) => _searchByName(),
+              ),
+            ),
+            const SizedBox(width: 8),
+            FilledButton.icon(
+              onPressed: _searching ? null : _searchByName,
+              icon: _searching
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.search),
+              label: Text(_searching ? '検索中…' : '検索'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+
+        // 検索結果リスト（チェックで選択）
+        if (_searchResults.isEmpty)
+          const Text('検索結果はここに表示されます')
+        else
+          Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.black12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            constraints: const BoxConstraints(maxHeight: 360),
+            child: ListView.separated(
+              shrinkWrap: true,
+              itemCount: _searchResults.length,
+              separatorBuilder: (_, __) => const Divider(height: 1),
+              itemBuilder: (context, i) {
+                final r = _searchResults[i];
+                final tid = r['tenantId']!;
+                final name = r['name']!;
+                final selected = _selectedTenantIds.contains(tid);
+                return CheckboxListTile(
+                  dense: true,
+                  value: selected,
+                  onChanged: (v) {
+                    setState(() {
+                      if (v == true) {
+                        _selectedTenantIds.add(tid);
+                      } else {
+                        _selectedTenantIds.remove(tid);
+                      }
+                    });
+                  },
+                  title: Text(name),
+                  subtitle: Text('tenantId: $tid'),
+                  controlAffinity: ListTileControlAffinity.leading,
+                );
+              },
+            ),
+          ),
+        const SizedBox(height: 8),
+
+        // 選択件数＆全選択/解除
+        Row(
+          children: [
+            Text('選択中: ${_selectedTenantIds.length}件'),
+            const Spacer(),
+            TextButton(
+              onPressed: () {
+                final ids = _searchResults.map((e) => e['tenantId']!).toList();
+                setState(() => _selectedTenantIds.addAll(ids));
+              },
+              child: const Text('すべて選択'),
+            ),
+            TextButton(
+              onPressed: () => setState(() => _selectedTenantIds.clear()),
+              child: const Text('選択解除'),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isSelect = _scope == _TargetScope.selectByName;
+
     return Scaffold(
       appBar: AppBar(title: const Text('お知らせ配信')),
       body: ListView(
@@ -223,24 +387,28 @@ class _AdminAnnouncementPageState extends State<AdminAnnouncementPage> {
               border: OutlineInputBorder(),
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           TextField(
             controller: _urlCtrl,
             decoration: const InputDecoration(
-              labelText: 'リンクURL（任意）',
+              labelText: '任意のURL（詳細ページ等）',
               border: OutlineInputBorder(),
-              hintText: 'https://example.com',
             ),
           ),
+
           const SizedBox(height: 16),
           const Text('配信対象', style: TextStyle(fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
+
+          // 全店舗
           RadioListTile<_TargetScope>(
             value: _TargetScope.all,
             groupValue: _scope,
             onChanged: (v) => setState(() => _scope = v!),
             title: const Text('全店舗'),
           ),
+
+          // 店舗IDを指定
           RadioListTile<_TargetScope>(
             value: _TargetScope.tenantIds,
             groupValue: _scope,
@@ -263,30 +431,19 @@ class _AdminAnnouncementPageState extends State<AdminAnnouncementPage> {
               ],
             ),
           ),
+
+          // 追加：店舗名で検索して選択
           RadioListTile<_TargetScope>(
-            value: _TargetScope.filters,
+            value: _TargetScope.selectByName,
             groupValue: _scope,
             onChanged: (v) => setState(() => _scope = v!),
-            title: const Text('フィルタで配信'),
-            subtitle: Column(
-              children: [
-                SwitchListTile(
-                  title: const Text('status: active のみ'),
-                  value: _filterActiveOnly,
-                  onChanged: _scope == _TargetScope.filters
-                      ? (v) => setState(() => _filterActiveOnly = v)
-                      : null,
-                ),
-                SwitchListTile(
-                  title: const Text('charges_enabled のみ'),
-                  value: _filterChargesEnabledOnly,
-                  onChanged: _scope == _TargetScope.filters
-                      ? (v) => setState(() => _filterChargesEnabledOnly = v)
-                      : null,
-                ),
-              ],
-            ),
+            title: const Text('店舗名で検索して選択'),
           ),
+          if (isSelect) ...[
+            const SizedBox(height: 8),
+            _buildSelectByNameSection(),
+          ],
+
           const SizedBox(height: 24),
           SizedBox(
             width: double.infinity,

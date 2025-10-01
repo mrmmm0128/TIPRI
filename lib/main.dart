@@ -20,22 +20,20 @@ import 'tenant/login_screens.dart';
 import 'tenant/store_detail/store_detail_screen.dart';
 import 'endUser/payer_landing_screen.dart';
 
-// ===== Firebase options（そのままでOK） =====
-const firebaseOptions = FirebaseOptions(
-  apiKey: 'AIzaSyDePrpR8CD5xWf19828aGwdgVve5s4EYOc',
-  appId: '1:362152912464:web:223f3abe2183994303d355',
-  messagingSenderId: '362152912464',
-  projectId: 'muscleshare-b34dd',
-  authDomain: 'muscleshare-b34dd.firebaseapp.com',
-  storageBucket: 'muscleshare-b34dd.firebasestorage.app',
-  measurementId: 'G-DH77D7G3L3',
+FirebaseOptions web = FirebaseOptions(
+  apiKey: 'AIzaSyAIfxdoGM5TWDVRjtfazvWZ9LnLlMnOuZ4',
+  appId: '1:1005883564338:web:ad2b27b5bbd8c0993d772b',
+  messagingSenderId: '1005883564338',
+  projectId: 'yourpay-c5aaf',
+  authDomain: 'yourpay-c5aaf.firebaseapp.com',
+  storageBucket: 'yourpay-c5aaf.firebasestorage.app',
 );
 
 Future<void> main() async {
   setUrlStrategy(const HashUrlStrategy());
   WidgetsFlutterBinding.ensureInitialized();
   await EasyLocalization.ensureInitialized();
-  await Firebase.initializeApp(options: firebaseOptions);
+  await Firebase.initializeApp(options: web);
   // await _connectToEmulatorsIfDebug();
 
   // 画面が真っ白になっても原因が見えるように

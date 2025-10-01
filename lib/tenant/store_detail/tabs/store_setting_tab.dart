@@ -1,4 +1,3 @@
-// tabs/settings_tab.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:file_picker/file_picker.dart';
@@ -7,11 +6,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:yourpay/endUser/utils/image_scrol.dart';
 import 'package:yourpay/tenant/widget/store_setting/b_perk.dart';
 import 'package:yourpay/tenant/widget/store_setting/subscription_card.dart';
 import 'package:yourpay/tenant/widget/store_staff/show_video_preview.dart';
 import 'package:yourpay/tenant/widget/store_setting/c_perk.dart';
 import 'package:yourpay/tenant/widget/store_setting/trial_progress_bar.dart';
+import 'dart:async';
 
 class StoreSettingsTab extends StatefulWidget {
   final String tenantId;
@@ -26,6 +27,11 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
   final _functions = FirebaseFunctions.instanceFor(region: 'us-central1');
 
   DateTime? _effectiveFromLocal; // 予約の適用開始（未指定なら翌月1日 0:00）
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _tenantStatusSub;
+  bool _isCompactWidth(BuildContext context) {
+    final w = MediaQuery.of(context).size.width;
+    return w < 900; // ~ タブレットまでをポップアップ対象に
+  }
 
   String? _selectedPlan;
   String? _pendingPlan;
@@ -42,6 +48,7 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
   final _storeFixedCtrl = TextEditingController();
   bool _savingStoreCut = false;
 
+  final _storePercentFocus = FocusNode();
   bool _loggingOut = false;
 
   String? _thanksPhotoUrl;
@@ -80,7 +87,8 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
         _storeFixedCtrl.clear();
         _tenantIdVN.value = widget.tenantId;
       });
-      _loadConnectedOnce();
+
+      _startWatchTenantStatus();
     }
   }
 
@@ -91,7 +99,106 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
     _storePercentCtrl.dispose();
     _storeFixedCtrl.dispose();
     _tenantIdVN.dispose();
+
     super.dispose();
+  }
+
+  Stream<int>? _unreadCountStream(String ownerUid, String tenantId) {
+    try {
+      final q = FirebaseFirestore.instance
+          .collection(ownerUid)
+          .doc(tenantId)
+          .collection('alerts')
+          .where('read', isEqualTo: false);
+      return q.snapshots().map((snap) => snap.docs.length);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void _startWatchTenantStatus() {
+    _tenantStatusSub?.cancel();
+    final ownerId = widget.ownerId;
+    final tenantId = widget.tenantId;
+    if (ownerId == null || tenantId.isEmpty) return;
+
+    final tenantRef = FirebaseFirestore.instance
+        .collection(ownerId)
+        .doc(tenantId);
+
+    _tenantStatusSub = tenantRef.snapshots().listen((snap) {
+      final data = snap.data();
+      bool next = false;
+
+      if (data != null) {
+        // 1) subscription.status を優先、なければ status を使う
+        final subStatus = (data['subscription'] as Map?)?['status'] as String?;
+        final rootStatus = data['status'] as String?;
+        final s = (subStatus ?? rootStatus)?.trim().toLowerCase();
+
+        // active / trialing / 過去の未払い状態(past_due, unpaid)は “接続中” とみなす
+        next =
+            s != null &&
+            ['active', 'trialing', 'past_due', 'unpaid'].contains(s);
+      }
+
+      if (_connected != next && mounted) {
+        setState(() => _connected = next);
+      }
+    });
+  }
+
+  Widget _buildNotificationsAction() {
+    if (widget.tenantId == null || widget.ownerId == null) {
+      return IconButton(
+        onPressed: null,
+        icon: const Icon(Icons.notifications_outlined),
+      );
+    }
+    return StreamBuilder<int>(
+      stream: _unreadCountStream(widget.ownerId!, widget.tenantId!),
+      builder: (context, snap) {
+        final unread = snap.data ?? 0;
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            IconButton(
+              onPressed: _openAlertsPanel,
+              icon: const Icon(Icons.notifications_outlined),
+              tooltip: 'お知らせ',
+            ),
+            if (unread > 0)
+              Positioned(
+                right: 6,
+                top: 6,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 5,
+                    vertical: 1.5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.redAccent,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  constraints: const BoxConstraints(
+                    minWidth: 18,
+                    minHeight: 16,
+                  ),
+                  child: Text(
+                    unread > 99 ? '99+' : '$unread',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
   }
 
   // -------- Handlers --------
@@ -112,6 +219,83 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
   void _onPlanChanged(String v) {
     if (!_changingPlan) return;
     setState(() => _pendingPlan = v);
+  }
+
+  static Future<void> showTipriInfoDialog(BuildContext context) async {
+    // 表示する画像（あなたのアセットパスに合わせて変更）
+    final assets = <String>[
+      'assets/pdf/tipri_page-0001.jpg',
+      'assets/pdf/tipri_page-0002.jpg',
+      'assets/pdf/tipri_page-0003.jpg',
+      'assets/pdf/tipri_page-0004.jpg',
+      'assets/pdf/tipri_page-0005.jpg',
+    ];
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        final size = MediaQuery.of(ctx).size;
+        final maxWidth = size.width < 480
+            ? size.width
+            : 560.0; // スマホは画面幅、タブレット/PCは最大560
+        final height = size.height * 0.82; // 画面高の8割
+
+        return SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: maxWidth,
+                maxHeight: height,
+              ),
+              child: SizedBox(
+                width: maxWidth,
+                height: height,
+                child: Column(
+                  children: [
+                    // ヘッダ
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 8, 6),
+                      child: Row(
+                        children: [
+                          const Text(
+                            'チップリについて',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 16,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          const Spacer(),
+                          IconButton(
+                            tooltip: '閉じる',
+                            icon: const Icon(Icons.close),
+                            onPressed: () => Navigator.pop(ctx),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1),
+
+                    // 本体ビューア
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: ImagesScroller(assets: assets, borderRadius: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _applyPlanChange(
@@ -225,6 +409,209 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
     });
   }
 
+  Future<void> _openStoreDeductionSheet(
+    DocumentReference<Map<String, dynamic>> tenantRef,
+    Map<String, dynamic> data,
+  ) async {
+    // pending の表示用
+    final pending =
+        (data['storeDeductionPending'] as Map?)?.cast<String, dynamic>() ??
+        const {};
+    DateTime? eff;
+    final ts = pending['effectiveFrom'];
+    if (ts is Timestamp) eff = ts.toDate();
+    eff ??= _firstDayOfNextMonth();
+
+    // 既存の controller / focusNode をそのまま使う
+    _storePercentFocus.requestFocus();
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return AnimatedPadding(
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeOut,
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom,
+          ),
+          child: SafeArea(
+            child: StatefulBuilder(
+              builder: (ctx, localSetState) {
+                bool saving = _savingStoreCut; // 初期値は親の状態を参照
+
+                Future<void> save() async {
+                  if (saving) return;
+                  localSetState(() => saving = true);
+                  try {
+                    await _saveStoreCut(tenantRef);
+                    if (mounted) Navigator.pop(ctx); // 閉じる
+                  } finally {
+                    localSetState(() => saving = false);
+                  }
+                }
+
+                return Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // ハンドル
+                      Container(
+                        height: 4,
+                        width: 40,
+                        margin: const EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.black12,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                      Row(
+                        children: [
+                          const Text(
+                            'スタッフから差し引く金額',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          const Spacer(),
+                          IconButton(
+                            tooltip: '閉じる',
+                            onPressed: () => Navigator.pop(ctx),
+                            icon: const Icon(Icons.close),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+
+                      // 注意表示
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withOpacity(0.16),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.black12),
+                        ),
+                        child: Row(
+                          children: const [
+                            Icon(
+                              Icons.schedule,
+                              size: 18,
+                              color: Colors.orange,
+                            ),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'この変更は「今月分の明細」から自動適用されます。',
+                                style: TextStyle(
+                                  color: Colors.black87,
+                                  fontFamily: "LINEseed",
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      // 入力欄
+                      TextField(
+                        key: const ValueKey('storePercentField'),
+                        focusNode: _storePercentFocus,
+                        controller: _storePercentCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'スタッフから店舗が差し引く金額（％）',
+                          hintText: '例: 10 または 12.5',
+                          suffixText: '%',
+                        ),
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                        ],
+                        onSubmitted: (_) => save(),
+                      ),
+
+                      const SizedBox(height: 7),
+
+                      // 現在値
+                      StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                        stream: tenantRef.snapshots(),
+                        builder: (context, snap2) {
+                          final d2 = snap2.data?.data() ?? {};
+                          final active = (d2['storeDeduction'] as Map?) ?? {};
+                          final activePercent = (active['percent'] ?? 0)
+                              .toString();
+                          return Row(
+                            children: [
+                              const Icon(Icons.info_outline, size: 18),
+                              const SizedBox(width: 6),
+                              Text(
+                                '現在：$activePercent%',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontFamily: "LINEseed",
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // アクション
+                      Row(
+                        children: [
+                          Expanded(
+                            child: FilledButton.icon(
+                              onPressed: saving ? null : save,
+                              icon: saving
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Icon(Icons.save),
+                              label: const Text('保存'),
+                              style: FilledButton.styleFrom(
+                                backgroundColor: Colors.black,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 14,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   // 管理者を招待（メール）
   Future<void> _inviteAdminDialog(
     DocumentReference<Map<String, dynamic>> tenantRef,
@@ -277,6 +664,153 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
         ).showSnackBar(SnackBar(content: Text('招待に失敗: $e')));
       }
     }
+  }
+
+  // ====== 追加：通知詳細シート + 個別既読化 ======
+  Future<void> _openAlertDetailAndMarkRead({
+    required DocumentReference<Map<String, dynamic>> docRef,
+    required Map<String, dynamic> data,
+  }) async {
+    // 個別既読化
+    try {
+      await docRef.set({
+        'read': true,
+        'readAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (_) {}
+
+    if (!mounted) return;
+
+    final msg = (data['message'] as String?)?.trim() ?? 'お知らせ';
+    final title = (data['title'] as String?)?.trim() ?? 'タイトル';
+    final details = (data['details'] as String?)?.trim(); // 任意の詳細が入る想定
+    final payload = (data['payload'] as Map?)
+        ?.cast<String, dynamic>(); // 追加情報がある場合
+    final createdAt = data['createdAt'];
+    String when = '';
+    if (createdAt is Timestamp) {
+      final dt = createdAt.toDate().toLocal();
+      when =
+          '${dt.year}/${dt.month.toString().padLeft(2, '0')}/${dt.day.toString().padLeft(2, '0')} '
+          '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    }
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        final size = MediaQuery.of(ctx).size;
+        final maxW = size.width < 480 ? size.width : 560.0;
+        final maxH = size.height * 0.8;
+
+        return SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: maxW, maxHeight: maxH),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.notifications, color: Colors.black87),
+                        const SizedBox(width: 8),
+                        Text(
+                          title,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            fontFamily: 'LINEseed',
+                          ),
+                        ),
+                        const Spacer(),
+                        IconButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          icon: const Icon(Icons.close),
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 16),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        msg,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          fontFamily: 'LINEseed',
+                        ),
+                      ),
+                    ),
+                    if (when.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          when,
+                          style: const TextStyle(color: Colors.black54),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    Flexible(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (details != null && details.isNotEmpty) ...[
+                              Text(
+                                details,
+                                style: const TextStyle(
+                                  color: Colors.black87,
+                                  height: 1.4,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                            ],
+                            if (payload != null && payload.isNotEmpty) ...[
+                              const Text(
+                                '詳細情報',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withOpacity(0.03),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: Colors.black12),
+                                ),
+                                child: SelectableText(
+                                  _prettyJson(payload),
+                                  style: const TextStyle(
+                                    fontFamily: 'monospace',
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   // 管理者を外す（確認ダイアログ付き）
@@ -643,7 +1177,7 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
 
     if (!mounted) return;
 
-    // 4) 一覧を BottomSheet で表示（message, createdAt を軽く表示）
+    // 一覧 BottomSheet（「すべて既読」／タップで詳細）
     await showModalBottomSheet(
       context: context,
       isScrollControlled: false,
@@ -667,64 +1201,129 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'お知らせ',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      fontFamily: 'LINEseed',
+                Row(
+                  children: [
+                    const Text(
+                      'お知らせ',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        fontFamily: 'LINEseed',
+                      ),
                     ),
-                  ),
+                    const Spacer(),
+                    TextButton.icon(
+                      onPressed: () async {
+                        final qs = await col
+                            .where('read', isEqualTo: false)
+                            .get();
+                        final batch = FirebaseFirestore.instance.batch();
+                        for (final d in qs.docs) {
+                          batch.set(d.reference, {
+                            'read': true,
+                            'readAt': FieldValue.serverTimestamp(),
+                            'updatedAt': FieldValue.serverTimestamp(),
+                          }, SetOptions(merge: true));
+                        }
+                        await batch.commit();
+                        if (ctx.mounted) Navigator.pop(ctx);
+                        if (mounted) _openAlertsPanel();
+                      },
+                      icon: const Icon(Icons.done_all),
+                      label: const Text('すべて既読'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.black87,
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 8),
-                if (alerts.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 24),
-                    child: Text('新しいお知らせはありません'),
-                  )
-                else
-                  Flexible(
-                    child: ListView.separated(
-                      shrinkWrap: true,
-                      itemCount: alerts.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1),
-                      itemBuilder: (ctx, i) {
-                        final a = alerts[i];
-                        final msg = (a['message'] as String?)?.trim();
-                        final createdAt = a['createdAt'];
-                        String when = '';
-                        if (createdAt is Timestamp) {
-                          final dt = createdAt.toDate().toLocal();
-                          // シンプルな表示（intl なしで）
-                          when =
-                              '${dt.year}/${dt.month.toString().padLeft(2, '0')}/${dt.day.toString().padLeft(2, '0')} '
-                              '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-                        }
-
-                        return ListTile(
-                          leading: const Icon(Icons.notifications),
-                          title: Text(
-                            (msg == null || msg.isEmpty) ? 'お知らせ' : msg,
-                            style: const TextStyle(fontFamily: 'LINEseed'),
-                          ),
-                          subtitle: when.isEmpty ? null : Text(when),
-                          dense: true,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 0,
-                            vertical: 4,
-                          ),
+                Flexible(
+                  child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                    stream: col
+                        .orderBy('createdAt', descending: true)
+                        .limit(100)
+                        .snapshots(),
+                    builder: (ctx, snap) {
+                      if (snap.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      if (snap.hasError) {
+                        return Center(child: Text('読み込みエラー: ${snap.error}'));
+                      }
+                      final docs = snap.data?.docs ?? const [];
+                      if (docs.isEmpty) {
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 24),
+                          child: Text('新しいお知らせはありません'),
                         );
-                      },
-                    ),
+                      }
+                      return ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: docs.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        itemBuilder: (ctx, i) {
+                          final d = docs[i];
+                          final m = d.data();
+                          final msg =
+                              (m['message'] as String?)?.trim() ?? 'お知らせ';
+                          final read = (m['read'] as bool?) ?? false;
+                          final createdAt = m['createdAt'];
+                          String when = '';
+                          if (createdAt is Timestamp) {
+                            final dt = createdAt.toDate().toLocal();
+                            when =
+                                '${dt.year}/${dt.month.toString().padLeft(2, '0')}/${dt.day.toString().padLeft(2, '0')} '
+                                '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+                          }
+                          return ListTile(
+                            leading: Icon(
+                              read
+                                  ? Icons.notifications_none
+                                  : Icons.notifications_active,
+                              color: read ? Colors.black45 : Colors.orange,
+                            ),
+                            title: Text(
+                              msg,
+                              style: TextStyle(
+                                fontFamily: 'LINEseed',
+                                fontWeight: read
+                                    ? FontWeight.w500
+                                    : FontWeight.w700,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            subtitle: when.isEmpty ? null : Text(when),
+                            dense: true,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 0,
+                              vertical: 6,
+                            ),
+                            onTap: () => _openAlertDetailAndMarkRead(
+                              docRef: d.reference,
+                              data: m,
+                            ),
+                          );
+                        },
+                      );
+                    },
                   ),
+                ),
               ],
             ),
           ),
         );
       },
     );
+  }
+
+  String _prettyJson(Map<String, dynamic> m) {
+    try {
+      final entries = m.entries.map((e) => '• ${e.key}: ${e.value}').join('\n');
+      return entries.isEmpty ? '(なし)' : entries;
+    } catch (_) {
+      return m.toString();
+    }
   }
 
   // -------- Build --------
@@ -845,11 +1444,31 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
                           {};
                       final currentPlan = (sub['plan'] as String?) ?? 'A';
 
-                      final periodEndTs = sub['currentPeriodEnd'];
+                      final raw = sub['currentPeriodEnd'];
                       DateTime? periodEnd;
-                      if (periodEndTs is Timestamp) {
-                        periodEnd = periodEndTs.toDate();
+
+                      if (raw is Timestamp) {
+                        periodEnd = raw.toDate();
+                      } else if (raw is int) {
+                        // 10桁=秒, 13桁=ミリ秒 を自動判定
+                        final isSeconds = raw < 100000000000; // 1e11 未満なら秒
+                        periodEnd = DateTime.fromMillisecondsSinceEpoch(
+                          isSeconds ? raw * 1000 : raw,
+                        );
+                      } else if (raw is num) {
+                        final v = raw.toInt();
+                        final isSeconds = v < 100000000000;
+                        periodEnd = DateTime.fromMillisecondsSinceEpoch(
+                          isSeconds ? v * 1000 : v,
+                        );
+                      } else if (raw is String && raw.isNotEmpty) {
+                        // ISO文字列ならこれでOK。秒/ミリ秒の数値文字列なら int にして上と同様に処理してもOK
+                        periodEnd = DateTime.tryParse(raw);
+                      } else {
+                        periodEnd = null;
                       }
+
+                      final periodEndBool = sub["cancelAtPeriodEnd"] ?? false;
 
                       final extras =
                           (sub['extras'] as Map?)?.cast<String, dynamic>() ??
@@ -871,10 +1490,6 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
                       if (_storePercentCtrl.text.isEmpty &&
                           store['percent'] != null) {
                         _storePercentCtrl.text = '${store['percent']}';
-                      }
-                      if (_storeFixedCtrl.text.isEmpty &&
-                          store['fixed'] != null) {
-                        _storeFixedCtrl.text = '${store['fixed']}';
                       }
 
                       final trialMap = (sub['trial'] as Map?)
@@ -938,57 +1553,52 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
                                             mainAxisAlignment:
                                                 MainAxisAlignment.end,
                                             children: [
-                                              Expanded(
-                                                child: FilledButton.icon(
-                                                  style: FilledButton.styleFrom(
-                                                    backgroundColor:
-                                                        Colors.black,
-                                                    foregroundColor:
-                                                        Colors.white,
-                                                    shape: RoundedRectangleBorder(
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            12,
+                                              if (widget.ownerId! == uid) ...[
+                                                Expanded(
+                                                  child: FilledButton.icon(
+                                                    style: FilledButton.styleFrom(
+                                                      backgroundColor:
+                                                          Colors.black,
+                                                      foregroundColor:
+                                                          Colors.white,
+                                                      shape: RoundedRectangleBorder(
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              12,
+                                                            ),
+                                                      ),
+                                                      padding:
+                                                          const EdgeInsets.symmetric(
+                                                            horizontal: 16,
+                                                            vertical: 14,
                                                           ),
                                                     ),
-                                                    padding:
-                                                        const EdgeInsets.symmetric(
-                                                          horizontal: 16,
-                                                          vertical: 14,
+                                                    onPressed: () =>
+                                                        Navigator.pushNamed(
+                                                          context,
+                                                          '/tenant',
+                                                          arguments: {
+                                                            "tenantId":
+                                                                widget.tenantId,
+                                                          },
                                                         ),
-                                                  ),
-                                                  onPressed: () =>
-                                                      Navigator.pushNamed(
-                                                        context,
-                                                        '/tenant',
-                                                        arguments: {
-                                                          "tenantId":
-                                                              widget.tenantId,
-                                                        },
-                                                      ),
-                                                  icon: const Icon(
-                                                    Icons
-                                                        .store_mall_directory_outlined,
-                                                  ),
-                                                  label: const Text(
-                                                    'テナント情報を確認',
+                                                    icon: const Icon(
+                                                      Icons
+                                                          .store_mall_directory_outlined,
+                                                    ),
+                                                    label: const Text(
+                                                      'テナント情報を確認',
+                                                    ),
                                                   ),
                                                 ),
-                                              ),
+                                              ],
 
                                               const SizedBox(width: 5),
-                                              IconButton(
-                                                onPressed:
-                                                    widget.tenantId == null
-                                                    ? null
-                                                    : _openAlertsPanel,
-                                                icon: const Icon(
-                                                  Icons.notifications_outlined,
-                                                ),
-                                              ),
+                                              _buildNotificationsAction(),
                                             ],
                                           )
-                                        : SizedBox(
+                                        : widget.ownerId! == uid
+                                        ? SizedBox(
                                             width: double.infinity,
                                             child: FilledButton.icon(
                                               style: FilledButton.styleFrom(
@@ -1019,7 +1629,8 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
                                               ),
                                               label: const Text('テナント情報を確認'),
                                             ),
-                                          ),
+                                          )
+                                        : const SizedBox(height: 1),
                                   ],
                                 )
                               : const SizedBox(height: 4),
@@ -1040,10 +1651,13 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Row(
+                                  Wrap(
+                                    crossAxisAlignment:
+                                        WrapCrossAlignment.center,
+                                    spacing: 8,
+                                    runSpacing: 6,
                                     children: [
                                       PlanChip(label: '現在', dark: true),
-                                      const SizedBox(width: 8),
                                       Text(
                                         'プラン $currentPlan',
                                         style: const TextStyle(
@@ -1051,10 +1665,30 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
                                           color: Colors.black87,
                                         ),
                                       ),
-                                      const Spacer(),
+
+                                      // 説明ボタン（狭い時は次行へ自動回避）
+                                      FittedBox(
+                                        fit: BoxFit.scaleDown,
+                                        child: TextButton.icon(
+                                          onPressed: () =>
+                                              showTipriInfoDialog(context),
+                                          icon: const Icon(Icons.info_outline),
+                                          label: const Text(
+                                            'チップリについて',
+                                            style: TextStyle(
+                                              color: Color(0xFFFCC400),
+                                            ),
+                                          ),
+                                          style: TextButton.styleFrom(
+                                            foregroundColor: Colors.black87,
+                                          ),
+                                        ),
+                                      ),
+
                                       if (periodEnd != null)
                                         Text(
-                                          '次回の請求: ${periodEnd.year}/${periodEnd.month.toString().padLeft(2, '0')}/${periodEnd.day.toString().padLeft(2, '0')}',
+                                          '${periodEndBool ? '終了予定' : '次回の請求'}: '
+                                          '${periodEnd.year}/${periodEnd.month.toString().padLeft(2, '0')}/${periodEnd.day.toString().padLeft(2, '0')}',
                                           style: const TextStyle(
                                             color: Colors.black54,
                                           ),
@@ -1068,7 +1702,7 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
                                     TrialProgressBar(
                                       trialStart: trialStart,
                                       trialEnd: trialEnd!,
-                                      totalDays: 90,
+                                      totalDays: 30,
                                       onTap: () {},
                                     ),
                                   if (trialStatus == "none")
@@ -1159,12 +1793,29 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
                                         Expanded(
                                           child: FilledButton.icon(
                                             style: primaryBtnStyle,
-                                            onPressed: _updatingPlan
+                                            onPressed: widget.ownerId! != uid
+                                                ? () {
+                                                    ScaffoldMessenger.of(
+                                                      context,
+                                                    ).showSnackBar(
+                                                      const SnackBar(
+                                                        content: Text(
+                                                          'オーナーのみ変更可能です',
+                                                          style: TextStyle(
+                                                            color: Colors.white,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    );
+                                                  }
+                                                : _updatingPlan
                                                 ? null
                                                 : _enterChangeMode,
                                             icon: const Icon(Icons.tune),
                                             label: currentPlan == ""
                                                 ? const Text('サブスクのプランを追加')
+                                                : periodEndBool
+                                                ? const Text('サブスクのプランを更新')
                                                 : const Text('サブスクのプランを変更'),
                                           ),
                                         ),
@@ -1224,179 +1875,260 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
                           ),
 
                           const SizedBox(height: 24),
-                          const Text(
-                            "スタッフから差し引く金額を設定",
-                            style: TextStyle(
-                              fontWeight: FontWeight.w700,
-                              color: Colors.black87,
-                              fontFamily: "LINEseed",
+
+                          if (_isCompactWidth(context)) ...[
+                            // スマホ・タブレット：ボタンだけ出して、押下でポップアップ
+                            const Text(
+                              "スタッフから差し引く金額を設定",
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: Colors.black87,
+                                fontFamily: "LINEseed",
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 8),
+                            const SizedBox(height: 8),
 
-                          CardShell(
-                            child: Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'スタッフにチップを満額渡しますか？',
-                                    style: TextStyle(
-                                      color: Colors.black87,
-                                      fontFamily: "LINEseed",
+                            CardShell(
+                              child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'スタッフにチップを満額渡しますか？',
+                                      style: TextStyle(
+                                        color: Colors.black87,
+                                        fontFamily: "LINEseed",
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  const SizedBox(height: 8),
+                                    const SizedBox(height: 12),
 
-                                  Builder(
-                                    builder: (context) {
-                                      final pending =
-                                          (data['storeDeductionPending']
-                                                  as Map?)
-                                              ?.cast<String, dynamic>() ??
-                                          const {};
-                                      DateTime? eff;
-                                      final ts = pending['effectiveFrom'];
-                                      if (ts is Timestamp) eff = ts.toDate();
-                                      eff ??= _firstDayOfNextMonth();
-
-                                      return Container(
-                                        width: double.infinity,
-                                        padding: const EdgeInsets.all(12),
-                                        decoration: BoxDecoration(
-                                          color: Colors.orange.withOpacity(
-                                            0.16,
-                                          ),
-                                          borderRadius: BorderRadius.circular(
-                                            10,
-                                          ),
-                                          border: Border.all(
-                                            color: Colors.black12,
-                                          ),
-                                        ),
-                                        child: Row(
+                                    // 現在の設定だけ軽く見せる
+                                    StreamBuilder<
+                                      DocumentSnapshot<Map<String, dynamic>>
+                                    >(
+                                      stream: tenantRef.snapshots(),
+                                      builder: (context, snap2) {
+                                        final d2 = snap2.data?.data() ?? {};
+                                        final active =
+                                            (d2['storeDeduction'] as Map?) ??
+                                            {};
+                                        final activePercent =
+                                            (active['percent'] ?? 0).toString();
+                                        return Row(
                                           children: [
                                             const Icon(
-                                              Icons.schedule,
+                                              Icons.info_outline,
                                               size: 18,
-                                              color: Colors.orange,
                                             ),
-                                            const SizedBox(width: 8),
-                                            Expanded(
-                                              child: Text(
-                                                'この変更は「今月分の明細」から自動適用されます。',
-                                                style: const TextStyle(
-                                                  color: Colors.black87,
-                                                  fontFamily: "LINEseed",
-                                                ),
+                                            const SizedBox(width: 6),
+                                            Text(
+                                              '現在：$activePercent%',
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w600,
                                               ),
                                             ),
                                           ],
-                                        ),
-                                      );
-                                    },
-                                  ),
+                                        );
+                                      },
+                                    ),
 
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: TextField(
-                                          controller: _storePercentCtrl,
-                                          decoration: const InputDecoration(
-                                            labelText: 'スタッフから店舗が差し引く金額（％）',
-                                            hintText: '例: 10 または 12.5',
-                                            suffixText: '%',
-                                          ),
-                                          keyboardType:
-                                              const TextInputType.numberWithOptions(
-                                                signed: false,
-                                                decimal: true,
-                                              ),
-                                          inputFormatters: [
-                                            FilteringTextInputFormatter.allow(
-                                              RegExp(r'[0-9.]'),
+                                    const SizedBox(height: 12),
+                                    Align(
+                                      alignment: Alignment.centerRight,
+                                      child: FilledButton.icon(
+                                        onPressed: () =>
+                                            _openStoreDeductionSheet(
+                                              tenantRef,
+                                              data,
                                             ),
-                                          ],
+                                        icon: const Icon(Icons.tune),
+                                        label: const Text('設定を開く'),
+                                        style: FilledButton.styleFrom(
+                                          backgroundColor: Colors.black,
+                                          foregroundColor: Colors.white,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                          ),
                                         ),
                                       ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 7),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ] else ...[
+                            CardShell(
+                              child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'スタッフにチップを満額渡しますか？',
+                                      style: TextStyle(
+                                        color: Colors.black87,
+                                        fontFamily: "LINEseed",
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    const SizedBox(height: 8),
 
-                                  StreamBuilder<
-                                    DocumentSnapshot<Map<String, dynamic>>
-                                  >(
-                                    stream: tenantRef.snapshots(),
-                                    builder: (context, snap2) {
-                                      final d2 = snap2.data?.data() ?? {};
-                                      final active =
-                                          (d2['storeDeduction'] as Map?) ?? {};
+                                    Builder(
+                                      builder: (context) {
+                                        final pending =
+                                            (data['storeDeductionPending']
+                                                    as Map?)
+                                                ?.cast<String, dynamic>() ??
+                                            const {};
+                                        DateTime? eff;
+                                        final ts = pending['effectiveFrom'];
+                                        if (ts is Timestamp) eff = ts.toDate();
+                                        eff ??= _firstDayOfNextMonth();
 
-                                      final activePercent =
-                                          (active['percent'] ?? 0).toString();
-
-                                      return Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
+                                        return Container(
+                                          width: double.infinity,
+                                          padding: const EdgeInsets.all(12),
+                                          decoration: BoxDecoration(
+                                            color: Colors.orange.withOpacity(
+                                              0.16,
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
+                                            border: Border.all(
+                                              color: Colors.black12,
+                                            ),
+                                          ),
+                                          child: Row(
                                             children: [
                                               const Icon(
-                                                Icons.info_outline,
+                                                Icons.schedule,
                                                 size: 18,
+                                                color: Colors.orange,
                                               ),
-                                              const SizedBox(width: 6),
-                                              Text(
-                                                '現在：$activePercent%',
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.w600,
-                                                  fontFamily: "LINEseed",
+                                              const SizedBox(width: 8),
+                                              Expanded(
+                                                child: Text(
+                                                  'この変更は「今月分の明細」から自動適用されます。',
+                                                  style: const TextStyle(
+                                                    color: Colors.black87,
+                                                    fontFamily: "LINEseed",
+                                                  ),
                                                 ),
                                               ),
                                             ],
                                           ),
+                                        );
+                                      },
+                                    ),
 
-                                          const SizedBox(height: 12),
-                                        ],
-                                      );
-                                    },
-                                  ),
-
-                                  const SizedBox(height: 12),
-                                  Align(
-                                    alignment: Alignment.centerRight,
-                                    child: FilledButton.icon(
-                                      onPressed: _savingStoreCut
-                                          ? null
-                                          : () => _saveStoreCut(tenantRef),
-                                      icon: _savingStoreCut
-                                          ? const SizedBox(
-                                              width: 16,
-                                              height: 16,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                                color: Colors.white,
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: TextField(
+                                            key: const ValueKey(
+                                              'storePercentField',
+                                            ),
+                                            focusNode: _storePercentFocus,
+                                            controller: _storePercentCtrl,
+                                            decoration: const InputDecoration(
+                                              labelText: 'スタッフから店舗が差し引く金額（％）',
+                                              hintText: '例: 10 または 12.5',
+                                              suffixText: '%',
+                                            ),
+                                            keyboardType:
+                                                const TextInputType.numberWithOptions(
+                                                  decimal: true,
+                                                ),
+                                            inputFormatters: [
+                                              FilteringTextInputFormatter.allow(
+                                                RegExp(r'[0-9.]'),
                                               ),
-                                            )
-                                          : const Icon(Icons.save),
-                                      label: const Text('店舗が差し引く金額割合を保存'),
-                                      style: FilledButton.styleFrom(
-                                        backgroundColor: Colors.black,
-                                        foregroundColor: Colors.white,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 7),
+
+                                    StreamBuilder<
+                                      DocumentSnapshot<Map<String, dynamic>>
+                                    >(
+                                      stream: tenantRef.snapshots(),
+                                      builder: (context, snap2) {
+                                        final d2 = snap2.data?.data() ?? {};
+                                        final active =
+                                            (d2['storeDeduction'] as Map?) ??
+                                            {};
+
+                                        final activePercent =
+                                            (active['percent'] ?? 0).toString();
+
+                                        return Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                const Icon(
+                                                  Icons.info_outline,
+                                                  size: 18,
+                                                ),
+                                                const SizedBox(width: 6),
+                                                Text(
+                                                  '現在：$activePercent%',
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.w600,
+                                                    fontFamily: "LINEseed",
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+
+                                            const SizedBox(height: 12),
+                                          ],
+                                        );
+                                      },
+                                    ),
+
+                                    const SizedBox(height: 12),
+                                    Align(
+                                      alignment: Alignment.centerRight,
+                                      child: FilledButton.icon(
+                                        onPressed: _savingStoreCut
+                                            ? null
+                                            : () => _saveStoreCut(tenantRef),
+                                        icon: _savingStoreCut
+                                            ? const SizedBox(
+                                                width: 16,
+                                                height: 16,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                      color: Colors.white,
+                                                    ),
+                                              )
+                                            : const Icon(Icons.save),
+                                        label: const Text('店舗が差し引く金額割合を保存'),
+                                        style: FilledButton.styleFrom(
+                                          backgroundColor: Colors.black,
+                                          foregroundColor: Colors.white,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
                                           ),
                                         ),
                                       ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
-                          ),
+                          ],
 
                           const SizedBox(height: 16),
                           const Text(
@@ -1509,6 +2241,10 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
                                                           const SnackBar(
                                                             content: Text(
                                                               '招待メールを再送しました',
+                                                              style: TextStyle(
+                                                                color: Colors
+                                                                    .black,
+                                                              ),
                                                             ),
                                                           ),
                                                         );
@@ -1697,7 +2433,21 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
+                  Image.asset("assets/icons/no_subscription.png", width: 50),
+                  const SizedBox(height: 30),
                   const Text("サブスクリプションを登録してください"),
+                  const SizedBox(height: 30),
+                  TextButton.icon(
+                    onPressed: () => showTipriInfoDialog(context),
+                    icon: const Icon(Icons.info_outline),
+                    label: const Text(
+                      'チップリについて',
+                      style: TextStyle(color: Color(0xFFFCC400)),
+                    ),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.black87,
+                    ),
+                  ),
                   const SizedBox(height: 30),
                   Container(
                     margin: const EdgeInsets.symmetric(

@@ -1,0 +1,12 @@
+[
+  {
+    "origin": [
+      "https://tipri.pages.dev",
+      "https://tipri-app.web.app",
+      "https://tipri.jp"
+    ],
+    "method": ["GET", "HEAD"],
+    "responseHeader": ["Content-Type", "Authorization"],
+    "maxAgeSeconds": 3600
+  }
+]

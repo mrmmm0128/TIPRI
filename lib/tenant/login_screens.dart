@@ -61,6 +61,21 @@ class _LoginScreenState extends State<LoginScreen> {
     if (_error != null) setState(() => _error = null);
   }
 
+  // クラス内（_LoginScreenState のフィールド）に追記
+  String? _sctaUrl = 'https://example.com/legal/scta'; // ← あとで本番URLに差し替え
+
+  Future<void> _openScta() async {
+    final url = _sctaUrl;
+    if (url == null || url.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('現在準備中です。後日掲載します。')));
+      return;
+    }
+    await launchUrlString(url, mode: LaunchMode.externalApplication);
+  }
+
   Widget _requiredLabel(String text) {
     return RichText(
       text: TextSpan(
@@ -230,12 +245,12 @@ class _LoginScreenState extends State<LoginScreen> {
           children: [
             Text(
               email != null
-                  ? '「$email」に送った認証メールのリンクを開いてください。'
-                  : '登録したメールアドレスに送った認証メールのリンクを開いてください。',
+                  ? '「$email」に送信された認証メールのリンクを開いてください。 \n 件名:Verify your email for yourpay-c5aaf'
+                  : '登録したメールアドレスに送った認証メールのリンクを開いてください。\n 件名:Verify your email for yourpay-c5aaf',
             ),
             const SizedBox(height: 8),
             const Text(
-              'リンクを開いた後は、この画面で再度メールとパスワードを入力してログインしてください。',
+              '認証後、再度ログインしてください。',
               style: TextStyle(color: Colors.black54, fontSize: 12),
             ),
           ],
@@ -255,9 +270,6 @@ class _LoginScreenState extends State<LoginScreen> {
     if (user == null) return;
     await user.sendEmailVerification();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('確認メールを送信しました。メール内のリンクで認証してください。')),
-    );
   }
 
   Future<void> _resendVerifyManually() async {
@@ -339,9 +351,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
         if (!mounted) return;
         setState(() => _isSignUp = false);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('登録しました。認証後にログインしてください。')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              '登録しました。メール認証後にログインしてください。',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        );
         return;
       } else {
         // ログイン
@@ -409,9 +426,14 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('パスワード再設定メールを送信しました。')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'パスワード再設定メールを送信しました。',
+            style: TextStyle(color: Colors.white),
+          ),
+        ),
+      );
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
       setState(() => _error = _friendlyAuthError(e));
@@ -1006,6 +1028,66 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                         ),
+
+                        const Divider(height: 1),
+                        const SizedBox(height: 12),
+
+                        // ▼ ここから追加：フッター法令類リンク
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          alignment: WrapAlignment.center,
+                          children: [
+                            OutlinedButton.icon(
+                              icon: const Icon(
+                                Icons.description_outlined,
+                                size: 18,
+                              ),
+                              label: const Text('利用規約'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.black87,
+                                side: const BorderSide(color: Colors.black26),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                              onPressed: _openTerms,
+                            ),
+                            OutlinedButton.icon(
+                              icon: const Icon(
+                                Icons.privacy_tip_outlined,
+                                size: 18,
+                              ),
+                              label: const Text('プライバシーポリシー'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.black87,
+                                side: const BorderSide(color: Colors.black26),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                              onPressed: _openPrivacy,
+                            ),
+                            OutlinedButton.icon(
+                              icon: const Icon(
+                                Icons.receipt_long_outlined,
+                                size: 18,
+                              ),
+                              label: const Text('特定商取引法に基づく表記'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.black87,
+                                side: const BorderSide(color: Colors.black26),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                              onPressed:
+                                  _openScta, // ← あとで _sctaUrl を差し替えるだけで遷移
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 40),
                       ],
                     ),
                   ),

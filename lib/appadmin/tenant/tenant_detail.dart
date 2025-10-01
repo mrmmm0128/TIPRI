@@ -31,6 +31,7 @@ class AdminTenantDetailPage extends StatelessWidget {
             tenantId: tenantId,
             tenantName: tenantName,
             ownerId: ownerUid,
+            agency: true,
           ),
         ),
       ),

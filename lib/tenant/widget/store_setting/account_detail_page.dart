@@ -47,7 +47,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
   Future<void> _save() async {
     final user = FirebaseAuth.instance.currentUser!;
     final newName = _name.text.trim();
-    final newEmail = _email.text.trim();
+
     final newCompany = _company.text.trim();
 
     setState(() => _saving = true);
@@ -57,25 +57,25 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
         await user.updateDisplayName(newName);
       }
 
-      // メールの更新（Auth）※再認証が必要になることがあります
-      if (newEmail.isNotEmpty && newEmail != (user.email ?? '')) {
-        try {
-          await user.updateEmail(newEmail);
-          // 任意：確認メール
-          await user.sendEmailVerification();
-        } on FirebaseAuthException catch (e) {
-          // requires-recent-login などはトースト表示
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('メール更新に失敗: ${e.code} ${e.message ?? ''}')),
-          );
-        }
-      }
+      // // メールの更新（Auth）※再認証が必要になることがあります
+      // if (newEmail.isNotEmpty && newEmail != (user.email ?? '')) {
+      //   try {
+      //     await user.updateEmail(newEmail);
+      //     // 任意：確認メール
+      //     await user.sendEmailVerification();
+      //   } on FirebaseAuthException catch (e) {
+      //     // requires-recent-login などはトースト表示
+      //     ScaffoldMessenger.of(context).showSnackBar(
+      //       SnackBar(content: Text('メール更新に失敗: ${e.code} ${e.message ?? ''}')),
+      //     );
+      //   }
+      // }
 
       // Firestore 側のプロファイル
       final uref = FirebaseFirestore.instance.collection('users').doc(user.uid);
       await uref.set({
         'displayName': newName,
-        'email': newEmail,
+        //'email': newEmail,
         'companyName': newCompany,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
@@ -130,8 +130,10 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
                       textInputAction: TextInputAction.next,
                     ),
                     const SizedBox(height: 8),
+
                     TextField(
                       controller: _email,
+                      readOnly: true,
                       decoration: const InputDecoration(labelText: 'メールアドレス'),
                       keyboardType: TextInputType.emailAddress,
                       textInputAction: TextInputAction.next,
@@ -164,10 +166,10 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
                 ),
               ),
               const SizedBox(height: 8),
-              const Text(
-                '※ メール更新は再ログインが必要になる場合があります（requires-recent-login）。',
-                style: TextStyle(color: Colors.black54, fontSize: 12),
-              ),
+              // const Text(
+              //   '※ メール更新は再ログインが必要になる場合があります（requires-recent-login）。',
+              //   style: TextStyle(color: Colors.black54, fontSize: 12),
+              // ),
             ],
           ),
         ),

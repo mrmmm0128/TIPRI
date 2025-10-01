@@ -4,27 +4,44 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:yourpay/appadmin/agent/contracts_list_for_agent.dart';
 
-class AgencyDetailPage extends StatelessWidget {
+class AgencyDetailPage extends StatefulWidget {
   final String agentId;
   final bool agent;
+
   const AgencyDetailPage({
     super.key,
     required this.agentId,
     required this.agent,
   });
 
+  @override
+  State<AgencyDetailPage> createState() => _AgencyDetailPageState();
+}
+
+class _AgencyDetailPageState extends State<AgencyDetailPage> {
+  final TextEditingController _searchCtrl = TextEditingController();
+  bool _onboardingBusy = false;
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
   String _ymdhm(DateTime d) =>
       '${d.year}/${d.month.toString().padLeft(2, '0')}/${d.day.toString().padLeft(2, '0')} '
       '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
 
   Future<void> _upsertConnectAndOnboardForAgency(BuildContext context) async {
+    if (_onboardingBusy) return;
+    setState(() => _onboardingBusy = true);
     try {
       final fn = FirebaseFunctions.instanceFor(
         region: 'us-central1',
       ).httpsCallable('upsertAgencyConnectedAccount');
 
       final res = await fn.call({
-        'agentId': agentId,
+        'agentId': widget.agentId,
         'account': {
           'country': 'JP',
           // 必要なら事前埋め:
@@ -41,31 +58,30 @@ class AgencyDetailPage extends StatelessWidget {
       final url = data['onboardingUrl'] as String?;
       final anchor = (data['payoutSchedule'] as Map?)?['monthly_anchor'] ?? 1;
 
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Connect更新完了: $accountId / 入金:${payouts ? "可" : "不可"}／回収:${charges ? "可" : "不可"}／毎月$anchor日',
-            ),
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Connect更新完了: $accountId / 入金:${payouts ? "可" : "不可"}／回収:${charges ? "可" : "不可"}／毎月$anchor日',
           ),
-        );
-      }
+        ),
+      );
 
       if (url != null && url.isNotEmpty) {
         await launchUrl(Uri.parse(url));
       }
     } on FirebaseFunctionsException catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('失敗: ${e.code} ${e.message ?? ""}')),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('失敗: ${e.code} ${e.message ?? ""}')),
+      );
     } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('失敗: $e')));
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('失敗: $e')));
+    } finally {
+      if (mounted) setState(() => _onboardingBusy = false);
     }
   }
 
@@ -115,6 +131,7 @@ class AgencyDetailPage extends StatelessWidget {
     final p1 = pass1.text;
     final p2 = pass2.text;
     if (p1.length < 8 || p1 != p2) {
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('パスワード条件エラー：8文字以上＆一致必須')));
@@ -125,152 +142,22 @@ class AgencyDetailPage extends StatelessWidget {
       final fn = FirebaseFunctions.instanceFor(
         region: 'us-central1',
       ).httpsCallable('adminSetAgencyPassword');
-      await fn.call({'agentId': agentId, 'password': p1});
-      if (!context.mounted) return;
+      await fn.call({'agentId': widget.agentId, 'password': p1});
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('パスワードを設定しました')));
     } on FirebaseFunctionsException catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('設定に失敗: ${e.message ?? e.code}')));
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('設定に失敗: $e')));
     }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final ref = FirebaseFirestore.instance.collection('agencies').doc(agentId);
-    final searchCtrl = TextEditingController();
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('代理店詳細'),
-        automaticallyImplyLeading: agent ? false : true,
-      ),
-      body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-        stream: ref.snapshots(),
-        builder: (context, snap) {
-          if (snap.hasError) return Center(child: Text('読込エラー: ${snap.error}'));
-          if (!snap.hasData)
-            return const Center(child: CircularProgressIndicator());
-
-          final m = snap.data!.data() ?? {};
-          final name = (m['name'] ?? '(no name)').toString();
-          final email = (m['email'] ?? '').toString();
-          final code = (m['code'] ?? '').toString();
-          final percent = (m['commissionPercent'] ?? 0).toString();
-          final status = (m['status'] ?? 'active').toString();
-          final createdAt = (m['createdAt'] is Timestamp)
-              ? (m['createdAt'] as Timestamp).toDate()
-              : null;
-          final updatedAt = (m['updatedAt'] is Timestamp)
-              ? (m['updatedAt'] as Timestamp).toDate()
-              : null;
-
-          return ListView(
-            children: [
-              ListTile(
-                title: Text(
-                  name,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                subtitle: Text('Agent ID: $agentId'),
-                trailing: IconButton(
-                  tooltip: '編集',
-                  icon: const Icon(Icons.edit),
-                  onPressed: () => _editAgent(context, ref, m),
-                ),
-              ),
-              const Divider(height: 1),
-              _kv('メール', email.isNotEmpty ? email : '—'),
-              _kv('紹介コード', code.isNotEmpty ? code : '—'),
-              _kv('手数料', '$percent%'),
-              _kv('ステータス', status),
-              if (createdAt != null) _kv('作成', _ymdhm(createdAt)),
-              if (updatedAt != null) _kv('更新', _ymdhm(updatedAt)),
-              const SizedBox(height: 12),
-              const Divider(height: 1),
-              // ===== Connect / 入金口座 =====
-              const Padding(
-                padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
-                child: Text(
-                  '入金口座（Stripe Connect）',
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
-              ),
-              Builder(
-                builder: (ctx) {
-                  final m = snap.data!.data() ?? {};
-                  final acctId = (m['stripeAccountId'] ?? '').toString();
-                  final connect =
-                      (m['connect'] as Map?)?.cast<String, dynamic>() ?? {};
-                  final charges = connect['charges_enabled'] == true;
-                  final payouts = connect['payouts_enabled'] == true;
-                  final schedule =
-                      (m['payoutSchedule'] as Map?)?.cast<String, dynamic>() ??
-                      {};
-                  final anchor = schedule['monthly_anchor'] ?? 1;
-
-                  return Column(
-                    children: [
-                      ListTile(
-                        leading: const Icon(
-                          Icons.account_balance_wallet_outlined,
-                        ),
-                        title: Text(acctId.isEmpty ? '未作成' : 'アカウント: $acctId'),
-                        subtitle: Text(
-                          '入金: ${payouts ? "可" : "不可"} ／ 料金回収: ${charges ? "可" : "不可"} ／ 毎月${anchor}日入金',
-                        ),
-                        trailing: FilledButton(
-                          onPressed: () =>
-                              _upsertConnectAndOnboardForAgency(ctx),
-                          child: const Text('設定 / 続行'),
-                        ),
-                      ),
-                      const Divider(height: 1),
-                    ],
-                  );
-                },
-              ),
-
-              // ===== 登録店舗（contracts） =====
-              const Padding(
-                padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
-                child: Text(
-                  '登録店舗一覧',
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
-              ),
-
-              // 検索ボックス（tenantName / tenantId / ownerUid などでフィルタ）
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                child: TextField(
-                  controller: searchCtrl,
-                  decoration: const InputDecoration(
-                    prefixIcon: Icon(Icons.search),
-                    hintText: '店舗名 / tenantId / ownerUid 検索',
-                    isDense: true,
-                    border: OutlineInputBorder(),
-                  ),
-                  onChanged: (_) => (context as Element).markNeedsBuild(),
-                ),
-              ),
-
-              ContractsListForAgent(agentId: agentId),
-              const SizedBox(height: 24),
-            ],
-          );
-        },
-      ),
-    );
   }
 
   Future<void> _editAgent(
@@ -348,17 +235,17 @@ class AgencyDetailPage extends StatelessWidget {
         actions: [
           TextButton(
             style: TextButton.styleFrom(
-              foregroundColor: Colors.black, // 文字色
-              overlayColor: Colors.black12, // 押下時の波紋色も黒系に
+              foregroundColor: Colors.black,
+              overlayColor: Colors.black12,
             ),
             onPressed: () => Navigator.pop(context, false),
             child: const Text('キャンセル'),
           ),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: Colors.black, // 背景
-              foregroundColor: Colors.white, // 文字色
-              overlayColor: Colors.white12, // 押下時の波紋
+              backgroundColor: Colors.black,
+              foregroundColor: Colors.white,
+              overlayColor: Colors.white12,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
                 side: const BorderSide(color: Colors.black),
@@ -401,4 +288,155 @@ class AgencyDetailPage extends StatelessWidget {
       ],
     ),
   );
+
+  @override
+  Widget build(BuildContext context) {
+    final ref = FirebaseFirestore.instance
+        .collection('agencies')
+        .doc(widget.agentId);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('代理店詳細'),
+        automaticallyImplyLeading: widget.agent ? false : true,
+      ),
+      body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+        stream: ref.snapshots(),
+        builder: (context, snap) {
+          if (snap.hasError) return Center(child: Text('読込エラー: ${snap.error}'));
+          if (!snap.hasData)
+            return const Center(child: CircularProgressIndicator());
+
+          final m = snap.data!.data() ?? {};
+          final name = (m['name'] ?? '(no name)').toString();
+          final email = (m['email'] ?? '').toString();
+          final code = (m['code'] ?? '').toString();
+          final percent = (m['commissionPercent'] ?? 0).toString();
+          final status = (m['status'] ?? 'active').toString();
+          final createdAt = (m['createdAt'] is Timestamp)
+              ? (m['createdAt'] as Timestamp).toDate()
+              : null;
+          final updatedAt = (m['updatedAt'] is Timestamp)
+              ? (m['updatedAt'] as Timestamp).toDate()
+              : null;
+
+          return ListView(
+            children: [
+              ListTile(
+                title: Text(
+                  name,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                subtitle: Text('Agent ID: ${widget.agentId}'),
+                trailing: IconButton(
+                  tooltip: '編集',
+                  icon: const Icon(Icons.edit),
+                  onPressed: () => _editAgent(context, ref, m),
+                ),
+              ),
+              const Divider(height: 1),
+              _kv('メール', email.isNotEmpty ? email : '—'),
+              _kv('紹介コード', code.isNotEmpty ? code : '—'),
+              _kv('手数料', '$percent%'),
+              _kv('ステータス', status),
+              if (createdAt != null) _kv('作成', _ymdhm(createdAt)),
+              if (updatedAt != null) _kv('更新', _ymdhm(updatedAt)),
+              const SizedBox(height: 12),
+              const Divider(height: 1),
+
+              // ===== Connect / 入金口座 =====
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
+                child: Text(
+                  '入金口座（Stripe Connect）',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+              Builder(
+                builder: (ctx) {
+                  final mm = snap.data!.data() ?? {};
+                  final acctId = (mm['stripeAccountId'] ?? '').toString();
+                  final connect =
+                      (mm['connect'] as Map?)?.cast<String, dynamic>() ?? {};
+                  final charges = connect['charges_enabled'] == true;
+                  final payouts = connect['payouts_enabled'] == true;
+                  final schedule =
+                      (mm['payoutSchedule'] as Map?)?.cast<String, dynamic>() ??
+                      {};
+                  final anchor = schedule['monthly_anchor'] ?? 1;
+
+                  return Column(
+                    children: [
+                      ListTile(
+                        leading: const Icon(
+                          Icons.account_balance_wallet_outlined,
+                        ),
+                        title: Text(acctId.isEmpty ? '未作成' : 'アカウント: $acctId'),
+                        subtitle: Text(
+                          '入金: ${payouts ? "可" : "不可"} ／ 料金回収: ${charges ? "可" : "不可"} ／ 毎月$anchor日入金',
+                        ),
+                        trailing: FilledButton(
+                          onPressed: _onboardingBusy
+                              ? null
+                              : () => _upsertConnectAndOnboardForAgency(ctx),
+                          child: _onboardingBusy
+                              ? Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: const [
+                                    SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    SizedBox(width: 8),
+                                    Text('処理中…'),
+                                  ],
+                                )
+                              : const Text('設定 / 続行'),
+                        ),
+                      ),
+                      const Divider(height: 1),
+                    ],
+                  );
+                },
+              ),
+
+              // ===== 登録店舗（contracts） =====
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
+                child: Text(
+                  '登録店舗一覧',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+
+              // 検索ボックス（tenantName / tenantId / ownerUid などでフィルタ）
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: TextField(
+                  controller: _searchCtrl,
+                  decoration: const InputDecoration(
+                    prefixIcon: Icon(Icons.search),
+                    hintText: '店舗名 / tenantId / ownerUid 検索',
+                    isDense: true,
+                    border: OutlineInputBorder(),
+                  ),
+                  onChanged: (_) => (context as Element).markNeedsBuild(),
+                ),
+              ),
+
+              ContractsListForAgent(agentId: widget.agentId),
+              const SizedBox(height: 24),
+            ],
+          );
+        },
+      ),
+    );
+  }
 }

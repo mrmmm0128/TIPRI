@@ -80,7 +80,7 @@ class _TenantTileState extends State<TenantTile> {
     final subtitleLines = <String>[
       'ID: ${widget.tenantId}',
       if (widget.plan.isNotEmpty)
-        'Plan: ${widget.plan} / Status: ${widget.status}${widget.chargesEnabled ? '/ コネクトアカウント作成済' : ''}',
+        'Plan: ${widget.plan} / ${widget.status}${widget.chargesEnabled ? '・ コネクトアカウント作成済' : ''}',
 
       if (createdLabel != null) createdLabel,
     ];

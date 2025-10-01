@@ -35,12 +35,13 @@ class _StaffDetailScreenState extends State<StaffDetailScreen> {
   Uint8List? _newPhotoBytes;
   String? _newPhotoName;
   bool _saving = false;
+  bool _deleting = false;
   String _plan = 'UNKNOWN';
 
   @override
   void initState() {
     super.initState();
-    fetchPlanStringById(widget.ownerId!, widget.tenantId).then((p) {
+    fetchPlanStringById(widget.ownerId, widget.tenantId).then((p) {
       if (!mounted) return;
       setState(() => _plan = p);
     });
@@ -52,10 +53,9 @@ class _StaffDetailScreenState extends State<StaffDetailScreen> {
 
   String _staffTipUrl(String tenantId, String employeeId, {int? initAmount}) {
     final qp = <String, String>{
-      'u': widget.ownerId!,
+      'u': widget.ownerId,
       't': tenantId,
       'e': employeeId,
-
       if (initAmount != null) 'a': '$initAmount',
     };
     final query = Uri(queryParameters: qp).query;
@@ -114,12 +114,9 @@ class _StaffDetailScreenState extends State<StaffDetailScreen> {
 
     if (name.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           backgroundColor: Colors.white,
-          content: const Text(
-            '名前は必須です',
-            style: TextStyle(color: Colors.black87),
-          ),
+          content: Text('名前は必須です', style: TextStyle(color: Colors.black87)),
         ),
       );
       return;
@@ -174,6 +171,77 @@ class _StaffDetailScreenState extends State<StaffDetailScreen> {
     }
   }
 
+  // ===== 削除系 =====
+  Future<bool> _confirmDelete(String staffName) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
+        title: const Text('スタッフを削除しますか？'),
+        content: Text(
+          '「$staffName」を削除すると復元できません。\n関連する写真ファイルも削除します。',
+          style: const TextStyle(color: Colors.black87),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('キャンセル'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.black),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('削除する'),
+          ),
+        ],
+      ),
+    );
+    return ok ?? false;
+  }
+
+  Future<void> _deleteStaff({
+    required DocumentReference<Map<String, dynamic>> empRef,
+    required Map<String, dynamic> current,
+  }) async {
+    if (_deleting) return;
+    setState(() => _deleting = true);
+    try {
+      // 画像があればストレージも削除（URL→Ref）
+      final url = (current['photoUrl'] ?? '') as String;
+      if (url.isNotEmpty) {
+        try {
+          final ref = FirebaseStorage.instance.refFromURL(url);
+          await ref.delete();
+        } catch (_) {
+          // URLが無効/権限無しなどは無視して続行
+        }
+      }
+      await empRef.delete();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          backgroundColor: Colors.white,
+          content: Text('削除しました', style: TextStyle(color: Colors.black87)),
+        ),
+      );
+      Navigator.of(context).pop(); // 一覧へ戻る
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.white,
+          content: Text(
+            '削除に失敗: $e',
+            style: const TextStyle(color: Colors.black87),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _deleting = false);
+    }
+  }
+
   // 白カードの共通ラッパー
   Widget _whiteCard(Widget child) {
     return Container(
@@ -193,12 +261,14 @@ class _StaffDetailScreenState extends State<StaffDetailScreen> {
     );
   }
 
-  InputDecoration _inputDeco(String label, {String? hint}) {
+  // ← アイコン付きの入力デコレータに変更
+  InputDecoration _inputDeco(String label, {String? hint, IconData? icon}) {
     return InputDecoration(
       labelText: label,
-      labelStyle: const TextStyle(color: Colors.black87), // ★ 統一
+      labelStyle: const TextStyle(color: Colors.black87),
       hintText: hint,
-      hintStyle: const TextStyle(color: Colors.black87), // ★ 統一
+      hintStyle: const TextStyle(color: Colors.black54),
+      prefixIcon: icon != null ? Icon(icon, color: Colors.black54) : null,
       filled: true,
       fillColor: Colors.white,
       isDense: true,
@@ -213,7 +283,7 @@ class _StaffDetailScreenState extends State<StaffDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final empRef = FirebaseFirestore.instance
-        .collection(widget.ownerId!)
+        .collection(widget.ownerId)
         .doc(widget.tenantId)
         .collection('employees')
         .doc(widget.employeeId);
@@ -283,10 +353,8 @@ class _StaffDetailScreenState extends State<StaffDetailScreen> {
         }
 
         // フォーム初期値
-        final staffName = data['name'] ?? '';
-        _nameCtrl.value = TextEditingValue(
-          text: (data['name'] ?? '') as String,
-        );
+        final staffName = (data['name'] ?? '') as String;
+        _nameCtrl.value = TextEditingValue(text: staffName);
         _emailCtrl.value = TextEditingValue(
           text: (data['email'] ?? '') as String,
         );
@@ -298,7 +366,7 @@ class _StaffDetailScreenState extends State<StaffDetailScreen> {
         final tipUrl = _staffTipUrl(widget.tenantId, widget.employeeId);
 
         return Scaffold(
-          backgroundColor: const Color(0xFFF7F7F7), // 薄いグレー（白基調）
+          backgroundColor: const Color(0xFFF7F7F7),
           appBar: AppBar(
             backgroundColor: Colors.white,
             foregroundColor: Colors.black87,
@@ -308,10 +376,31 @@ class _StaffDetailScreenState extends State<StaffDetailScreen> {
               style: TextStyle(
                 fontWeight: FontWeight.w600,
                 fontSize: 15,
-                color: Colors.black87, // ★ 統一
+                color: Colors.black87,
               ),
             ),
-            actions: const [],
+            actions: [
+              // 削除ボタン（ゴミ箱）
+              IconButton(
+                tooltip: 'スタッフを削除',
+                onPressed: _deleting
+                    ? null
+                    : () async {
+                        final ok = await _confirmDelete(
+                          staffName.isEmpty ? 'このスタッフ' : staffName,
+                        );
+                        if (!ok) return;
+                        await _deleteStaff(empRef: empRef, current: data);
+                      },
+                icon: _deleting
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.delete_outline),
+              ),
+            ],
           ),
           body: Theme(
             data: Theme.of(context).copyWith(
@@ -328,56 +417,99 @@ class _StaffDetailScreenState extends State<StaffDetailScreen> {
                   // 顔写真 & 基本情報
                   _whiteCard(
                     Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        GestureDetector(
-                          onTap: _saving ? null : _pickNewPhoto,
-                          child: CircleAvatar(
-                            radius: 48,
-                            backgroundImage: _newPhotoBytes != null
-                                ? MemoryImage(_newPhotoBytes!)
-                                : (photoUrl.isNotEmpty
-                                          ? NetworkImage(photoUrl)
-                                          : null)
-                                      as ImageProvider<Object>?,
-                            child: (_newPhotoBytes == null && photoUrl.isEmpty)
-                                ? const Icon(Icons.camera_alt, size: 28)
-                                : null,
+                        // 画像は編集感を出すためカメラアイコンの“編集バッジ”を重ねる
+                        Center(
+                          child: GestureDetector(
+                            onTap: _saving ? null : _pickNewPhoto,
+                            child: Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                CircleAvatar(
+                                  radius: 48,
+                                  backgroundImage: _newPhotoBytes != null
+                                      ? MemoryImage(_newPhotoBytes!)
+                                      : (photoUrl.isNotEmpty
+                                                ? NetworkImage(photoUrl)
+                                                : null)
+                                            as ImageProvider<Object>?,
+                                  child:
+                                      (_newPhotoBytes == null &&
+                                          photoUrl.isEmpty)
+                                      ? const Icon(
+                                          Icons.person,
+                                          size: 40,
+                                          color: Colors.black38,
+                                        )
+                                      : null,
+                                ),
+                                Positioned(
+                                  bottom: -2,
+                                  right: -2,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(6),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      shape: BoxShape.circle,
+                                      boxShadow: const [
+                                        BoxShadow(
+                                          color: Color(0x22000000),
+                                          blurRadius: 4,
+                                          offset: Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                    child: const Icon(
+                                      Icons.camera_alt,
+                                      size: 18,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                         const SizedBox(height: 16),
+
                         TextField(
                           controller: _nameCtrl,
-                          decoration: _inputDeco('名前（必須）'),
+                          decoration: _inputDeco(
+                            '名前（必須）',
+                            icon: Icons.badge_outlined,
+                          ),
                           style: const TextStyle(color: Colors.black87),
                         ),
                         const SizedBox(height: 12),
+
                         TextField(
                           controller: _emailCtrl,
                           decoration: _inputDeco(
-                            'メールアドレス（任意） *メールアドレスを登録すると、チップ受け取り時にメールが届きます。',
+                            'メールアドレス（任意）',
+                            hint: '登録するとチップ受け取り時にメールが届きます',
+                            icon: Icons.alternate_email,
                           ),
                           style: const TextStyle(color: Colors.black87),
                           keyboardType: TextInputType.emailAddress,
                         ),
                         const SizedBox(height: 12),
+
                         TextField(
                           controller: _commentCtrl,
                           decoration: _inputDeco(
                             'コメント（任意）',
                             hint: '得意分野や紹介文など',
+                            icon: Icons.edit_note,
                           ),
                           style: const TextStyle(color: Colors.black87),
                           maxLines: 3,
                         ),
                         const SizedBox(height: 12),
+
                         Align(
                           alignment: Alignment.centerRight,
-                          child: FilledButton(
-                            style: blackButton,
-                            onPressed: _saving
-                                ? null
-                                : () => _save(empRef, data),
-                            child: _saving
+                          child: FilledButton.icon(
+                            icon: _saving
                                 ? const SizedBox(
                                     width: 16,
                                     height: 16,
@@ -385,15 +517,21 @@ class _StaffDetailScreenState extends State<StaffDetailScreen> {
                                       strokeWidth: 2,
                                     ),
                                   )
-                                : const Text(
-                                    '保存する',
-                                    style: TextStyle(color: Colors.black87),
-                                  ),
+                                : const Icon(Icons.save_outlined),
+                            style: blackButton,
+                            onPressed: _saving
+                                ? null
+                                : () => _save(empRef, data),
+                            label: const Text(
+                              '保存する',
+                              style: TextStyle(color: Colors.black87),
+                            ),
                           ),
                         ),
                       ],
                     ),
                   ),
+
                   const SizedBox(height: 16),
 
                   if (_plan == "C")
@@ -410,12 +548,18 @@ class _StaffDetailScreenState extends State<StaffDetailScreen> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'スタッフ用QRコード',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: Colors.black87,
-                          ),
+                        const Row(
+                          children: [
+                            Icon(Icons.qr_code_2, color: Colors.black54),
+                            SizedBox(width: 8),
+                            Text(
+                              'スタッフ用QRコード',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 8),
                         Center(child: QrImageView(data: tipUrl, size: 180)),
@@ -428,7 +572,7 @@ class _StaffDetailScreenState extends State<StaffDetailScreen> {
                               onPressed: () => launchUrlString(
                                 tipUrl,
                                 mode: LaunchMode.externalApplication,
-                                webOnlyWindowName: '_self', // Webは新しいタブで開く
+                                webOnlyWindowName: '_self',
                               ),
                               icon: const Icon(Icons.open_in_new),
                               label: const Text(

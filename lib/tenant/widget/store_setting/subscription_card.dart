@@ -1,5 +1,37 @@
 import 'package:flutter/material.dart';
 
+class CardShellHome extends StatelessWidget {
+  final Widget child;
+  const CardShellHome({required this.child, super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final w = MediaQuery.of(context).size.width;
+    final pad = w < 600 ? 9.0 : 16.0;
+
+    return Container(
+      margin: const EdgeInsets.all(3),
+      padding: EdgeInsets.all(pad),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+
+        border: Border.all(width: 3, color: Colors.black),
+        // boxShadow: const [
+        //   // 全方向に広がる柔らかい影
+        //   BoxShadow(
+        //     color: Color(0x1A000000), // 黒10%くらい
+        //     blurRadius: 16,
+        //     spreadRadius: 2, // ★ 影を全方向に“にじませる”
+        //     offset: Offset(0, 0), // ★ 0 にして全方向へ
+        //   ),
+        // ],
+      ),
+      child: child,
+    );
+  }
+}
+
 /// 白カード＋影（ネイティブ感のある入れ物）
 class CardShell extends StatelessWidget {
   final Widget child;
@@ -7,21 +39,26 @@ class CardShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 余白は画面幅に応じて少し広げる
+    // 画面幅に応じて内側の余白を調整
     final w = MediaQuery.of(context).size.width;
     final pad = w < 600 ? 12.0 : 16.0;
 
     return Container(
-      margin: EdgeInsets.all(2),
+      margin: const EdgeInsets.all(6), // 枠が太い分、少しだけ広めに
+      padding: EdgeInsets.all(pad),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
+        // border: Border.all(
+        //   color: Colors.black, // ★ 黒
+        //   width: 3, // ★ 太枠（お好みで 4〜8 に）
+        // ),
         boxShadow: const [
+          // 枠が目立つので影は控えめ（不要なら消してOK）
           BoxShadow(
-            color: Color(0x1A000000), // 黒10%くらい
-            blurRadius: 16,
-            spreadRadius: 0,
-            offset: Offset(0, 8),
+            color: Color.fromARGB(19, 14, 14, 14), // 黒 8% くらい
+            blurRadius: 8,
+            offset: Offset(4, 4),
           ),
         ],
       ),
@@ -148,14 +185,15 @@ class PlanChip extends StatelessWidget {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: padH, vertical: padV),
       decoration: BoxDecoration(
-        color: dark ? Colors.black : Colors.white,
+        color: Color(0xFFFCC400),
+
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Colors.black12),
+        border: Border.all(color: Colors.black, width: 3.0),
       ),
       child: Text(
         label,
         style: TextStyle(
-          color: dark ? Colors.white : Colors.black,
+          color: Colors.black,
           fontWeight: FontWeight.w700,
           fontSize: w < 360 ? 12 : 14,
         ),
@@ -198,17 +236,24 @@ class _PlanTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final baseFg = selected ? Colors.white : Colors.black;
     final subFg = selected ? Colors.white70 : Colors.black;
-
-    // 幅が狭いときは少しタイポを小さめに
     final w = MediaQuery.of(context).size.width;
     final titleSize = w < 360 ? 15.0 : 16.0;
     final priceSize = w < 360 ? 14.0 : 16.0;
 
     final tile = Material(
       color: selected ? Colors.black : Colors.black12,
-      borderRadius: BorderRadius.circular(16),
-      elevation: selected ? 8 : 4,
-      shadowColor: const Color(0x1A000000),
+
+      // ★ 真っ黒キープ：影＆サーフェスティントを無効化
+      elevation: 0,
+      surfaceTintColor: Colors.transparent,
+
+      // ★ どんなときでも真っ黒の枠線（幅3）
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: Color(0xFF000000), width: 3),
+      ),
+      clipBehavior: Clip.antiAlias, // 角丸に沿ってクリップ
+
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: onTap,

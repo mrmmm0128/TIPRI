@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html>
+<html lang="ja">
 <head>
   <base href="$FLUTTER_BASE_HREF">
-
   <meta charset="UTF-8">
   <meta http-equiv="X-UA-Compatible" content="IE=Edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 
-  <!-- アプリ説明（検索・共有の両方で参照されます） -->
+  <!-- App description -->
   <meta name="description" content="スタッフに感謝を気軽に伝えられるチップアプリ。社員のモチベーション向上と顧客満足度アップを同時に実現。口コミやSNS連携でファンづくりにも役立つ。">
 
   <!-- iOS/PWA -->
@@ -15,26 +15,13 @@
   <meta name="apple-mobile-web-app-title" content="TIPRI チップリ">
   <link rel="apple-touch-icon" href="icons/opg.png">
 
-   <!-- Safari/Chrome がUI色を推定するためのテーマ色（明るい色に） -->
-<meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: no-preference)">
-<meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: dark)">
+  <!-- Theme color (page itself is light) -->
+  <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: no-preference)">
+  <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: dark)">
+  <meta name="color-scheme" content="light">
 
-<!-- ページはライト想定で描画（ダークに切り替えない） -->
-<meta name="color-scheme" content="light">
-<style>
-  :root { color-scheme: light; } /* Safariへの明示 */
-  html, body { background:#fff; } /* 背景が暗いと黒UIに寄りやすい */
-</style>
-
-
-  <!-- Favicon -->
-  <link rel="icon" type="image/png" href="favicon.png"/>
-
-  <!-- タイトル（タブ名・共有時の既定タイトル） -->
-  <title>TIPRI チップリ</title>
-
-  <!-- OGP / Twitter カード（LINE/Twitterのプレビュー用） -->
+  <!-- OGP / Twitter -->
   <meta property="og:title" content="TIPRI チップリ">
   <meta property="og:description" content="スタッフに感謝を気軽に伝えられるチップアプリ。社員のモチベーション向上と顧客満足度アップを同時に実現。口コミやSNS連携でファンづくりにも役立つ。">
   <meta property="og:type" content="website">
@@ -47,8 +34,147 @@
   <meta name="twitter:image" content="https://venerable-mermaid-fcf8c8.netlify.app/ogp.png">
 
   <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>TIPRI チップリ</title>
+
+  <!-- 先読み -->
+  <link rel="preload" as="image" href="images/loader.png">
+
+  <style>
+    html { -webkit-text-size-adjust: 100%; }
+    *, *::before, *::after { box-sizing: border-box; }
+    :root { color-scheme: light; }
+    html, body { background:#fff; margin:0; padding:0; }
+
+    /* ===== ローダー：黒背景／中央配置 ===== */
+    #app-loader {
+      position: fixed; inset: 0;
+      background: #000;
+      z-index: 9999;
+      will-change: opacity;
+      contain: layout paint size;
+      transform: translateZ(0);
+
+      /* 画面中央に“中身”を縦横センター */
+      display: grid;
+      place-items: center;
+      min-height: 100vh;
+    }
+
+    /* 中身（スピナー＋ロゴ）を縦方向に並べ、間に余白 */
+    .loader-stack {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 28px;               /* スピナーとロゴの距離（好みで） */
+      color: #fff;
+      text-align: center;
+      padding: 24px;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans JP", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+    }
+
+    /* スピナー（重ねない） */
+    .spinner {
+      width: 40px; height: 40px; border-radius: 50%;
+      border: 3px solid rgba(255,255,255,0.28);
+      border-top-color: #fff;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ロゴ */
+    .loader-logo {
+      width: 164px; height: 164px;
+      object-fit: contain;
+      user-select: none; -webkit-user-drag: none;
+      display: block;
+    }
+
+    /* 低い画面では少し縮める */
+    @media (max-height: 640px) {
+      .loader-stack { gap: 20px; padding: 16px; }
+      .spinner { width: 36px; height: 36px; }
+      .loader-logo { width: 136px; height: 136px; }
+    }
+  </style>
 </head>
 <body>
+  <!-- ロード完了まで黒背景／中央にスピナー→ロゴ -->
+  <div id="app-loader" aria-live="polite" aria-busy="true">
+    <div class="loader-stack">
+      <div class="spinner" role="progressbar" aria-label="読み込み中"></div>
+      <img class="loader-logo" src="images/loader.png" alt="TIPRI ロゴ">
+    </div>
+  </div>
+
+  <!-- Flutter の初回フレームでローダーをフェードアウト -->
+  <script>
+    window.addEventListener('flutter-first-frame', function () {
+      const el = document.getElementById('app-loader');
+      if (!el) return;
+      el.style.transition = 'opacity .25s ease';
+      el.style.opacity = '0';
+      setTimeout(() => { if (el && el.parentNode) el.parentNode.removeChild(el); }, 280);
+    });
+    // フェイルセーフ（10秒で強制非表示）
+    setTimeout(() => {
+      const el = document.getElementById('app-loader');
+      if (el) el.style.display = 'none';
+    }, 10000);
+  </script>
+
+  <!-- URLのハッシュに応じて favicon / apple-touch-icon を切り替える -->
+<script>
+(function () {
+  function chooseFaviconByHash() {
+    // 例: "#/agent-login?x=1" → "/agent-login"
+    const hash = (location.hash || '').replace(/^#/, '');
+    const path = hash.split('?')[0] || '/';
+
+    // ルール：
+    //  - "/agent-login" のとき → favicon_agent.png
+    //  - "/admin"（配下含む） → favicon_admin.png
+    //  - それ以外             → favicon.png
+    let favicon = 'favicon.png';
+    if (path === '/agent-login') {
+      favicon = 'favicon_agent.png';
+    } else if (path.startsWith('/admin')) {
+      favicon = 'favicon_admin.png';
+    }
+    return favicon;
+  }
+
+  function setOrReplaceLink(rel, href, attrs = {}) {
+    // 既存の同 rel を削除
+    document.querySelectorAll(`link[rel="${rel}"]`).forEach(el => el.remove());
+    // 新規に追加（キャッシュ回避用のクエリ付き）
+    const link = document.createElement('link');
+    link.rel = rel;
+    link.href = href + `?v=${Date.now()}`;
+    for (const [k, v] of Object.entries(attrs)) link.setAttribute(k, v);
+    document.head.appendChild(link);
+  }
+
+  function applyFavicons() {
+    const icon = chooseFaviconByHash();
+    setOrReplaceLink('icon', icon, { type: 'image/png' });
+    // 必要に応じて Apple Touch Icon も同じものに
+    setOrReplaceLink('apple-touch-icon', icon);
+    // （必要なら）サイズ別を明示する場合：
+    // setOrReplaceLink('icon', 'icons/xxx-32.png', { sizes: '32x32', type: 'image/png' });
+    // setOrReplaceLink('icon', 'icons/xxx-16.png', { sizes: '16x16', type: 'image/png' });
+  }
+
+  // 初期適用
+  applyFavicons();
+  // ハッシュでのページ内遷移でも更新
+  window.addEventListener('hashchange', applyFavicons);
+})();
+</script>
+
+
+  <!-- Flutter 起動 -->
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

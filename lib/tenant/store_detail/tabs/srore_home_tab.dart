@@ -3,10 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:yourpay/fonts/jp_font.dart';
 import 'package:yourpay/tenant/widget/store_setting/subscription_card.dart';
-
 import 'package:yourpay/tenant/widget/store_home/chip_card.dart';
-import 'package:yourpay/tenant/widget/store_home/rank_entry.dart'
-    hide RecipientFilter, StaffAgg;
+import 'package:yourpay/tenant/widget/store_home/rank_entry.dart';
 import 'package:yourpay/tenant/widget/store_home/period_payment_page.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:pdf/pdf.dart';
@@ -32,6 +30,7 @@ enum _RangeMode { today, yesterday, thisMonth, lastMonth, month, custom }
 
 class _StoreHomeTabState extends State<StoreHomeTab> {
   bool loading = false;
+  bool _exporting = false;
 
   // 期間モード
   _RangeMode _mode = _RangeMode.thisMonth;
@@ -69,7 +68,7 @@ class _StoreHomeTabState extends State<StoreHomeTab> {
 
   // bounds が変わった時だけ stream を作り直す
   void _ensureTipsStream() {
-    final uid = FirebaseAuth.instance.currentUser!.uid; // 取得方法はお好みで
+    //final uid = FirebaseAuth.instance.currentUser!.uid; // 取得方法はお好みで
     final b = _rangeBounds(); // 既存の期間計算
     final key = _makeRangeKey(b.start, b.endExclusive);
     if (key == _lastTipsKey && _tipsStream != null) return;
@@ -149,6 +148,7 @@ class _StoreHomeTabState extends State<StoreHomeTab> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(msg, style: TextStyle(fontFamily: 'LINEseed')),
+        backgroundColor: Color(0xFFFCC400),
       ),
     );
 
@@ -251,26 +251,6 @@ class _StoreHomeTabState extends State<StoreHomeTab> {
     }
   }
 
-  // 期間に含まれる各「対象月」の翌月25日を列挙
-  List<DateTime> _payoutDatesForRange(DateTime start, DateTime endExclusive) {
-    final res = <DateTime>[];
-
-    // 期間の開始月の1日
-    var cursor = DateTime(start.year, start.month, 1);
-    // 期間の終了(含まれない)の前日が所属する月の1日
-    final lastInRange = endExclusive.subtract(const Duration(days: 1));
-    final lastMonthHead = DateTime(lastInRange.year, lastInRange.month, 1);
-
-    while (!cursor.isAfter(lastMonthHead)) {
-      // 翌月1日が支払予定日
-      final nextMonthHead = DateTime(cursor.year, cursor.month + 1, 1);
-      res.add(nextMonthHead);
-      // 次の月へ
-      cursor = DateTime(cursor.year, cursor.month + 1, 1);
-    }
-    return res;
-  }
-
   // ===== PDF（現在の期間＆“除外されていない”スタッフのみ反映）=====
   Future<void> _exportMonthlyReportPdf() async {
     try {
@@ -280,7 +260,13 @@ class _StoreHomeTabState extends State<StoreHomeTab> {
       if (b.start == null || b.endExclusive == null) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('期間を選択してください（今日/昨日/今月/先月/月選択/期間指定）')),
+          const SnackBar(
+            content: Text(
+              '期間を選択してください（今日/昨日/今月/先月/月選択/期間指定）',
+              style: TextStyle(fontFamily: 'LINEseed'),
+            ),
+            backgroundColor: Color(0xFFFCC400),
+          ),
         );
         return;
       }
@@ -306,11 +292,6 @@ class _StoreHomeTabState extends State<StoreHomeTab> {
       final storePercent = storeCfg['percent'] as num?;
       final storeFixed = storeCfg['fixed'] as num?;
 
-      final payoutDates = _payoutDatesForRange(b.start!, b.endExclusive!);
-      String ymdFull(DateTime d) =>
-          '${d.year}/${d.month.toString().padLeft(2, '0')}/${d.day.toString().padLeft(2, '0')}';
-      final payoutDatesLabel = payoutDates.map(ymdFull).join('、');
-
       // 期間の Tips を取得
       final qs = await FirebaseFirestore.instance
           .collection(widget.ownerId!)
@@ -328,9 +309,15 @@ class _StoreHomeTabState extends State<StoreHomeTab> {
 
       if (qs.docs.isEmpty) {
         if (!mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('対象期間にデータがありません')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              '対象期間にデータがありません',
+              style: TextStyle(fontFamily: 'LINEseed'),
+            ),
+            backgroundColor: Color(0xFFFCC400),
+          ),
+        );
         return;
       }
 
@@ -742,6 +729,27 @@ class _StoreHomeTabState extends State<StoreHomeTab> {
     );
   }
 
+  Future<void> _onTapExportMonthlyReport() async {
+    if (_exporting) return; // 多重タップ防止
+    setState(() => _exporting = true);
+    try {
+      await _exportMonthlyReportPdf(); // 既存の処理（async想定）
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '明細の生成に失敗しました: $e',
+            style: TextStyle(fontFamily: 'LINEseed'),
+          ),
+          backgroundColor: Color(0xFFFCC400),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final months = _monthOptions();
@@ -776,7 +784,7 @@ class _StoreHomeTabState extends State<StoreHomeTab> {
               child: FittedBox(
                 fit: BoxFit.scaleDown,
                 child: FilledButton.icon(
-                  onPressed: _exportMonthlyReportPdf,
+                  onPressed: _onTapExportMonthlyReport,
                   icon: const Icon(Icons.receipt_long, size: 25),
                   // ラベルは少しだけ短くして横幅を節約（処理は同じ）
                   label: const Text('明細'),
@@ -785,11 +793,12 @@ class _StoreHomeTabState extends State<StoreHomeTab> {
                       horizontal: 12,
                       vertical: 12,
                     ),
-                    backgroundColor: Colors.black,
-                    foregroundColor: Colors.white,
+                    backgroundColor: Color(0xFFFCC400),
+                    foregroundColor: Colors.black,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
+                    side: BorderSide(color: Colors.black, width: 3),
                   ),
                 ),
               ),
@@ -829,12 +838,13 @@ class _StoreHomeTabState extends State<StoreHomeTab> {
               active: _mode == _RangeMode.lastMonth,
               onTap: () => setState(() => _mode = _RangeMode.lastMonth),
             ),
-            // 月選択
+
+            // ▼ 月選択（黒い太枠＋太字）
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
                 color: Colors.white,
-                border: Border.all(color: Colors.black26),
+                border: Border.all(color: Colors.black, width: 3),
                 borderRadius: BorderRadius.circular(999),
               ),
               child: DropdownButtonHideUnderline(
@@ -849,11 +859,9 @@ class _StoreHomeTabState extends State<StoreHomeTab> {
                   ),
                   style: const TextStyle(
                     color: Colors.black87,
-                    fontFamily: "LINEseed",
+                    fontFamily: 'LINEseed',
+                    fontWeight: FontWeight.w700, // 太字に
                   ),
-
-                  // ✅ ここを削除すれば選んだ値がそのまま表示される
-                  // selectedItemBuilder: (context) => ...
                   items: months
                       .map(
                         (m) => DropdownMenuItem<DateTime>(
@@ -862,7 +870,8 @@ class _StoreHomeTabState extends State<StoreHomeTab> {
                             '${m.year}/${m.month.toString().padLeft(2, '0')}',
                             style: const TextStyle(
                               color: Colors.black87,
-                              fontFamily: "LINEseed",
+                              fontFamily: 'LINEseed',
+                              fontWeight: FontWeight.w700, // 太字に
                             ),
                           ),
                         ),
@@ -871,7 +880,7 @@ class _StoreHomeTabState extends State<StoreHomeTab> {
                   onChanged: (val) {
                     if (val == null) return;
                     setState(() {
-                      monthValue = val; // ✅ 選択状態を更新
+                      monthValue = val;
                       _mode = _RangeMode.month;
                       _selectedMonthStart = val;
                     });
@@ -883,7 +892,6 @@ class _StoreHomeTabState extends State<StoreHomeTab> {
             RangePill(
               label: _mode == _RangeMode.custom ? _rangeLabel() : '期間指定',
               active: _mode == _RangeMode.custom,
-
               onTap: _pickCustomRange,
             ),
           ],
@@ -914,7 +922,7 @@ class _StoreHomeTabState extends State<StoreHomeTab> {
             builder: (context, snap) {
               if (snap.hasError) {
                 return Center(
-                  child: CardShell(
+                  child: CardShellHome(
                     child: Padding(
                       padding: const EdgeInsets.all(16),
                       child: Text('読み込みエラー: ${snap.error}'),
@@ -967,17 +975,8 @@ class _StoreHomeTabState extends State<StoreHomeTab> {
                     children: [
                       for (final id in staffOrder)
                         ChoiceChip(
-                          label: Text(
-                            staffNamesAll[id] ?? 'スタッフ',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w700,
-                              color: Colors.black87,
-                              fontFamily: "LINEseed",
-                            ),
-                          ),
-                          selected: _excludedStaff.contains(
-                            id,
-                          ), // selected = 除外中（暗く）
+                          label: Text(staffNamesAll[id] ?? 'スタッフ'),
+                          selected: _excludedStaff.contains(id),
                           onSelected: (sel) {
                             setState(() {
                               if (sel) {
@@ -987,17 +986,30 @@ class _StoreHomeTabState extends State<StoreHomeTab> {
                               }
                             });
                           },
-                          selectedColor: Colors.black,
+
+                          // 配色（選択中は黒塗り＋白文字 / 非選択は白地＋黒文字）
+                          backgroundColor: Color(0xFFFCC400),
+                          selectedColor: Colors.white,
+
+                          // ラベルのフォントと色（LINEseedで統一）
                           labelStyle: TextStyle(
-                            color: _excludedStaff.contains(id)
-                                ? Colors.white
-                                : Colors.black87,
-                            fontWeight: FontWeight.w600,
+                            fontFamily: 'LINEseed',
+                            fontWeight: FontWeight.w700,
+                            color: Colors.black,
                           ),
-                          backgroundColor: Colors.white,
-                          shape: StadiumBorder(
-                            side: BorderSide(color: Colors.black26),
+
+                          // 太い黒枠
+                          shape: const StadiumBorder(
+                            side: BorderSide(color: Colors.black, width: 3),
                           ),
+
+                          // 余計なチェックマークは出さない
+                          showCheckmark: false,
+
+                          // タップ領域少しコンパクトに（お好みで）
+                          visualDensity: VisualDensity.compact,
+                          materialTapTargetSize:
+                              MaterialTapTargetSize.shrinkWrap,
                         ),
                       if (_excludedStaff.isNotEmpty)
                         TextButton(
@@ -1097,6 +1109,7 @@ class _StoreHomeTabState extends State<StoreHomeTab> {
                     style: TextStyle(
                       color: Colors.black87,
                       fontFamily: "LINEseed",
+                      fontSize: 13,
                     ),
                   ),
                   const SizedBox(height: 10),

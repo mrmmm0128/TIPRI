@@ -228,7 +228,12 @@ class _StaffThanksVideoManagerState extends State<StaffThanksVideoManager> {
 
   void _toast(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg, style: TextStyle(fontFamily: 'LINEseed')),
+        backgroundColor: Color(0xFFFCC400),
+      ),
+    );
   }
 
   Future<void> _preview(String url) async {
@@ -241,7 +246,15 @@ class _StaffThanksVideoManagerState extends State<StaffThanksVideoManager> {
 
   @override
   Widget build(BuildContext context) {
-    final pageTitle = '${widget.staffName} の Thanks動画';
+    final pageTitle = '${widget.staffName} の 感謝動画';
+    final outlineButton = OutlinedButton.styleFrom(
+      backgroundColor: Color(0xFFFCC400),
+      foregroundColor: Colors.black,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      side: BorderSide(color: Colors.black, width: 3),
+
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+    );
 
     return Center(
       // ワイド画面で読みやすい最大幅を設定
@@ -261,6 +274,7 @@ class _StaffThanksVideoManagerState extends State<StaffThanksVideoManager> {
                 final isMedium = w >= _bpCompact && w < _bpMedium;
 
                 final uploadBtn = OutlinedButton.icon(
+                  style: outlineButton,
                   onPressed: _pickAndUpload,
                   icon: const Icon(Icons.file_upload),
                   label: const Text('動画をアップロード'),

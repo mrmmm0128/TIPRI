@@ -59,6 +59,14 @@ class TrialProgressBar extends StatelessWidget {
 
     return Material(
       color: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: Colors.black,
+          width: 3, // 好みで
+        ),
+      ),
+      clipBehavior: Clip.antiAlias, // 角丸に沿ってクリップ（必須）
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),

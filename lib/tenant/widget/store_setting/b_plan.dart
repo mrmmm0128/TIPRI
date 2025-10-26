@@ -59,15 +59,27 @@ Widget buildBPerksSection({
             }, SetOptions(merge: true));
           }
           if (ctx.mounted) {
-            ScaffoldMessenger.of(
-              ctx,
-            ).showSnackBar(const SnackBar(content: Text('公式LINEリンクを保存しました')));
+            ScaffoldMessenger.of(ctx).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  '公式LINEリンクを保存しました',
+                  style: TextStyle(fontFamily: 'LINEseed'),
+                ),
+                backgroundColor: Color(0xFFFCC400),
+              ),
+            );
           }
         } catch (e) {
           if (ctx.mounted) {
-            ScaffoldMessenger.of(
-              ctx,
-            ).showSnackBar(SnackBar(content: Text('保存に失敗しました: $e')));
+            ScaffoldMessenger.of(ctx).showSnackBar(
+              SnackBar(
+                content: Text(
+                  '保存に失敗しました: $e',
+                  style: TextStyle(fontFamily: 'LINEseed'),
+                ),
+                backgroundColor: Color(0xFFFCC400),
+              ),
+            );
           }
         }
       }

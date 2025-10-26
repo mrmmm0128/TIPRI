@@ -15,7 +15,11 @@ class _PublicStaffQrListPageState extends State<PublicStaffQrListPage> {
 
   final _searchCtrl = TextEditingController();
   String _query = '';
-  final uid = FirebaseAuth.instance.currentUser?.uid;
+
+  // 追加: tenantIndex から解決した uid を保持
+  String? _ownerUid;
+  bool _loading = true;
+  String? _error;
 
   @override
   void initState() {
@@ -24,6 +28,66 @@ class _PublicStaffQrListPageState extends State<PublicStaffQrListPage> {
     _searchCtrl.addListener(() {
       setState(() => _query = _searchCtrl.text.trim().toLowerCase());
     });
+    _bootstrap();
+  }
+
+  Future<void> _bootstrap() async {
+    // 1) 必要なら匿名ログイン（セキュリティルールが閲覧にログインを要求する構成向け）
+    try {
+      if (FirebaseAuth.instance.currentUser == null) {
+        await FirebaseAuth.instance.signInAnonymously();
+      }
+    } catch (_) {
+      // 匿名ログインに失敗しても、公開読み取り可能ならそのまま進める
+    }
+
+    // 2) tenantIndex から uid 解決
+    if (tenantId == null || tenantId!.isEmpty) {
+      setState(() {
+        _loading = false;
+        _error = 'tenantId が見つかりません';
+      });
+      return;
+    }
+    try {
+      final idxSnap = await FirebaseFirestore.instance
+          .collection('tenantIndex')
+          .doc(tenantId)
+          .get();
+
+      if (!idxSnap.exists) {
+        setState(() {
+          _loading = false;
+          _error = 'tenantIndex/${tenantId} が存在しません';
+        });
+        return;
+      }
+
+      final data = idxSnap.data() ?? {};
+      // 想定フィールド名に幅を持たせる（運用差異に強く）
+      final uid = (data['uid'] ?? data['ownerUid'] ?? data['userUid'] ?? '')
+          .toString();
+
+      if (uid.isEmpty) {
+        setState(() {
+          _loading = false;
+          _error =
+              'tenantIndex/${tenantId} に uid がありません（uid/ownerUid/userUid のいずれも空）';
+        });
+        return;
+      }
+
+      setState(() {
+        _ownerUid = uid;
+        _loading = false;
+        _error = null;
+      });
+    } catch (e) {
+      setState(() {
+        _loading = false;
+        _error = 'uid 解決に失敗しました: $e';
+      });
+    }
   }
 
   @override
@@ -34,7 +98,8 @@ class _PublicStaffQrListPageState extends State<PublicStaffQrListPage> {
 
   String? _readTenantIdFromUrl() {
     final uri = Uri.base;
-    final frag = uri.fragment; // 例: "/qr-all?t=xxx"
+    // 例: https://example.com/#/qr-all?t=xxx または ?t=xxx
+    final frag = uri.fragment;
     final qi = frag.indexOf('?');
     final qp = <String, String>{}..addAll(uri.queryParameters);
     if (qi >= 0) {
@@ -45,19 +110,26 @@ class _PublicStaffQrListPageState extends State<PublicStaffQrListPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (tenantId == null || tenantId!.isEmpty) {
-      return const Scaffold(
+    // 先に致命的エラー
+    if (_error != null) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF7F7F7),
         body: Center(
-          child: Text(
-            'tenantId が見つかりません',
-            style: TextStyle(fontFamily: 'LINEseed'),
-          ),
+          child: Text(_error!, style: const TextStyle(fontFamily: 'LINEseed')),
         ),
       );
     }
+    // ローディング
+    if (_loading || _ownerUid == null) {
+      return const Scaffold(
+        backgroundColor: Color(0xFFF7F7F7),
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
 
+    // Firestore パス: /{uid}/{tenantId}/employees
     final q = FirebaseFirestore.instance
-        .collection(uid!)
+        .collection(_ownerUid!) // ← 解決した uid を使用
         .doc(tenantId)
         .collection('employees')
         .orderBy('createdAt', descending: true);
@@ -76,7 +148,7 @@ class _PublicStaffQrListPageState extends State<PublicStaffQrListPage> {
       ),
       body: Column(
         children: [
-          // 使い方の簡単な説明
+          // 説明
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: Container(
@@ -98,11 +170,11 @@ class _PublicStaffQrListPageState extends State<PublicStaffQrListPage> {
                 children: [
                   const Icon(Icons.qr_code_2, color: Colors.black87),
                   const SizedBox(width: 8),
-                  Expanded(
+                  const Expanded(
                     child: Text(
                       'スタッフ個別のチップ送信ページへ誘導するQR付きポスターを作成できます。'
                       '\n・PDFをダウンロードして印刷、店内に掲示してください。',
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: Colors.black87,
                         height: 1.35,
                         fontFamily: 'LINEseed',
@@ -114,7 +186,7 @@ class _PublicStaffQrListPageState extends State<PublicStaffQrListPage> {
             ),
           ),
 
-          // 名前検索ボックス
+          // 検索
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
             child: TextField(
@@ -148,7 +220,6 @@ class _PublicStaffQrListPageState extends State<PublicStaffQrListPage> {
               ),
             ),
           ),
-
           const SizedBox(height: 4),
 
           // 一覧
@@ -160,7 +231,7 @@ class _PublicStaffQrListPageState extends State<PublicStaffQrListPage> {
                   return Center(
                     child: Text(
                       '読み込みエラー: ${snap.error}',
-                      style: TextStyle(fontFamily: 'LINEseed'),
+                      style: const TextStyle(fontFamily: 'LINEseed'),
                     ),
                   );
                 }
@@ -193,28 +264,27 @@ class _PublicStaffQrListPageState extends State<PublicStaffQrListPage> {
                       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: cols,
-                        mainAxisSpacing: 12, // ← 余白を少し詰める
-                        crossAxisSpacing: 12, // ← 余白を少し詰める
-                        childAspectRatio: 1.0, // ← 縦長すぎを是正（余白増大の抑制）
+                        mainAxisSpacing: 12,
+                        crossAxisSpacing: 12,
+                        childAspectRatio: 1.0,
                       ),
                       itemCount: filtered.length,
                       itemBuilder: (_, i) {
                         final doc = filtered[i];
                         final d = doc.data() as Map<String, dynamic>;
                         final empId = doc.id;
-                        final name = (d['name'] ?? '') as String;
-                        final photoUrl = (d['photoUrl'] ?? '') as String;
+                        final name = (d['name'] ?? '').toString();
+                        final photoUrl = (d['photoUrl'] ?? '').toString();
 
                         return _StaffCard(
                           name: name,
                           photoUrl: photoUrl,
                           onMakeQr: () {
                             Navigator.of(context).pushNamed(
-                              '/qr-all/qr-builder', // ← ルート名はこの後 MaterialApp に登録します
+                              '/qr-all/qr-builder',
                               arguments: {
-                                'tenantId':
-                                    tenantId, // ← 外側 State の tenantId を渡す
-                                'employeeId': empId, // ← ドキュメントID
+                                'tenantId': tenantId, // 非nullはここまでに確定済み
+                                'employeeId': empId,
                               },
                             );
                           },
@@ -254,11 +324,11 @@ class _StaffCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         onTap: onMakeQr,
         child: Padding(
-          padding: const EdgeInsets.all(10), // ← 内側余白を控えめに
+          padding: const EdgeInsets.all(10),
           child: Column(
             children: [
               CircleAvatar(
-                radius: 36, // ← 少し小さめに
+                radius: 36,
                 backgroundImage: photoUrl.isNotEmpty
                     ? NetworkImage(photoUrl)
                     : null,
@@ -282,8 +352,8 @@ class _StaffCard extends StatelessWidget {
                 width: double.infinity,
                 child: FilledButton(
                   style: FilledButton.styleFrom(
-                    backgroundColor: Colors.black,
-                    foregroundColor: Colors.white,
+                    backgroundColor: Color(0xFFFCC400),
+                    foregroundColor: Colors.black,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
                       vertical: 10,
@@ -291,6 +361,7 @@ class _StaffCard extends StatelessWidget {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
+                    side: BorderSide(color: Colors.black, width: 3),
                   ),
                   onPressed: onMakeQr,
                   child: const Text(

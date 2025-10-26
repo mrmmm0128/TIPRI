@@ -297,10 +297,27 @@ class _PeriodPaymentsPageState extends State<PeriodPaymentsPage> {
                           ),
                     isDense: true,
                     filled: true,
-                    fillColor: const Color(0xFFF0F0F0),
+                    fillColor: Colors.white,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(
+                        color: Colors.black,
+                        width: 3,
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(
+                        color: Colors.black,
+                        width: 3,
+                      ),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(
+                        color: Colors.black,
+                        width: 3,
+                      ),
                     ),
                   ),
                 ),
@@ -310,18 +327,30 @@ class _PeriodPaymentsPageState extends State<PeriodPaymentsPage> {
                   children: [
                     Expanded(
                       child: DropdownButtonFormField<RecipientFilter>(
+                        isExpanded: true,
+
                         value: _currentRecipientFilter,
                         decoration: InputDecoration(
                           isDense: true,
                           contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 12,
+                            horizontal: 4,
                             vertical: 10,
                           ),
                           filled: true,
-                          fillColor: const Color(0xFFF0F0F0),
+                          fillColor: Colors.white,
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none,
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(
+                              color: Colors.black,
+                              width: 3,
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(
+                              color: Colors.black,
+                              width: 3,
+                            ),
                           ),
                           prefixIcon: const Icon(Icons.filter_alt_outlined),
                           labelText: '受取先',
@@ -347,9 +376,10 @@ class _PeriodPaymentsPageState extends State<PeriodPaymentsPage> {
                         },
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 4),
                     Expanded(
                       child: DropdownButtonFormField<String>(
+                        isExpanded: true,
                         value: _pmFilter,
                         decoration: InputDecoration(
                           isDense: true,
@@ -358,10 +388,20 @@ class _PeriodPaymentsPageState extends State<PeriodPaymentsPage> {
                             vertical: 10,
                           ),
                           filled: true,
-                          fillColor: const Color(0xFFF0F0F0),
+                          fillColor: Colors.white,
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none,
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(
+                              color: Colors.black,
+                              width: 3,
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(
+                              color: Colors.black,
+                              width: 3,
+                            ),
                           ),
                           prefixIcon: const Icon(Icons.credit_card),
                           labelText: '決済方法',

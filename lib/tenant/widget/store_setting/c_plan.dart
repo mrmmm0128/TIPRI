@@ -17,8 +17,8 @@ Widget buildCPerksSection({
   required String? thanksPhotoUrlLocal,
   required String? thanksVideoUrlLocal,
   required VoidCallback onSaveExtras, // () => _saveExtras(tenantRef)
-  required VoidCallback onPickPhoto, // () => _pickAndUploadPhoto(...)
-  required VoidCallback onDeletePhoto, // () => _deleteThanksPhoto(...)
+  // required VoidCallback onPickPhoto, // () => _pickAndUploadPhoto(...)
+  // required VoidCallback onDeletePhoto, // () => _deleteThanksPhoto(...)
   required DocumentReference thanksRef,
   required void Function(BuildContext, String)
   onPreviewVideo, // showVideoPreview
@@ -69,15 +69,27 @@ Widget buildCPerksSection({
             }, SetOptions(merge: true));
           }
           if (ctx.mounted) {
-            ScaffoldMessenger.of(
-              ctx,
-            ).showSnackBar(const SnackBar(content: Text('LINEリンクを保存しました')));
+            ScaffoldMessenger.of(ctx).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'LINEリンクを保存しました',
+                  style: TextStyle(fontFamily: 'LINEseed'),
+                ),
+                backgroundColor: Color(0xFFFCC400),
+              ),
+            );
           }
         } catch (e) {
           if (ctx.mounted) {
-            ScaffoldMessenger.of(
-              ctx,
-            ).showSnackBar(SnackBar(content: Text('保存に失敗しました: $e')));
+            ScaffoldMessenger.of(ctx).showSnackBar(
+              SnackBar(
+                content: Text(
+                  '保存に失敗しました: $e',
+                  style: TextStyle(fontFamily: 'LINEseed'),
+                ),
+                backgroundColor: Color(0xFFFCC400),
+              ),
+            );
           }
         }
       }
@@ -106,14 +118,24 @@ Widget buildCPerksSection({
           }
           if (ctx.mounted) {
             ScaffoldMessenger.of(ctx).showSnackBar(
-              const SnackBar(content: Text('Googleレビューリンクを保存しました')),
+              const SnackBar(
+                content: Text(
+                  'Googleレビューリンクを保存しました',
+                  style: TextStyle(fontFamily: 'LINEseed'),
+                ),
+              ),
             );
           }
         } catch (e) {
           if (ctx.mounted) {
-            ScaffoldMessenger.of(
-              ctx,
-            ).showSnackBar(SnackBar(content: Text('保存に失敗しました: $e')));
+            ScaffoldMessenger.of(ctx).showSnackBar(
+              SnackBar(
+                content: Text(
+                  '保存に失敗しました: $e',
+                  style: TextStyle(fontFamily: 'LINEseed'),
+                ),
+              ),
+            );
           }
         }
       }
@@ -178,7 +200,7 @@ Widget buildCPerksSection({
                           Row(
                             children: [
                               const Text(
-                                'Cプランの特典（表示用リンク）',
+                                'リンクの設定',
                                 style: TextStyle(
                                   fontWeight: FontWeight.w700,
                                   color: Colors.black87,
@@ -215,7 +237,7 @@ Widget buildCPerksSection({
                           TextField(
                             controller: lineUrlCtrl,
                             decoration: const InputDecoration(
-                              labelText: '公式LINEリンク（任意）',
+                              labelText: '公式LINEリンク',
                               hintText: 'https://lin.ee/xxxxx',
                               prefixIcon: Icon(Icons.link),
                             ),
@@ -253,7 +275,7 @@ Widget buildCPerksSection({
                           TextField(
                             controller: reviewUrlCtrl,
                             decoration: const InputDecoration(
-                              labelText: 'Googleレビューリンク（任意）',
+                              labelText: 'Googleレビューリンク',
                               hintText: 'https://g.page/r/xxxxx/review',
                               prefixIcon: Icon(Icons.reviews),
                             ),
@@ -299,10 +321,10 @@ Widget buildCPerksSection({
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Divider(height: 1),
+          const Divider(height: 1, color: Colors.black87),
           const SizedBox(height: 16),
           const Text(
-            'Cプランの特典（表示用リンク）',
+            'チップ送信者向け案内リンク',
             style: TextStyle(fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 8),
@@ -341,7 +363,7 @@ Widget buildCPerksSection({
                   child: TextField(
                     controller: lineUrlCtrl,
                     decoration: const InputDecoration(
-                      labelText: '公式LINEリンク（任意）',
+                      labelText: '公式LINEリンク',
                       hintText: 'https://lin.ee/xxxxx',
                     ),
                     keyboardType: TextInputType.url,
@@ -364,7 +386,7 @@ Widget buildCPerksSection({
                   child: TextField(
                     controller: reviewUrlCtrl,
                     decoration: const InputDecoration(
-                      labelText: 'Googleレビューリンク（任意）',
+                      labelText: 'Googleレビューリンク',
                       hintText: 'https://g.page/r/xxxxx/review',
                     ),
                     keyboardType: TextInputType.url,
@@ -382,12 +404,9 @@ Widget buildCPerksSection({
           ],
 
           const SizedBox(height: 16),
-          const Divider(height: 1),
+          const Divider(height: 1, color: Colors.black87),
           const SizedBox(height: 16),
-          const Text(
-            'Cプランの特典（感謝の写真・動画）',
-            style: TextStyle(fontWeight: FontWeight.w600),
-          ),
+          const Text('感謝の動画', style: TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 16),
 
           // ===== 動画（表示のみ。登録は別画面というあなたの方針を尊重） =====
@@ -411,11 +430,11 @@ Widget buildCPerksSection({
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : ((displayVideoUrl ?? '').isNotEmpty
-                          ? const Icon(Icons.play_circle_fill, size: 36)
-                          : const Icon(Icons.movie, size: 32)),
+                          ? const Icon(Icons.play_circle_fill, size: 24)
+                          : const Icon(Icons.movie, size: 20)),
               ),
               const SizedBox(width: 12),
-              const Expanded(child: Text('スタッフ詳細画面からお礼動画を登録してください。')),
+              const Expanded(child: Text('スタッフ詳細画面から動画を登録してください。')),
             ],
           ),
         ],

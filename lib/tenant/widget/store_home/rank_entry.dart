@@ -182,7 +182,7 @@ class _EmployeePhoto extends StatelessWidget {
   Widget build(BuildContext context) {
     return StreamBuilder<DocumentSnapshot>(
       stream: FirebaseFirestore.instance
-          .collection(ownerId!)
+          .collection(ownerId)
           .doc(tenantId)
           .collection('employees')
           .doc(employeeId)

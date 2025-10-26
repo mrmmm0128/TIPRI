@@ -104,13 +104,14 @@ class _AdminDashboardHomeState extends State<AdminDashboardHome> {
 
     final ok = await showDialog<bool>(
       context: context,
+      barrierDismissible: false,
       builder: (_) => StatefulBuilder(
         builder: (ctx, setSB) => AlertDialog(
           backgroundColor: Colors.white,
           surfaceTintColor: Colors.transparent,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
-            side: const BorderSide(color: Colors.black),
+            side: const BorderSide(color: Colors.black, width: 3),
           ),
           titleTextStyle: const TextStyle(
             color: Colors.black,
@@ -142,7 +143,7 @@ class _AdminDashboardHomeState extends State<AdminDashboardHome> {
                 const SizedBox(height: 8),
                 TextField(
                   decoration: const InputDecoration(
-                    labelText: '紹介コード',
+                    labelText: '代理店コード',
                     border: OutlineInputBorder(),
                   ),
                   controller: code,
@@ -191,6 +192,11 @@ class _AdminDashboardHomeState extends State<AdminDashboardHome> {
           actions: [
             TextButton(
               style: TextButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: const BorderSide(color: Colors.black, width: 3),
+                ),
+                backgroundColor: Color(0xFFFCC400),
                 foregroundColor: Colors.black,
                 overlayColor: Colors.black12,
               ),
@@ -199,12 +205,12 @@ class _AdminDashboardHomeState extends State<AdminDashboardHome> {
             ),
             FilledButton(
               style: FilledButton.styleFrom(
-                backgroundColor: Colors.black,
-                foregroundColor: Colors.white,
+                backgroundColor: Color(0xFFFCC400),
+                foregroundColor: Colors.black,
                 overlayColor: Colors.white12,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
-                  side: const BorderSide(color: Colors.black),
+                  side: const BorderSide(color: Colors.black, width: 3),
                 ),
               ),
               onPressed: () => Navigator.pop(context, true),
@@ -407,9 +413,9 @@ class _AdminDashboardHomeState extends State<AdminDashboardHome> {
     final t = Theme.of(context).textTheme.labelMedium ?? const TextStyle();
 
     return Material(
-      color: isActive ? Colors.black : Colors.white,
+      color: isActive ? Colors.black : Color(0xFFFCC400),
       shape: const StadiumBorder(
-        side: BorderSide(color: Colors.black, width: 1.2),
+        side: BorderSide(color: Colors.black, width: 3),
       ),
       child: InkWell(
         onTap: () => onChanged(next(value)),
@@ -419,12 +425,12 @@ class _AdminDashboardHomeState extends State<AdminDashboardHome> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                icon(value),
-                size: 16,
-                color: isActive ? Colors.white : Colors.black,
-              ),
-              const SizedBox(width: 6),
+              // Icon(
+              //   icon(value),
+              //   size: 16,
+              //   color: isActive ? Colors.white : Colors.black,
+              // ),
+              // const SizedBox(width: 6),
               Text(
                 text(value),
                 maxLines: 1,
@@ -550,81 +556,163 @@ class _AdminDashboardHomeState extends State<AdminDashboardHome> {
         appBar: AppBar(
           title: const Text('運営ダッシュボード'),
           actions: [
-            IconButton(
-              tooltip: '再読込',
-              onPressed: () => setState(() => _revCache.clear()),
-              icon: const Icon(Icons.refresh),
-            ),
-            IconButton(
-              tooltip: 'お知らせ配信',
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const AdminAnnouncementPage(),
-                  ),
-                );
-              },
-              icon: const Icon(Icons.campaign_outlined),
+            // IconButton(
+            //   tooltip: '再読込',
+            //   onPressed: () => setState(() => _revCache.clear()),
+            //   icon: const Icon(Icons.refresh),
+            // ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: IconButton(
+                tooltip: 'お知らせ配信',
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const AdminAnnouncementPage(),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.campaign_outlined),
+              ),
             ),
           ],
         ),
         body: Column(
           children: [
-            // 既存の共通フィルタ（期間・キーワード等）
-            Filters(
-              searchCtrl: _searchCtrl,
-              preset: _preset,
-              onPresetChanged: (p) {
-                setState(() => _preset = p);
-                if (p == DatePreset.custom) {
-                  _pickCustomRange();
-                } else {
-                  _applyPreset();
-                }
-              },
-              rangeStart: _rangeStart,
-              rangeEndEx: _rangeEndEx,
-              activeOnly: _filterActiveOnly,
-              onToggleActive: (v) => setState(() => _filterActiveOnly = v),
-              chargesEnabledOnly: _filterChargesEnabledOnly,
-              onToggleCharges: (v) =>
-                  setState(() => _filterChargesEnabledOnly = v),
-              sortBy: _sortBy,
-              onSortChanged: (s) => setState(() => _sortBy = s),
-            ),
-
             // 画面切替（店舗一覧 / 代理店）
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
               child: Row(
                 children: [
                   Expanded(
-                    child: SegmentedButton<AdminViewMode>(
-                      segments: const [
-                        ButtonSegment(
-                          value: AdminViewMode.tenants,
-                          label: Text('店舗一覧'),
+                    child: Theme(
+                      data: Theme.of(context).copyWith(
+                        segmentedButtonTheme: SegmentedButtonThemeData(
+                          style: ButtonStyle(
+                            // 背景色（選択時：黄色／未選択：白）
+                            backgroundColor: WidgetStateProperty.resolveWith((
+                              states,
+                            ) {
+                              return states.contains(WidgetState.selected)
+                                  ? const Color(0xFFFCC400)
+                                  : Colors.white;
+                            }),
+                            // 文字＆アイコン色（常に黒）
+                            foregroundColor: const WidgetStatePropertyAll(
+                              Colors.black,
+                            ),
+                            // 枠線（選択時は太め）
+                            side: WidgetStateProperty.resolveWith((states) {
+                              return BorderSide(color: Colors.black, width: 3);
+                            }),
+                            // 角丸・余白
+                            shape: WidgetStatePropertyAll(
+                              RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            padding: const WidgetStatePropertyAll(
+                              EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
+                              ),
+                            ),
+                            // ホバー/押下の波紋色など
+                            overlayColor: const WidgetStatePropertyAll(
+                              Colors.black12,
+                            ),
+                            textStyle: WidgetStatePropertyAll(
+                              Theme.of(context).textTheme.labelLarge?.copyWith(
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: .2,
+                              ),
+                            ),
+                          ),
                         ),
-                        ButtonSegment(
-                          value: AdminViewMode.agencies,
-                          label: Text('代理店'),
-                        ),
-                      ],
-                      selected: {_viewMode},
-                      onSelectionChanged: (s) =>
-                          setState(() => _viewMode = s.first),
+                      ),
+                      child: SegmentedButton<AdminViewMode>(
+                        segments: const [
+                          ButtonSegment(
+                            value: AdminViewMode.tenants,
+                            label: Text('店舗一覧'),
+                          ),
+                          ButtonSegment(
+                            value: AdminViewMode.agencies,
+                            label: Text('代理店'),
+                          ),
+                        ],
+                        selected: {_viewMode},
+                        onSelectionChanged: (s) =>
+                            setState(() => _viewMode = s.first),
+                        showSelectedIcon: false, // ← チェックアイコンを消したい場合
+                      ),
                     ),
                   ),
+
                   const SizedBox(width: 12),
                   if (_viewMode == AdminViewMode.agencies)
                     FilledButton.icon(
                       onPressed: _createAgencyDialog,
                       icon: const Icon(Icons.add),
                       label: const Text('代理店を追加'),
+                      style: ButtonStyle(
+                        // 背景：テーマカラー（例：secondary）
+                        backgroundColor: WidgetStatePropertyAll(
+                          Color(0xFFFCC400),
+                        ),
+                        // 文字・アイコン：黒
+                        foregroundColor: const WidgetStatePropertyAll(
+                          Colors.black,
+                        ),
+
+                        // 太い黒枠
+                        side: const WidgetStatePropertyAll(
+                          BorderSide(color: Colors.black, width: 3),
+                        ),
+
+                        // 角丸・余白
+                        shape: WidgetStatePropertyAll(
+                          RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        padding: const WidgetStatePropertyAll(
+                          EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        ),
+
+                        // 押下/ホバー時のオーバーレイ
+                        overlayColor: const WidgetStatePropertyAll(
+                          Colors.black12,
+                        ),
+                      ),
                     ),
                 ],
               ),
             ),
+            // 既存の共通フィルタ（期間・キーワード等）
+            if (_viewMode != AdminViewMode.agencies) ...[
+              Filters(
+                searchCtrl: _searchCtrl,
+                preset: _preset,
+                onPresetChanged: (p) {
+                  setState(() => _preset = p);
+                  if (p == DatePreset.custom) {
+                    _pickCustomRange();
+                  } else {
+                    _applyPreset();
+                  }
+                },
+                rangeStart: _rangeStart,
+                rangeEndEx: _rangeEndEx,
+                activeOnly: _filterActiveOnly,
+                onToggleActive: (v) => setState(() => _filterActiveOnly = v),
+                chargesEnabledOnly: _filterChargesEnabledOnly,
+                onToggleCharges: (v) =>
+                    setState(() => _filterChargesEnabledOnly = v),
+                sortBy: _sortBy,
+                onSortChanged: (s) => setState(() => _sortBy = s),
+              ),
+            ],
 
             // ★ 追加：三値フィルタ（店舗一覧ビューのときだけ表示）
             if (_viewMode == AdminViewMode.tenants)
@@ -649,15 +737,15 @@ class _AdminDashboardHomeState extends State<AdminDashboardHome> {
                       value: _fConnect,
                       onChanged: (v) => setState(() => _fConnect = v),
                     ),
-                    TextButton.icon(
-                      onPressed: () => setState(() {
-                        _fInitial = Tri.any;
-                        _fSub = Tri.any;
-                        _fConnect = Tri.any;
-                      }),
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('リセット'),
-                    ),
+                    // TextButton.icon(
+                    //   onPressed: () => setState(() {
+                    //     _fInitial = Tri.any;
+                    //     _fSub = Tri.any;
+                    //     _fConnect = Tri.any;
+                    //   }),
+                    //   icon: const Icon(Icons.refresh),
+                    //   label: const Text('リセット'),
+                    // ),
                   ],
                 ),
               ),

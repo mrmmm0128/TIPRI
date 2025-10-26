@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:yourpay/tenant/newTenant/onboardingSheet_2.dart';
+import 'package:yourpay/tenant/newTenant/onboardingSheet.dart';
 
 enum _Menu { newTenant, resumeOrStatus }
 
@@ -114,7 +114,7 @@ class _TenantSwitcherBarState extends State<TenantSwitcherBar> {
         map.forEach((tenantId, v) {
           final ownerUid = (v is Map ? v['ownerUid'] : null)?.toString() ?? '';
           if (ownerUid.isEmpty) return;
-          final key = _keyOf(ownerUid, tenantId as String);
+          final key = _keyOf(ownerUid, tenantId);
           should.add(key);
 
           if (_invitedDocSubs.containsKey(key)) return;
@@ -216,8 +216,8 @@ class _TenantSwitcherBarState extends State<TenantSwitcherBar> {
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: Colors.black,
-          foregroundColor: Colors.white,
+          backgroundColor: Color(0xFFFCC400),
+          foregroundColor: Colors.black,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
@@ -271,6 +271,7 @@ class _TenantSwitcherBarState extends State<TenantSwitcherBar> {
             selectionHandleColor: Colors.black87,
           ),
         ),
+
         child: WillPopScope(
           onWillPop: () async => false,
           child: AlertDialog(
@@ -302,7 +303,7 @@ class _TenantSwitcherBarState extends State<TenantSwitcherBar> {
                     labelStyle: TextStyle(color: Colors.black87),
                     hintStyle: TextStyle(color: Colors.black54),
                     filled: true,
-                    fillColor: Colors.white,
+
                     contentPadding: EdgeInsets.symmetric(
                       horizontal: 12,
                       vertical: 12,
@@ -323,7 +324,7 @@ class _TenantSwitcherBarState extends State<TenantSwitcherBar> {
                   controller: agentCtrl,
                   style: const TextStyle(color: Colors.black87),
                   decoration: const InputDecoration(
-                    labelText: '代理店コード（任意）',
+                    labelText: 'キャンペーンコード',
                     hintText: '代理店の方からお聞きください',
                     labelStyle: TextStyle(color: Colors.black87),
                     hintStyle: TextStyle(color: Colors.black54),
@@ -429,7 +430,7 @@ class _TenantSwitcherBarState extends State<TenantSwitcherBar> {
 
     await newRef.set({
       'name': name,
-      'members': uid,
+      'members': [uid],
       'status': 'draft', // 下書き保存
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
@@ -468,10 +469,10 @@ class _TenantSwitcherBarState extends State<TenantSwitcherBar> {
     if (!snap.exists) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          backgroundColor: Colors.white,
+          backgroundColor: Color(0xFFFCC400),
           content: Text(
             'オンボーディングは完了していません（本登録は未保存）',
-            style: TextStyle(color: Colors.black87, fontFamily: 'LINEseed'),
+            style: TextStyle(color: Colors.black, fontFamily: 'LINEseed'),
           ),
         ),
       );
@@ -538,7 +539,13 @@ class _TenantSwitcherBarState extends State<TenantSwitcherBar> {
       if (qs.docs.isEmpty) {
         // コードは保存済み（'agency.code'）なので、ここでは未リンクのままにする
         ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-          const SnackBar(content: Text('代理店コードが見つかりませんでした（未リンクのまま保存）')),
+          const SnackBar(
+            content: Text(
+              '代理店コードが見つかりませんでした',
+              style: TextStyle(fontFamily: "LINEseed"),
+            ),
+            backgroundColor: Color(0xFFFCC400),
+          ),
         );
         return;
       }
@@ -574,13 +581,25 @@ class _TenantSwitcherBarState extends State<TenantSwitcherBar> {
             'status': 'draft',
           }, SetOptions(merge: true));
 
-      ScaffoldMessenger.of(
-        scaffoldContext,
-      ).showSnackBar(SnackBar(content: Text('代理店「$agentId」とリンクしました')));
+      ScaffoldMessenger.of(scaffoldContext).showSnackBar(
+        SnackBar(
+          content: Text(
+            '代理店「$agentId」とリンクしました',
+            style: TextStyle(fontFamily: "LINEseed"),
+          ),
+          backgroundColor: Color(0xFFFCC400),
+        ),
+      );
     } catch (e) {
-      ScaffoldMessenger.of(
-        scaffoldContext,
-      ).showSnackBar(SnackBar(content: Text('代理店リンクに失敗しました: $e')));
+      ScaffoldMessenger.of(scaffoldContext).showSnackBar(
+        SnackBar(
+          content: Text(
+            '代理店リンクに失敗しました: $e',
+            style: TextStyle(fontFamily: "LINEseed"),
+          ),
+          backgroundColor: Color(0xFFFCC400),
+        ),
+      );
     }
   }
 
@@ -673,6 +692,7 @@ class _TenantSwitcherBarState extends State<TenantSwitcherBar> {
             return DropdownMenuItem<String>(
               value: key,
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   if (isInvited) ...[
                     const Icon(Icons.group_add, size: 16),
@@ -721,6 +741,7 @@ class _TenantSwitcherBarState extends State<TenantSwitcherBar> {
 
           return _wrap(
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 // ▼ ドロップダウン：選択表示は“名前のみ・1行省略”に
                 Expanded(
@@ -731,16 +752,19 @@ class _TenantSwitcherBarState extends State<TenantSwitcherBar> {
                     items: items,
                     selectedItemBuilder: (_) => rows.map((r) {
                       final name = (r.data['name'] ?? '(no name)').toString();
-                      return Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.black87,
-                            fontSize: 14,
-                            fontFamily: "LINEseed",
+                      return SizedBox(
+                        height: kMinInteractiveDimension,
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.black87,
+                              fontSize: 14,
+                              fontFamily: "LINEseed",
+                            ),
                           ),
                         ),
                       );
@@ -840,7 +864,7 @@ class _TenantSwitcherBarState extends State<TenantSwitcherBar> {
                       } else {}
                     },
                     decoration: widget.compact
-                        ? const InputDecoration(
+                        ? InputDecoration(
                             // AppBar向け：極小余白で高さを抑える
                             isDense: true,
                             contentPadding: EdgeInsets.symmetric(
@@ -848,16 +872,18 @@ class _TenantSwitcherBarState extends State<TenantSwitcherBar> {
                               vertical: 6,
                             ),
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.all(
-                                Radius.circular(8),
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: const BorderSide(
+                                color: Colors.black,
+                                width: 3,
                               ),
-                              borderSide: BorderSide(color: Colors.black12),
                             ),
                             enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.all(
-                                Radius.circular(8),
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: const BorderSide(
+                                color: Colors.black,
+                                width: 3,
                               ),
-                              borderSide: BorderSide(color: Colors.black12),
                             ),
                           )
                         : InputDecoration(
@@ -872,16 +898,25 @@ class _TenantSwitcherBarState extends State<TenantSwitcherBar> {
                               horizontal: 18,
                               vertical: 8,
                             ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: const BorderSide(
+                                color: Colors.black,
+                                width: 3,
+                              ),
+                            ),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
                               borderSide: const BorderSide(
-                                color: Colors.black12,
+                                color: Colors.black,
+                                width: 3,
                               ),
                             ),
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(10),
                               borderSide: const BorderSide(
-                                color: Colors.black12,
+                                color: Colors.black,
+                                width: 3,
                               ),
                             ),
                           ),
@@ -955,13 +990,10 @@ class _TenantSwitcherBarState extends State<TenantSwitcherBar> {
                         if (_selectedId == null || selectedRow!.invited) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              backgroundColor: Colors.white,
+                              backgroundColor: Color(0xFFFCC400),
                               content: Text(
                                 'オーナーでしか開けません',
-                                style: TextStyle(
-                                  color: Colors.black87,
-                                  fontFamily: 'LINEseed',
-                                ),
+                                style: TextStyle(fontFamily: "LINEseed"),
                               ),
                             ),
                           );
@@ -999,10 +1031,10 @@ class _TenantSwitcherBarState extends State<TenantSwitcherBar> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.black12),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: Colors.black, width: 1),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 5),
       child: child,
     );
   }
@@ -1027,8 +1059,8 @@ class _TenantSwitcherBarState extends State<TenantSwitcherBar> {
   }
 
   ButtonStyle get _outlineSmall => OutlinedButton.styleFrom(
-    foregroundColor: Colors.black87,
-    side: const BorderSide(color: Colors.black45),
+    foregroundColor: Colors.black,
+    side: const BorderSide(color: Colors.black, width: 3),
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
     textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),

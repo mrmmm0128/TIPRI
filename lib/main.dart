@@ -8,9 +8,6 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:yourpay/appadmin/admin_dashboard_screen.dart';
 import 'package:yourpay/appadmin/agent/agent_login.dart';
 import 'package:yourpay/tenant/bootGate.dart';
-import 'package:yourpay/endUser/tip_complete_page.dart';
-import 'package:yourpay/endUser/public_store_page.dart';
-import 'package:yourpay/endUser/staff_detail_page.dart';
 import 'package:yourpay/tenant/staff_qr/public_staff_qr_list_page.dart';
 import 'package:yourpay/tenant/staff_qr/qr_poster_build_page.dart';
 import 'package:yourpay/tenant/store_admin_add/accept_invite_screen.dart';
@@ -18,7 +15,6 @@ import 'package:yourpay/tenant/widget/store_setting/account_detail_page.dart';
 import 'package:yourpay/tenant/widget/store_setting/tenant_detail_screen.dart';
 import 'tenant/login_screens.dart';
 import 'tenant/store_detail/store_detail_screen.dart';
-import 'endUser/payer_landing_screen.dart';
 
 FirebaseOptions web = FirebaseOptions(
   apiKey: 'AIzaSyAIfxdoGM5TWDVRjtfazvWZ9LnLlMnOuZ4',
@@ -28,6 +24,57 @@ FirebaseOptions web = FirebaseOptions(
   authDomain: 'yourpay-c5aaf.firebaseapp.com',
   storageBucket: 'yourpay-c5aaf.firebasestorage.app',
 );
+
+// ===== 白黒固定テーマ =====
+final ThemeData _monochromeLightTheme = ThemeData(
+  useMaterial3: true,
+  fontFamily: 'LINEseed',
+  colorScheme: const ColorScheme.light().copyWith(
+    // 主要色は黒、背景/サーフェスは白
+    primary: Colors.black,
+    onPrimary: Colors.white,
+    secondary: Colors.black,
+    onSecondary: Colors.white,
+    surface: Colors.white,
+    onSurface: Colors.black,
+    background: Colors.white,
+    onBackground: Colors.black,
+    // SnackBar の既定色に効く M3 の inverseSurface も黒で固定
+    inverseSurface: Colors.black,
+    onInverseSurface: Colors.white,
+  ),
+  scaffoldBackgroundColor: Colors.white,
+  appBarTheme: const AppBarTheme(
+    backgroundColor: Colors.white,
+    foregroundColor: Colors.black,
+    surfaceTintColor: Colors.transparent,
+    elevation: 0,
+  ),
+  snackBarTheme: const SnackBarThemeData(
+    backgroundColor: Colors.black,
+    contentTextStyle: TextStyle(color: Colors.white),
+    behavior: SnackBarBehavior.floating,
+    elevation: 2,
+  ),
+  elevatedButtonTheme: ElevatedButtonThemeData(
+    style: const ButtonStyle(
+      backgroundColor: WidgetStatePropertyAll(Colors.black),
+      foregroundColor: WidgetStatePropertyAll(Colors.white),
+    ),
+  ),
+  textButtonTheme: TextButtonThemeData(
+    style: const ButtonStyle(
+      foregroundColor: WidgetStatePropertyAll(Colors.black),
+    ),
+  ),
+  outlinedButtonTheme: OutlinedButtonThemeData(
+    style: const ButtonStyle(
+      foregroundColor: WidgetStatePropertyAll(Colors.black),
+      side: WidgetStatePropertyAll(BorderSide(color: Colors.black)),
+    ),
+  ),
+);
+// =======================
 
 Future<void> main() async {
   setUrlStrategy(const HashUrlStrategy());
@@ -90,48 +137,11 @@ class MyApp extends StatelessWidget {
     final name = settings.name ?? '/';
     final uri = Uri.parse(name);
 
-    // /payer?sid=...
-    if (uri.path == '/payer') {
-      final sid = uri.queryParameters['sid'] ?? '';
-      return MaterialPageRoute(
-        builder: (_) => PayerLandingScreen(sessionId: sid),
-        settings: settings,
-      );
-    }
-
-    // /p?t=... [&thanks=true|&canceled=true]
-    if (uri.path == '/p') {
-      final tid = uri.queryParameters['t'] ?? '';
-
-      final thanks = uri.queryParameters['thanks'] == 'true';
-      final canceled = uri.queryParameters['canceled'] == 'true';
-      if (thanks || canceled) {
-        return MaterialPageRoute(
-          builder: (_) => TipCompletePage(
-            tenantId: tid,
-            tenantName: uri.queryParameters['tenantName'],
-            amount: int.tryParse(uri.queryParameters['amount'] ?? ''),
-            employeeName: uri.queryParameters['employeeName'],
-          ),
-          settings: settings,
-        );
-      }
-
-      return MaterialPageRoute(
-        builder: (_) => const PublicStorePage(),
-        settings: RouteSettings(
-          name: settings.name,
-          arguments: {'tenantId': tid},
-        ),
-      );
-    }
-
     // それ以外の静的ルート
     final staticRoutes = <String, WidgetBuilder>{
       '/': (_) => const Root(),
       '/login': (_) => const BootGate(),
       '/store': (_) => const StoreDetailScreen(),
-      '/staff': (_) => const StaffDetailPage(),
       '/admin': (_) => const AdminDashboardHome(),
       '/tenant': (_) => const tenantDetailScreen(),
       '/account': (_) => const AccountDetailScreen(),
@@ -139,7 +149,6 @@ class MyApp extends StatelessWidget {
       '/qr-all': (_) => const PublicStaffQrListPage(),
       '/qr-all/qr-builder': (_) => const QrPosterBuilderPage(),
       '/chechout-end': (_) => const LoginScreen(),
-      '/p': (_) => const PublicStorePage(),
       '/agent-login': (_) => const AgentLoginPage(),
     };
 
@@ -159,15 +168,9 @@ class MyApp extends StatelessWidget {
       supportedLocales: context.supportedLocales,
       locale: context.locale,
 
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.black,
-          brightness: Brightness.light,
-        ),
-        fontFamily: 'LINEseed',
-        scaffoldBackgroundColor: Colors.white,
-      ),
+      // ★ 白黒固定テーマを適用（機能は無変更）
+      theme: _monochromeLightTheme,
+      themeMode: ThemeMode.light, // ブラウザのダーク設定に影響されない
 
       onGenerateRoute: _onGenerateRoute,
     );
@@ -209,10 +212,6 @@ class Root extends StatelessWidget {
               return const PublicStaffQrListPage();
             case '/qr-all/qr-builder':
               return const QrPosterBuilderPage();
-            case '/staff':
-              return const StaffDetailPage();
-            case '/p':
-              return const PublicStorePage();
           }
         }
 

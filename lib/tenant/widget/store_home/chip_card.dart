@@ -14,33 +14,41 @@ class RangePill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bg = active ? Colors.black : Colors.white;
-    final fg = active ? Colors.white : Colors.black87;
-    final border = active ? Colors.black : Colors.black26;
+    const double kBorderWidth = 3; // ← “少し太く” の基準。もっと太くなら 4〜5 に
+    final Color bg = active ? Color(0xFFFCC400) : Colors.white;
+    final Color fg = active ? Colors.black : Colors.black;
 
-    return Material(
-      color: Colors.transparent, // InkWellのリップル用
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(999),
-        child: Container(
-          // ← 常に縦横センターに見えるよう最小サイズを確保
-          constraints: const BoxConstraints(minHeight: 32, minWidth: 48),
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          alignment: Alignment.center, // ← 縦横センター
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: border),
-          ),
-          child: Text(
-            label,
-            textAlign: TextAlign.center, // ← 念のため横もセンター
-            style: TextStyle(
-              color: fg,
-              fontWeight: FontWeight.w700,
-              // 必要ならフォント指定:
-              // fontFamily: 'LINEseed',
+    return Semantics(
+      button: true,
+      selected: active,
+      label: label,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(999),
+          splashColor: Colors.black12,
+          highlightColor: Colors.black12,
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 32, minWidth: 48),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(
+                color: Colors.black, // ← 常に黒枠
+                width: kBorderWidth, // ← 太枠
+              ),
+            ),
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontFamily: 'LINEseed', // ← フォント統一
+                fontWeight: FontWeight.w700, // ← 太字
+                color: Colors.white, // dummy, 下で上書き
+              ).copyWith(color: fg),
             ),
           ),
         ),
@@ -68,12 +76,13 @@ class SplitMetricsRow extends StatelessWidget {
   });
 
   void _showPayoutInfoSheet(BuildContext context, {required bool isStore}) {
-    final title = isStore ? '店舗向けの受取額について' : 'スタッフ向けの受取額について';
+    final title = isStore ? '店舗向けの受取額' : 'スタッフの受取額';
     final formula = isStore
-        ? '元金 － Stripe手数料（3.6%）－ アプリケーション手数料（サブスクによる）'
-        : '元金 － Stripe手数料（3.6%）－ アプリケーション手数料（サブスクによる）－ 店舗が差し引く金額';
+        ? '元金 － Stripe手数料（3.6%）－ アプリケーション手数料'
+        : '元金 － Stripe手数料（3.6%）－ アプリケーション手数料 － 店舗が差し引く金額';
 
     showModalBottomSheet(
+      backgroundColor: Colors.white60,
       context: context,
       useSafeArea: true,
       shape: const RoundedRectangleBorder(
@@ -123,7 +132,7 @@ class SplitMetricsRow extends StatelessWidget {
         Expanded(
           child: _MetricCardMini(
             icon: Icons.store,
-            label: '店舗向け',
+            label: '店舗',
             value: '¥$storeYen',
             sub: '$storeCount 件',
             onCardTap: onTapStore, // 本体
@@ -135,7 +144,7 @@ class SplitMetricsRow extends StatelessWidget {
         Expanded(
           child: _MetricCardMini(
             icon: Icons.person,
-            label: 'スタッフ向け',
+            label: 'スタッフ',
             value: '¥$staffYen',
             sub: '$staffCount 件',
             onCardTap: onTapStaff,
@@ -166,9 +175,9 @@ class _MetricCardMini extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CardShell(
+    return CardShellHome(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -229,7 +238,7 @@ class _MetricCardMini extends StatelessWidget {
                   color: Colors.black54,
                 ),
                 tooltip: '説明',
-                padding: const EdgeInsets.only(left: 8, top: 2),
+                padding: const EdgeInsets.only(left: 2, top: 2),
                 constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
               ),
           ],
@@ -290,9 +299,9 @@ class _MetricCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CardShell(
+    return CardShellHome(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+        padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 18),
         child: Row(
           children: [
             CircleAvatar(
@@ -300,7 +309,7 @@ class _MetricCard extends StatelessWidget {
               foregroundColor: Colors.white,
               child: Icon(icon),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 8),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -351,7 +360,7 @@ class TotalsCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
-      child: CardShell(
+      child: CardShellHome(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Row(

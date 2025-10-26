@@ -1,16 +1,14 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:yourpay/endUser/utils/image_scrol.dart';
-import 'package:yourpay/tenant/widget/store_setting/b_perk.dart';
+import 'package:yourpay/tenant/method/image_scrol.dart';
+import 'package:yourpay/tenant/widget/store_setting/b_plan.dart';
 import 'package:yourpay/tenant/widget/store_setting/subscription_card.dart';
 import 'package:yourpay/tenant/widget/store_staff/show_video_preview.dart';
-import 'package:yourpay/tenant/widget/store_setting/c_perk.dart';
+import 'package:yourpay/tenant/widget/store_setting/c_plan.dart';
 import 'package:yourpay/tenant/widget/store_setting/trial_progress_bar.dart';
 import 'dart:async';
 
@@ -23,7 +21,8 @@ class StoreSettingsTab extends StatefulWidget {
   State<StoreSettingsTab> createState() => _StoreSettingsTabState();
 }
 
-class _StoreSettingsTabState extends State<StoreSettingsTab> {
+class _StoreSettingsTabState extends State<StoreSettingsTab>
+    with AutomaticKeepAliveClientMixin {
   final _functions = FirebaseFunctions.instanceFor(region: 'us-central1');
 
   DateTime? _effectiveFromLocal; // 予約の適用開始（未指定なら翌月1日 0:00）
@@ -32,6 +31,8 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
     final w = MediaQuery.of(context).size.width;
     return w < 900; // ~ タブレットまでをポップアップ対象に
   }
+
+  late final ScrollController _scrollCtrl = ScrollController();
 
   String? _selectedPlan;
   String? _pendingPlan;
@@ -59,6 +60,9 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
   bool ownerIsMe = true;
 
   bool? _connected = false;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -94,12 +98,13 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
 
   @override
   void dispose() {
+    _tenantStatusSub?.cancel(); // ←抜けてたら念のため
     _lineUrlCtrl.dispose();
     _reviewUrlCtrl.dispose();
     _storePercentCtrl.dispose();
     _storeFixedCtrl.dispose();
     _tenantIdVN.dispose();
-
+    _scrollCtrl.dispose(); // ★ 追加
     super.dispose();
   }
 
@@ -149,14 +154,14 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
   }
 
   Widget _buildNotificationsAction() {
-    if (widget.tenantId == null || widget.ownerId == null) {
+    if (widget.ownerId == null) {
       return IconButton(
         onPressed: null,
         icon: const Icon(Icons.notifications_outlined),
       );
     }
     return StreamBuilder<int>(
-      stream: _unreadCountStream(widget.ownerId!, widget.tenantId!),
+      stream: _unreadCountStream(widget.ownerId!, widget.tenantId),
       builder: (context, snap) {
         final unread = snap.data ?? 0;
         return Stack(
@@ -223,13 +228,29 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
 
   static Future<void> showTipriInfoDialog(BuildContext context) async {
     // 表示する画像（あなたのアセットパスに合わせて変更）
-    final assets = <String>[
-      'assets/pdf/tipri_page-0001.jpg',
-      'assets/pdf/tipri_page-0002.jpg',
-      'assets/pdf/tipri_page-0003.jpg',
-      'assets/pdf/tipri_page-0004.jpg',
-      'assets/pdf/tipri_page-0005.jpg',
-    ];
+    final size = MediaQuery.of(context).size;
+    final isNarrow = size.width < 480;
+    List<String> assets = [];
+    if (!isNarrow) {
+      assets = <String>[
+        'assets/pdf/PC_1.jpg',
+        'assets/pdf/PC_2.jpg',
+        'assets/pdf/PC_3.jpg',
+        'assets/pdf/PC_4.jpg',
+        'assets/pdf/PC_5.jpg',
+        'assets/pdf/PC_6.jpg',
+      ];
+    } else {
+      assets = <String>[
+        'assets/pdf/1.jpg',
+        'assets/pdf/2.jpg',
+        'assets/pdf/3.jpg',
+        'assets/pdf/4.jpg',
+        'assets/pdf/5.jpg',
+        'assets/pdf/6.jpg',
+        'assets/pdf/7.jpg',
+      ];
+    }
 
     await showModalBottomSheet(
       context: context,
@@ -279,7 +300,7 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
                         ],
                       ),
                     ),
-                    const Divider(height: 1),
+                    const Divider(height: 1, color: Colors.black87),
 
                     // 本体ビューア
                     Expanded(
@@ -296,117 +317,6 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
         );
       },
     );
-  }
-
-  Future<void> _applyPlanChange(
-    DocumentReference<Map<String, dynamic>> tenantRef,
-  ) async {
-    if (_pendingPlan == null || _pendingPlan == _selectedPlan) return;
-    setState(() => _selectedPlan = _pendingPlan);
-    //await _showStripeFeeNoticeAndProceed(tenantRef);
-    if (!mounted) return;
-    setState(() {
-      _changingPlan = false;
-      _pendingPlan = null;
-    });
-  }
-
-  Future<void> _pickAndUploadPhoto(
-    DocumentReference<Map<String, dynamic>> tenantRef,
-    DocumentReference<Map<String, dynamic>> thanksRef,
-  ) async {
-    try {
-      setState(() => _uploadingPhoto = true);
-      final tenantId = tenantRef.id;
-
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['jpg', 'jpeg', 'png'],
-        allowMultiple: false,
-        withData: true,
-      );
-      if (result == null || result.files.isEmpty) return;
-
-      final file = result.files.single;
-      final bytes = file.bytes;
-      if (bytes == null) return;
-
-      // 5MB 制限
-      const maxBytes = 5 * 1024 * 1024;
-      if (bytes.length > maxBytes) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('画像サイズが大きすぎます（最大 5MB）。')),
-          );
-        }
-        return;
-      }
-
-      // 旧ファイル削除（任意）
-      if (_thanksPhotoUrl != null) {
-        try {
-          await FirebaseStorage.instance.refFromURL(_thanksPhotoUrl!).delete();
-        } catch (_) {}
-      }
-
-      final ext = (file.extension ?? 'jpg').toLowerCase();
-      final contentType = ext == 'png' ? 'image/png' : 'image/jpeg';
-      final filename =
-          'gratitude_${DateTime.now().millisecondsSinceEpoch}.$ext';
-      final ref = FirebaseStorage.instance.ref(
-        '${widget.ownerId}/$tenantId/c_plan/$filename',
-      );
-
-      await ref.putData(bytes, SettableMetadata(contentType: contentType));
-      final url = await ref.getDownloadURL();
-
-      // Firestore へ即保存
-      await tenantRef.update({
-        'c_perks.thanksPhotoUrl': url,
-        'c_perks.updatedAt': FieldValue.serverTimestamp(),
-      });
-
-      await thanksRef.set({
-        'c_perks.thanksPhotoUrl': url,
-        'c_perks.updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-
-      setState(() {
-        _thanksPhotoUrl = url;
-        _thanksPhotoPreviewBytes = bytes;
-      });
-
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('感謝の写真を保存しました。')));
-      }
-    } finally {
-      if (mounted) setState(() => _uploadingPhoto = false);
-    }
-  }
-
-  Future<void> _deleteThanksPhoto(
-    DocumentReference<Map<String, dynamic>> tenantRef,
-    DocumentReference<Map<String, dynamic>> thankRef,
-  ) async {
-    if (_thanksPhotoUrl == null) return;
-    try {
-      await FirebaseStorage.instance.refFromURL(_thanksPhotoUrl!).delete();
-    } catch (_) {}
-    await tenantRef.update({
-      'c_perks.thanksPhotoUrl': FieldValue.delete(),
-      'c_perks.updatedAt': FieldValue.serverTimestamp(),
-    });
-    await thankRef.update({
-      'c_perks.thanksPhotoUrl': FieldValue.delete(),
-      'c_perks.updatedAt': FieldValue.serverTimestamp(),
-    });
-
-    setState(() {
-      _thanksPhotoUrl = null;
-      _thanksPhotoPreviewBytes = null;
-    });
   }
 
   Future<void> _openStoreDeductionSheet(
@@ -586,8 +496,8 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
                                   : const Icon(Icons.save),
                               label: const Text('保存'),
                               style: FilledButton.styleFrom(
-                                backgroundColor: Colors.black,
-                                foregroundColor: Colors.white,
+                                backgroundColor: Color(0xFFFCC400),
+                                foregroundColor: Colors.black,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
                                 ),
@@ -595,6 +505,7 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
                                   horizontal: 16,
                                   vertical: 14,
                                 ),
+                                side: BorderSide(color: Colors.black, width: 3),
                               ),
                             ),
                           ),
@@ -637,8 +548,9 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
           ),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: Colors.black,
-              foregroundColor: Colors.white,
+              backgroundColor: Color(0xFFFCC400),
+              foregroundColor: Colors.black,
+              side: BorderSide(color: Colors.black, width: 3),
             ),
             onPressed: () => Navigator.pop(context, true),
             child: const Text('招待'),
@@ -654,14 +566,26 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
           'email': ctrl.text.trim(),
         });
         if (!mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('招待を送信しました')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              '招待を送信しました',
+              style: TextStyle(fontFamily: 'LINEseed'),
+            ),
+            backgroundColor: Color(0xFFFCC400),
+          ),
+        );
       } catch (e) {
         if (!mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('招待に失敗: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '招待に失敗: $e',
+              style: TextStyle(fontFamily: 'LINEseed'),
+            ),
+            backgroundColor: Color(0xFFFCC400),
+          ),
+        );
       }
     }
   }
@@ -736,7 +660,7 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
                         ),
                       ],
                     ),
-                    const Divider(height: 16),
+                    const Divider(height: 16, color: Colors.black87),
                     Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
@@ -825,7 +749,7 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
         surfaceTintColor: Colors.transparent,
         title: const Text('管理者を削除', style: TextStyle(color: Colors.black87)),
         content: Text(
-          'このメンバー（$uid）を管理者から外しますか？',
+          'このメンバーを管理者から外しますか？',
           style: const TextStyle(color: Colors.black87),
         ),
         actionsPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -836,8 +760,8 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
           ),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: Colors.black,
-              foregroundColor: Colors.white,
+              backgroundColor: Color(0xFFFCC400),
+              foregroundColor: Colors.black,
             ),
             onPressed: () => Navigator.pop(context, true),
             child: const Text('削除'),
@@ -850,13 +774,19 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
       try {
         await _functions.httpsCallable('removeTenantMember').call({
           'tenantId': widget.tenantId,
-          'uid': widget.ownerId,
+          'targetUid': uid,
         });
       } catch (e) {
         if (!mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('削除に失敗: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '削除に失敗: $e',
+              style: TextStyle(fontFamily: 'LINEseed'),
+            ),
+            backgroundColor: Color(0xFFFCC400),
+          ),
+        );
       }
     }
   }
@@ -872,9 +802,15 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
       Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('ログアウトに失敗: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'ログアウトに失敗: $e',
+            style: TextStyle(fontFamily: 'LINEseed'),
+          ),
+          backgroundColor: Color(0xFFFCC400),
+        ),
+      );
     } finally {
       if (mounted) setState(() => _loggingOut = false);
     }
@@ -916,14 +852,26 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
       }, SetOptions(merge: true));
 
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('店舗が差し引く金額割合を保存しました')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '店舗が差し引く金額割合を保存しました',
+            style: TextStyle(fontFamily: 'LINEseed'),
+          ),
+          backgroundColor: Color(0xFFFCC400),
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('店舗控除の保存に失敗: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '店舗控除の保存に失敗: $e',
+            style: TextStyle(fontFamily: 'LINEseed'),
+          ),
+          backgroundColor: Color(0xFFFCC400),
+        ),
+      );
     } finally {
       if (mounted) setState(() => _savingStoreCut = false);
     }
@@ -939,6 +887,7 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
       barrierDismissible: false,
       builder: (ctx) {
         return AlertDialog(
+          backgroundColor: Colors.white60,
           title: const Text('プラン変更の確認'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -952,7 +901,7 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
                 builder: (ctx, setState) {
                   return CheckboxListTile(
                     dense: true,
-                    title: const Text('上記に同意します（既存の支払方法を使用して今すぐ課金されます）'),
+                    title: const Text('上記に同意します'),
                     value: agreed,
                     onChanged: (v) => setState(() => agreed = v ?? false),
                     controlAffinity: ListTileControlAffinity.leading,
@@ -1023,9 +972,15 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
       // 正常完了（自動課金も成功）
       if (data['ok'] == true && data['requiresAction'] != true) {
         if (!mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('プランを $newPlan に変更しました。')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'プランを $newPlan に変更しました。',
+              style: TextStyle(fontFamily: 'LINEseed'),
+            ),
+            backgroundColor: Color(0xFFFCC400),
+          ),
+        );
         return;
       }
 
@@ -1035,9 +990,12 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
         final payUrl = data['paymentIntentNextActionUrl'] as String?;
         final msg = '追加認証またはお支払いの完了が必要です。表示されるページで手続きを行ってください。';
         if (!mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(msg)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(msg, style: TextStyle(fontFamily: 'LINEseed')),
+            backgroundColor: Color(0xFFFCC400),
+          ),
+        );
 
         // Hosted Invoice Page があれば優先して開く
         final jump = hosted ?? payUrl;
@@ -1051,9 +1009,15 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
       throw 'サーバ応答が不正または支払いが完了していません。';
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('プラン変更に失敗: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'プラン変更に失敗: $e',
+            style: TextStyle(fontFamily: 'LINEseed'),
+          ),
+          backgroundColor: Color(0xFFFCC400),
+        ),
+      );
     } finally {
       if (mounted) setState(() => _updatingPlan = false);
     }
@@ -1063,7 +1027,7 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
     final ownerId = widget.ownerId;
     final tenantId = widget.tenantId;
 
-    if (ownerId == null || tenantId == null) {
+    if (ownerId == null) {
       if (mounted) setState(() => _connected = false);
       return;
     }
@@ -1111,15 +1075,27 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
       }, SetOptions(merge: true));
 
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('特典リンクを保存しました')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              '特典リンクを保存しました',
+              style: TextStyle(fontFamily: 'LINEseed'),
+            ),
+            backgroundColor: Color(0xFFFCC400),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('保存に失敗: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '保存に失敗: $e',
+              style: TextStyle(fontFamily: 'LINEseed'),
+            ),
+            backgroundColor: Color(0xFFFCC400),
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _savingExtras = false);
@@ -1144,7 +1120,13 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
     if (ownerUid == null) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('通知の取得に失敗しました（ownerUid 不明）')),
+        const SnackBar(
+          content: Text(
+            '通知の取得に失敗しました',
+            style: TextStyle(fontFamily: 'LINEseed'),
+          ),
+          backgroundColor: Color(0xFFFCC400),
+        ),
       );
       return;
     }
@@ -1261,7 +1243,8 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
                       return ListView.separated(
                         shrinkWrap: true,
                         itemCount: docs.length,
-                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        separatorBuilder: (_, __) =>
+                            const Divider(height: 1, color: Colors.black87),
                         itemBuilder: (ctx, i) {
                           final d = docs[i];
                           final m = d.data();
@@ -1330,6 +1313,7 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     if (_connected == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
@@ -1390,8 +1374,9 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
     );
 
     final primaryBtnStyle = FilledButton.styleFrom(
-      backgroundColor: Colors.black,
-      foregroundColor: Colors.white,
+      backgroundColor: Color(0xFFFCC400),
+      foregroundColor: Colors.black,
+      side: BorderSide(color: Colors.black, width: 3),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
     );
@@ -1511,118 +1496,151 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
                     final isNarrow = size.width < 480;
 
                     return ListView(
+                      key: const PageStorageKey('store_settings_list'), // ★ 追加
+                      controller: _scrollCtrl, // ★ 追加
                       children: [
                         // ===== ここから下はあなたの UI をそのまま（参照だけ tenantRef/publicThankRef を使う） =====
                         ownerIsMe
                             ? Column(
                                 children: [
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: FilledButton.icon(
-                                      style: FilledButton.styleFrom(
-                                        backgroundColor: Colors.black,
-                                        foregroundColor: Colors.white,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 25,
+                                    ),
+                                    child: SizedBox(
+                                      width: double.infinity,
+                                      child: FilledButton.icon(
+                                        style: FilledButton.styleFrom(
+                                          backgroundColor: Color(0xFFFCC400),
+                                          foregroundColor: Colors.black,
+                                          side: BorderSide(
+                                            color: Colors.black,
+                                            width: 3,
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                          ),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 16,
+                                            vertical: 7,
                                           ),
                                         ),
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 16,
-                                          vertical: 14,
+                                        onPressed: () => Navigator.pushNamed(
+                                          context,
+                                          '/account',
+                                          arguments: {
+                                            "tenantId": widget.tenantId,
+                                          },
                                         ),
+                                        icon: const Icon(Icons.manage_accounts),
+                                        label: const Text('アカウント情報を確認'),
                                       ),
-                                      onPressed: () => Navigator.pushNamed(
-                                        context,
-                                        '/account',
-                                        arguments: {
-                                          "tenantId": widget.tenantId,
-                                        },
-                                      ),
-                                      icon: const Icon(Icons.manage_accounts),
-                                      label: const Text('アカウント情報を確認'),
                                     ),
                                   ),
                                   const SizedBox(height: 10),
                                   isNarrow
-                                      ? Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.end,
-                                          children: [
-                                            if (widget.ownerId! == uid) ...[
-                                              Expanded(
-                                                child: FilledButton.icon(
-                                                  style: FilledButton.styleFrom(
-                                                    backgroundColor:
-                                                        Colors.black,
-                                                    foregroundColor:
-                                                        Colors.white,
-                                                    shape: RoundedRectangleBorder(
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            12,
+                                      ? Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 25,
+                                          ),
+                                          child: Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.end,
+                                            children: [
+                                              if (widget.ownerId! == uid) ...[
+                                                Expanded(
+                                                  child: FilledButton.icon(
+                                                    style: FilledButton.styleFrom(
+                                                      backgroundColor: Color(
+                                                        0xFFFCC400,
+                                                      ),
+                                                      foregroundColor:
+                                                          Colors.black,
+                                                      shape: RoundedRectangleBorder(
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              12,
+                                                            ),
+                                                      ),
+                                                      side: BorderSide(
+                                                        color: Colors.black,
+                                                        width: 3,
+                                                      ),
+                                                      padding:
+                                                          const EdgeInsets.symmetric(
+                                                            horizontal: 16,
+                                                            vertical: 7,
                                                           ),
                                                     ),
-                                                    padding:
-                                                        const EdgeInsets.symmetric(
-                                                          horizontal: 16,
-                                                          vertical: 14,
+                                                    onPressed: () =>
+                                                        Navigator.pushNamed(
+                                                          context,
+                                                          '/tenant',
+                                                          arguments: {
+                                                            "tenantId":
+                                                                widget.tenantId,
+                                                          },
                                                         ),
-                                                  ),
-                                                  onPressed: () =>
-                                                      Navigator.pushNamed(
-                                                        context,
-                                                        '/tenant',
-                                                        arguments: {
-                                                          "tenantId":
-                                                              widget.tenantId,
-                                                        },
-                                                      ),
-                                                  icon: const Icon(
-                                                    Icons
-                                                        .store_mall_directory_outlined,
-                                                  ),
-                                                  label: const Text(
-                                                    'テナント情報を確認',
+                                                    icon: const Icon(
+                                                      Icons
+                                                          .store_mall_directory_outlined,
+                                                    ),
+                                                    label: const Text(
+                                                      'テナント情報を確認',
+                                                    ),
                                                   ),
                                                 ),
-                                              ),
-                                            ],
+                                              ],
 
-                                            const SizedBox(width: 5),
-                                            _buildNotificationsAction(),
-                                          ],
+                                              const SizedBox(width: 5),
+                                              _buildNotificationsAction(),
+                                            ],
+                                          ),
                                         )
                                       : widget.ownerId! == uid
-                                      ? SizedBox(
-                                          width: double.infinity,
-                                          child: FilledButton.icon(
-                                            style: FilledButton.styleFrom(
-                                              backgroundColor: Colors.black,
-                                              foregroundColor: Colors.white,
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(12),
-                                              ),
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 16,
-                                                    vertical: 14,
-                                                  ),
-                                            ),
-                                            onPressed: () =>
-                                                Navigator.pushNamed(
-                                                  context,
-                                                  '/tenant',
-                                                  arguments: {
-                                                    "tenantId": widget.tenantId,
-                                                  },
+                                      ? Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 25,
+                                          ),
+                                          child: SizedBox(
+                                            width: double.infinity,
+                                            child: FilledButton.icon(
+                                              style: FilledButton.styleFrom(
+                                                backgroundColor: Color(
+                                                  0xFFFCC400,
                                                 ),
-                                            icon: const Icon(
-                                              Icons
-                                                  .store_mall_directory_outlined,
+                                                foregroundColor: Colors.black,
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(12),
+                                                ),
+                                                side: BorderSide(
+                                                  color: Colors.black,
+                                                  width: 3,
+                                                ),
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 16,
+                                                      vertical: 7,
+                                                    ),
+                                              ),
+                                              onPressed: () =>
+                                                  Navigator.pushNamed(
+                                                    context,
+                                                    '/tenant',
+                                                    arguments: {
+                                                      "tenantId":
+                                                          widget.tenantId,
+                                                    },
+                                                  ),
+                                              icon: const Icon(
+                                                Icons
+                                                    .store_mall_directory_outlined,
+                                              ),
+                                              label: const Text('テナント情報を確認'),
                                             ),
-                                            label: const Text('テナント情報を確認'),
                                           ),
                                         )
                                       : const SizedBox(height: 1),
@@ -1631,11 +1649,14 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
                             : const SizedBox(height: 4),
                         const SizedBox(height: 16),
 
-                        const Text(
-                          'サブスクリプション',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            color: Colors.black87,
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: const Text(
+                            'サブスクリプション',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: Colors.black87,
+                            ),
                           ),
                         ),
                         const SizedBox(height: 8),
@@ -1714,7 +1735,7 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
                                         AbsorbPointer(
                                           absorbing: !_changingPlan,
                                           child: Opacity(
-                                            opacity: _changingPlan ? 1.0 : 0.5,
+                                            opacity: _changingPlan ? 1.0 : 0.8,
                                             child: PlanPicker(
                                               selected: effectivePickerValue,
                                               onChanged: _onPlanChanged,
@@ -1738,10 +1759,14 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
                                         .doc(widget.tenantId),
                                     lineUrlCtrl: _lineUrlCtrl,
                                     primaryBtnStyle: FilledButton.styleFrom(
-                                      backgroundColor: Colors.black,
-                                      foregroundColor: Colors.white,
+                                      backgroundColor: Color(0xFFFCC400),
+                                      foregroundColor: Colors.black,
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      side: BorderSide(
+                                        color: Colors.black,
+                                        width: 3,
                                       ),
                                     ),
                                   ),
@@ -1760,14 +1785,6 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
                                     thanksPhotoUrlLocal: _thanksPhotoUrl,
                                     thanksVideoUrlLocal: _thanksVideoUrl,
                                     onSaveExtras: () => _saveExtras(tenantRef),
-                                    onPickPhoto: () => _pickAndUploadPhoto(
-                                      tenantRef,
-                                      publicThankRef,
-                                    ),
-                                    onDeletePhoto: () => _deleteThanksPhoto(
-                                      tenantRef,
-                                      publicThankRef,
-                                    ),
                                     onPreviewVideo: showVideoPreview,
                                     primaryBtnStyle: primaryBtnStyle,
                                     thanksRef: publicThankRef,
@@ -1791,8 +1808,12 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
                                                       content: Text(
                                                         'オーナーのみ変更可能です',
                                                         style: TextStyle(
-                                                          color: Colors.white,
+                                                          fontFamily:
+                                                              'LINEseed',
                                                         ),
+                                                      ),
+                                                      backgroundColor: Color(
+                                                        0xFFFCC400,
                                                       ),
                                                     ),
                                                   );
@@ -1864,12 +1885,15 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
 
                         if (_isCompactWidth(context)) ...[
                           // スマホ・タブレット：ボタンだけ出して、押下でポップアップ
-                          const Text(
-                            "スタッフから差し引く金額を設定",
-                            style: TextStyle(
-                              fontWeight: FontWeight.w700,
-                              color: Colors.black87,
-                              fontFamily: "LINEseed",
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            child: const Text(
+                              "スタッフから差し引く金額を設定",
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: Colors.black87,
+                                fontFamily: "LINEseed",
+                              ),
                             ),
                           ),
                           const SizedBox(height: 8),
@@ -1929,12 +1953,16 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
                                       icon: const Icon(Icons.tune),
                                       label: const Text('設定を開く'),
                                       style: FilledButton.styleFrom(
-                                        backgroundColor: Colors.black,
-                                        foregroundColor: Colors.white,
+                                        backgroundColor: Color(0xFFFCC400),
+                                        foregroundColor: Colors.black,
                                         shape: RoundedRectangleBorder(
                                           borderRadius: BorderRadius.circular(
                                             12,
                                           ),
+                                        ),
+                                        side: BorderSide(
+                                          color: Colors.black,
+                                          width: 3,
                                         ),
                                       ),
                                     ),
@@ -1944,6 +1972,18 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
                             ),
                           ),
                         ] else ...[
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            child: const Text(
+                              "スタッフから差し引く金額を設定",
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: Colors.black87,
+                                fontFamily: "LINEseed",
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
                           CardShell(
                             child: Padding(
                               padding: const EdgeInsets.all(16),
@@ -2096,12 +2136,16 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
                                           : const Icon(Icons.save),
                                       label: const Text('店舗が差し引く金額割合を保存'),
                                       style: FilledButton.styleFrom(
-                                        backgroundColor: Colors.black,
-                                        foregroundColor: Colors.white,
+                                        backgroundColor: Color(0xFFFCC400),
+                                        foregroundColor: Colors.black,
                                         shape: RoundedRectangleBorder(
                                           borderRadius: BorderRadius.circular(
                                             12,
                                           ),
+                                        ),
+                                        side: BorderSide(
+                                          color: Colors.black,
+                                          width: 3,
                                         ),
                                       ),
                                     ),
@@ -2113,12 +2157,15 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
                         ],
 
                         const SizedBox(height: 16),
-                        const Text(
-                          '管理者一覧',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            color: Colors.black87,
-                            fontFamily: "LINEseed",
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: const Text(
+                            '管理者一覧',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: Colors.black87,
+                              fontFamily: "LINEseed",
+                            ),
                           ),
                         ),
                         const SizedBox(height: 8),
@@ -2222,10 +2269,12 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
                                                           content: Text(
                                                             '招待メールを再送しました',
                                                             style: TextStyle(
-                                                              color:
-                                                                  Colors.black,
+                                                              fontFamily:
+                                                                  'LINEseed',
                                                             ),
                                                           ),
+                                                          backgroundColor:
+                                                              Color(0xFFFCC400),
                                                         ),
                                                       );
                                                     },
@@ -2251,7 +2300,13 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
                                                         const SnackBar(
                                                           content: Text(
                                                             '招待を取り消しました',
+                                                            style: TextStyle(
+                                                              fontFamily:
+                                                                  'LINEseed',
+                                                            ),
                                                           ),
+                                                          backgroundColor:
+                                                              Color(0xFFFCC400),
                                                         ),
                                                       );
                                                     },
@@ -2264,7 +2319,10 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
                                               ),
                                             );
                                           }),
-                                        const Divider(height: 24),
+                                        const Divider(
+                                          height: 24,
+                                          color: Colors.black87,
+                                        ),
                                       ],
                                     );
                                   },
@@ -2284,7 +2342,7 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
                                           final md =
                                               m.data() as Map<String, dynamic>;
                                           return AdminEntry(
-                                            uid: widget.ownerId!,
+                                            uid: m.id,
                                             email:
                                                 (md['email'] as String?) ?? '',
                                             name:
@@ -2293,10 +2351,33 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
                                                 '',
                                           );
                                         }).toList(),
-                                        onRemove: (uidToRemove) => _removeAdmin(
-                                          tenantRef,
-                                          uidToRemove,
-                                        ),
+                                        onRemove: (uidToRemove) {
+                                          // ✅ ここでオーナーのみ削除を許可
+                                          if (widget.ownerId !=
+                                              FirebaseAuth
+                                                  .instance
+                                                  .currentUser
+                                                  ?.uid) {
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  '削除できるのはオーナーのみです',
+                                                  style: TextStyle(
+                                                    fontFamily: 'LINEseed',
+                                                  ),
+                                                ),
+                                                backgroundColor: Color(
+                                                  0xFFFCC400,
+                                                ),
+                                              ),
+                                            );
+                                            return;
+                                          }
+
+                                          _removeAdmin(tenantRef, uidToRemove);
+                                        },
                                       );
                                     }
 
@@ -2320,18 +2401,43 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
                                         ),
                                       );
                                     }
+
                                     return AdminList(
                                       entries: uids
                                           .map(
                                             (u) => AdminEntry(
-                                              uid: uid,
+                                              uid: u,
                                               email: '',
                                               name: '',
                                             ),
                                           )
                                           .toList(),
-                                      onRemove: (uidToRemove) =>
-                                          _removeAdmin(tenantRef, uidToRemove),
+                                      onRemove: (uidToRemove) {
+                                        if (widget.ownerId !=
+                                            FirebaseAuth
+                                                .instance
+                                                .currentUser
+                                                ?.uid) {
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            const SnackBar(
+                                              content: Text(
+                                                '削除できるのはオーナーのみです',
+                                                style: TextStyle(
+                                                  fontFamily: 'LINEseed',
+                                                ),
+                                              ),
+                                              backgroundColor: Color(
+                                                0xFFFCC400,
+                                              ),
+                                            ),
+                                          );
+                                          return;
+                                        }
+
+                                        _removeAdmin(tenantRef, uidToRemove);
+                                      },
                                     );
                                   },
                                 ),
@@ -2351,13 +2457,14 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
                         ),
                         const SizedBox(height: 16),
                         Container(
+                          width: 200,
                           margin: const EdgeInsets.symmetric(
                             vertical: 8,
-                            horizontal: 16,
+                            horizontal: 8,
                           ),
                           decoration: BoxDecoration(
-                            color: Colors.white,
-                            border: Border.all(color: Colors.black26),
+                            color: Color(0xFFFCC400),
+                            border: Border.all(width: 3, color: Colors.black),
                             borderRadius: BorderRadius.circular(999),
                           ),
                           child: InkWell(
@@ -2373,14 +2480,14 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
                                 children: [
                                   Icon(
                                     Icons.logout,
-                                    color: Colors.black87,
+                                    color: Colors.black,
                                     size: 18,
                                   ),
                                   SizedBox(width: 8),
                                   Text(
                                     'ログアウト',
                                     style: TextStyle(
-                                      color: Colors.black87,
+                                      color: Colors.black,
                                       fontWeight: FontWeight.w700,
                                       fontFamily: "LINEseed",
                                     ),
@@ -2402,30 +2509,103 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Image.asset("assets/icons/no_subscription.png", width: 50),
-                  const SizedBox(height: 30),
-                  const Text("サブスクリプションを登録してください"),
-                  const SizedBox(height: 30),
-                  TextButton.icon(
-                    onPressed: () => showTipriInfoDialog(context),
-                    icon: const Icon(Icons.info_outline),
-                    label: const Text(
-                      'チップリについて',
-                      style: TextStyle(color: Color(0xFFFCC400)),
-                    ),
-                    style: TextButton.styleFrom(
-                      foregroundColor: Colors.black87,
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 450),
+                      child: Material(
+                        elevation: 6,
+                        color: Colors.white,
+                        shadowColor: const Color(0x14000000),
+                        borderRadius: BorderRadius.circular(20),
+
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(
+                                20,
+                                20,
+                                20,
+                                16,
+                              ),
+                              child: Column(
+                                children: [
+                                  // アイコンのアクセント（黒地に白）
+
+                                  // タイトル
+                                  const Text(
+                                    'サブスクリプションを登録しよう',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 18,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+
+                                  // 補足文（任意で一行足してリッチに）
+                                  const Text(
+                                    '登録するとチップ受け取りや詳細レポートが有効になります。',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: Colors.black54,
+                                      height: 1.4,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 20),
+
+                                  // 情報ボタン（色は既存を踏襲：ラベル #FCC400、前景は黒）
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: TextButton.icon(
+                                      onPressed: () =>
+                                          showTipriInfoDialog(context),
+
+                                      label: const Text('チップリについて'),
+                                      style: TextButton.styleFrom(
+                                        side: BorderSide(
+                                          width: 3,
+                                          color: Colors.black,
+                                        ),
+                                        foregroundColor: Colors.black87,
+                                        backgroundColor: Color(0xFFFCC400),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 16,
+                                          vertical: 14,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                          side: const BorderSide(
+                                            color: Color(
+                                              0xFFFCC400,
+                                            ), // 枠線だけアクセント
+                                            width: 1.5,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 30),
                   Container(
+                    width: 250,
                     margin: const EdgeInsets.symmetric(
                       vertical: 8,
                       horizontal: 16,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      border: Border.all(color: Colors.black26),
+                      color: Color(0xFFFCC400),
+                      border: Border.all(width: 3, color: Colors.black),
                       borderRadius: BorderRadius.circular(999),
                     ),
 
@@ -2462,30 +2642,30 @@ class _StoreSettingsTabState extends State<StoreSettingsTab> {
   }
 }
 
-// --- 小物 ---
-class _InfoLine extends StatelessWidget {
-  final String text;
-  const _InfoLine(this.text);
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: const [
-        Icon(Icons.info_outline, size: 16, color: Colors.black54),
-        SizedBox(width: 6),
-        Expanded(
-          child: Text('', style: TextStyle(color: Colors.black54)),
-        ),
-      ],
-    ).copyWithText(text);
-  }
-}
+// // --- 小物 ---
+// class _InfoLine extends StatelessWidget {
+//   final String text;
+//   const _InfoLine(this.text);
+//   @override
+//   Widget build(BuildContext context) {
+//     return Row(
+//       children: const [
+//         Icon(Icons.info_outline, size: 16, color: Colors.black54),
+//         SizedBox(width: 6),
+//         Expanded(
+//           child: Text('', style: TextStyle(color: Colors.black54)),
+//         ),
+//       ],
+//     ).copyWithText(text);
+//   }
+// }
 
-extension on Row {
-  Row copyWithText(String t) {
-    final children = List<Widget>.from(this.children);
-    children[2] = Expanded(
-      child: Text(t, style: const TextStyle(color: Colors.black54)),
-    );
-    return Row(children: children);
-  }
-}
+// extension on Row {
+//   Row copyWithText(String t) {
+//     final children = List<Widget>.from(this.children);
+//     children[2] = Expanded(
+//       child: Text(t, style: const TextStyle(color: Colors.black54)),
+//     );
+//     return Row(children: children);
+//   }
+// }

@@ -252,16 +252,17 @@ class Filters extends StatelessWidget {
   final TextEditingController searchCtrl;
   final DatePreset preset;
   final void Function(DatePreset) onPresetChanged;
-  final DateTime? rangeStart;
-  final DateTime? rangeEndEx;
-  final bool activeOnly;
-  final bool chargesEnabledOnly;
-  final ValueChanged<bool> onToggleActive;
-  final ValueChanged<bool> onToggleCharges;
+  final DateTime? rangeStart; // 使わないが互換のため保持
+  final DateTime? rangeEndEx; // 使わないが互換のため保持
+  final bool activeOnly; // 今回は非表示（要件外のため）
+  final bool chargesEnabledOnly; // 同上
+  final ValueChanged<bool> onToggleActive; // 同上
+  final ValueChanged<bool> onToggleCharges; // 同上
   final SortBy sortBy;
   final ValueChanged<SortBy> onSortChanged;
 
   const Filters({
+    super.key,
     required this.searchCtrl,
     required this.preset,
     required this.onPresetChanged,
@@ -275,57 +276,120 @@ class Filters extends StatelessWidget {
     required this.onSortChanged,
   });
 
-  String _ymd(DateTime d) =>
-      '${d.year}/${d.month.toString().padLeft(2, '0')}/${d.day.toString().padLeft(2, '0')}';
+  // 共通：黒の太枠デコレーション
+  InputDecoration _thickDecoration({
+    String? label,
+    String? hint,
+    Widget? prefixIcon,
+    Widget? suffixIcon,
+  }) {
+    return InputDecoration(
+      labelText: label,
+      hintText: hint,
+      isDense: false,
+      filled: true,
+      fillColor: Colors.white,
+      prefixIcon: prefixIcon,
+      suffixIcon: suffixIcon,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(width: 4, color: Colors.black),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(width: 4, color: Colors.black),
+      ),
+    );
+  }
 
-  @override
-  Widget build(BuildContext context) {
-    final rangeLabel = (rangeStart != null && rangeEndEx != null)
-        ? '${_ymd(rangeStart!)} 〜 ${_ymd(rangeEndEx!.subtract(const Duration(days: 1)))}'
-        : '—';
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-      child: Wrap(
-        spacing: 12,
-        runSpacing: 8,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          // 検索
-          SizedBox(
-            width: 240,
-            child: TextField(
-              controller: searchCtrl,
-              decoration: const InputDecoration(
-                prefixIcon: Icon(Icons.search),
-                hintText: '店舗名 / ID 検索',
-                isDense: true,
-                border: OutlineInputBorder(),
+  Widget _searchField(BuildContext context) {
+    return TextField(
+      controller: searchCtrl,
+      cursorColor: Colors.black,
+      style: const TextStyle(height: 1.2),
+      decoration: _thickDecoration(
+        hint: '店舗名検索',
+        prefixIcon: const Icon(Icons.search, color: Colors.black),
+        suffixIcon: (searchCtrl.text.isEmpty)
+            ? null
+            : IconButton(
+                tooltip: 'クリア',
+                icon: const Icon(Icons.close, color: Colors.black),
+                onPressed: () {
+                  // Statelessでもcontrollerを変更すればリスナーに通知される
+                  searchCtrl.clear();
+                },
               ),
-            ),
-          ),
-          // 期間プリセット
-          DropdownButton<DatePreset>(
-            value: preset,
-            onChanged: (v) => v != null ? onPresetChanged(v) : null,
-            items: const [
+      ),
+      onChanged: (_) {
+        // 親側がcontrollerの変更をlistenしていれば即時フィルタされる
+      },
+    );
+  }
+
+  Widget _presetDropdown({
+    double fontSize = 13, // 文字サイズ
+    double vPad = 6, // 上下パディング（フィールド高さに効く）
+    double hPad = 12, // 左右パディング
+    double itemHeight = 36, // メニュー各行の高さ
+    double iconSize = 18,
+    bool expanded = true, // 横幅をいっぱいに
+    double? fieldHeight, // 明示的に高さ固定したい場合
+  }) {
+    final items =
+        const [
               DropdownMenuItem(value: DatePreset.today, child: Text('今日')),
               DropdownMenuItem(value: DatePreset.yesterday, child: Text('昨日')),
               DropdownMenuItem(value: DatePreset.thisMonth, child: Text('今月')),
               DropdownMenuItem(value: DatePreset.lastMonth, child: Text('先月')),
               DropdownMenuItem(value: DatePreset.custom, child: Text('期間指定')),
-            ],
-          ),
-          Text(rangeLabel, style: const TextStyle(color: Colors.black54)),
+            ]
+            .map(
+              (e) => DropdownMenuItem<DatePreset>(
+                value: e.value!,
+                child: SizedBox(
+                  height: itemHeight,
+                  child: Align(alignment: Alignment.centerLeft, child: e.child),
+                ),
+              ),
+            )
+            .toList();
 
-          // ステータスフィルタ
+    final core = DropdownButtonFormField<DatePreset>(
+      value: preset,
+      onChanged: (v) => v != null ? onPresetChanged(v) : null,
+      isDense: true, // 余白を詰める
+      isExpanded: expanded,
+      iconSize: iconSize,
+      style: TextStyle(
+        fontSize: fontSize,
+        fontFamily: "LINEseed",
+      ), // 入力中/表示中の文字サイズ
+      menuMaxHeight: 320,
+      decoration: _thickDecoration(label: '期間').copyWith(
+        contentPadding: EdgeInsets.symmetric(vertical: vPad, horizontal: hPad),
+      ),
+      items: items,
+    );
 
-          // 並び替え
-          const SizedBox(width: 8),
-          DropdownButton<SortBy>(
-            value: sortBy,
-            onChanged: (v) => v != null ? onSortChanged(v) : null,
-            items: const [
+    // 明示的に高さを固定したい時だけ SizedBox で包む
+    return fieldHeight != null
+        ? SizedBox(height: fieldHeight, child: core)
+        : core;
+  }
+
+  Widget _sortDropdown({
+    double fontSize = 13,
+    double vPad = 6,
+    double hPad = 12,
+    double itemHeight = 36,
+    double iconSize = 18,
+    bool expanded = true,
+    double? fieldHeight,
+  }) {
+    final items =
+        const [
               DropdownMenuItem(
                 value: SortBy.revenueDesc,
                 child: Text('売上の高い順'),
@@ -334,10 +398,103 @@ class Filters extends StatelessWidget {
                 value: SortBy.createdDesc,
                 child: Text('作成日時が新しい順'),
               ),
-            ],
-          ),
-        ],
+            ]
+            .map(
+              (e) => DropdownMenuItem<SortBy>(
+                value: e.value!,
+                child: SizedBox(
+                  height: itemHeight,
+                  child: Align(alignment: Alignment.centerLeft, child: e.child),
+                ),
+              ),
+            )
+            .toList();
+
+    final core = DropdownButtonFormField<SortBy>(
+      value: sortBy,
+      onChanged: (v) => v != null ? onSortChanged(v) : null,
+      isDense: true,
+      isExpanded: expanded,
+      iconSize: iconSize,
+      style: TextStyle(fontSize: fontSize, fontFamily: "LINEseed"),
+      menuMaxHeight: 320,
+      decoration: _thickDecoration(label: '並び順').copyWith(
+        contentPadding: EdgeInsets.symmetric(vertical: vPad, horizontal: hPad),
       ),
+      items: items,
+    );
+
+    return fieldHeight != null
+        ? SizedBox(height: fieldHeight, child: core)
+        : core;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (ctx, c) {
+        final w = c.maxWidth;
+        final isNarrow = w < 420; // スマホ縦
+        final isMedium = w >= 420 && w < 720; // タブレット/スマホ横
+        // wide >= 720 はPC相当
+
+        // 共通左右パディング
+        const hp = 12.0;
+
+        if (isNarrow) {
+          // ===== スマホ（狭）: 縦に積む =====
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(hp, 8, hp, 8),
+            child: Column(
+              children: [
+                _searchField(context),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(child: _presetDropdown()),
+                    const SizedBox(width: 8),
+                    Expanded(child: _sortDropdown()),
+                  ],
+                ),
+              ],
+            ),
+          );
+        } else if (isMedium) {
+          // ===== 中（タブレット/スマホ横）: 検索フル幅 + 2分割 =====
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(hp, 8, hp, 8),
+            child: Column(
+              children: [
+                _searchField(context),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(child: _presetDropdown()),
+                    const SizedBox(width: 8),
+                    Expanded(child: _sortDropdown()),
+                  ],
+                ),
+              ],
+            ),
+          );
+        } else {
+          // ===== 広（PC）: 横一列（検索広め、ドロップダウン2つ） =====
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(hp, 8, hp, 8),
+            child: Row(
+              children: [
+                // 検索は広め（2）
+                Expanded(flex: 2, child: _searchField(context)),
+                const SizedBox(width: 12),
+                // プリセットと並び順は同じ幅（1,1）
+                Expanded(child: _presetDropdown()),
+                const SizedBox(width: 12),
+                Expanded(child: _sortDropdown()),
+              ],
+            ),
+          );
+        }
+      },
     );
   }
 }

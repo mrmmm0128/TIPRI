@@ -6,16 +6,15 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
-
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
 import 'package:barcode/barcode.dart';
 import 'package:url_launcher/url_launcher_string.dart';
-import 'package:yourpay/endUser/utils/image_scrol.dart';
 import 'package:yourpay/tenant/method/fetchPlan.dart';
-import 'package:yourpay/tenant/newTenant/onboardingSheet_2.dart';
+import 'package:yourpay/tenant/method/image_scrol.dart';
+import 'package:yourpay/tenant/newTenant/onboardingSheet.dart';
 import 'dart:async'; // 追加
 
 class StoreQrTab extends StatefulWidget {
@@ -29,7 +28,7 @@ class StoreQrTab extends StatefulWidget {
     required this.tenantId,
     this.tenantName,
     this.agency,
-    this.posterAssetPath = 'assets/posters/store_poster.png',
+    this.posterAssetPath = 'assets/posters/store_poster.jpg',
     this.ownerId,
   });
 
@@ -172,7 +171,7 @@ class _StoreQrTabState extends State<StoreQrTab> {
 
   // 表示/出力カスタム
   bool _putWhiteBg = true;
-  double _qrScale = 0.35; // 20〜60%
+  double _qrScale = 0.28; // 20〜60%
   double _qrPaddingMm = 6;
   bool _landscape = false;
   // 追加: フィールド
@@ -187,7 +186,7 @@ class _StoreQrTabState extends State<StoreQrTab> {
   _Paper _paper = _Paper.a4;
   final ValueNotifier<_Paper> _paperVN = ValueNotifier<_Paper>(_Paper.a4);
 
-  Offset _qrPos = const Offset(0.5, 0.5);
+  Offset _qrPos = const Offset(0.199, 0.684);
   bool isC = false;
   _QrDesign _qrDesign = _QrDesign.classic;
   bool agency = false;
@@ -224,9 +223,8 @@ class _StoreQrTabState extends State<StoreQrTab> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.tenantId != widget.tenantId) {
       _publicStoreUrl = _buildStoreUrl();
-      _qrPos = const Offset(0.5, 0.5);
+      //Offset _qrPos = const Offset(0.199, 0.684);
 
-      final u = FirebaseAuth.instance.currentUser?.uid;
       _postersRef = FirebaseFirestore.instance
           .collection(widget.ownerId!)
           .doc(widget.tenantId)
@@ -256,9 +254,14 @@ class _StoreQrTabState extends State<StoreQrTab> {
       Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('ログアウトに失敗: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'ログアウトに失敗: $e',
+            style: TextStyle(fontFamily: 'LINEseed'),
+          ),
+        ),
+      );
     } finally {
       if (mounted) setState(() => _loggingOut = false);
     }
@@ -267,11 +270,13 @@ class _StoreQrTabState extends State<StoreQrTab> {
   static Future<void> showTipriInfoDialog(BuildContext context) async {
     // 表示する画像（あなたのアセットパスに合わせて変更）
     final assets = <String>[
-      'assets/pdf/tipri_page-0001.jpg',
-      'assets/pdf/tipri_page-0002.jpg',
-      'assets/pdf/tipri_page-0003.jpg',
-      'assets/pdf/tipri_page-0004.jpg',
-      'assets/pdf/tipri_page-0005.jpg',
+      'assets/pdf/1.jpg',
+      'assets/pdf/2.jpg',
+      'assets/pdf/3.jpg',
+      'assets/pdf/4.jpg',
+      'assets/pdf/5.jpg',
+      'assets/pdf/6.jpg',
+      'assets/pdf/7.jpg',
     ];
 
     await showModalBottomSheet(
@@ -429,8 +434,7 @@ class _StoreQrTabState extends State<StoreQrTab> {
   }
 
   String _buildStoreUrl() {
-    final origin = Uri.base.origin;
-    return '$origin/#/p?t=${widget.tenantId}';
+    return 'https://tip.tipri.jp?t=${widget.tenantId}';
     // 必要ならここでサイズやパラメータを追加
   }
 
@@ -512,6 +516,7 @@ class _StoreQrTabState extends State<StoreQrTab> {
             'ポスターを追加しました',
             style: TextStyle(fontFamily: 'LINEseed'),
           ),
+          backgroundColor: Color(0xFFFCC400),
         ),
       );
     } catch (e) {
@@ -522,6 +527,7 @@ class _StoreQrTabState extends State<StoreQrTab> {
             'アップロード失敗: $e',
             style: const TextStyle(fontFamily: 'LINEseed'),
           ),
+          backgroundColor: Color(0xFFFCC400),
         ),
       );
     }
@@ -531,10 +537,9 @@ class _StoreQrTabState extends State<StoreQrTab> {
   Future<void> _exportPdf(List<_PosterOption> options) async {
     if (_publicStoreUrl == null) return;
 
-    // previewPane() の中（ValueListenableBuilder の builder 内）
     final selected = options.firstWhere(
       (o) => o.id == _selectedPosterId,
-      orElse: () => options.first, // ★ 追加：見つからなければ先頭（テンプレ）を使う
+      orElse: () => options.first,
     );
 
     pw.ImageProvider posterProvider;
@@ -553,6 +558,10 @@ class _StoreQrTabState extends State<StoreQrTab> {
     doc.addPage(
       pw.Page(
         pageFormat: pageFormat,
+        // ★ デフォルト文字色を黒に固定（このページで描くテキストすべてに効く）
+        theme: pw.ThemeData(
+          defaultTextStyle: pw.TextStyle(color: PdfColors.black),
+        ),
         build: (ctx) {
           final pageW = ctx.page.pageFormat.availableWidth;
           final pageH = ctx.page.pageFormat.availableHeight;
@@ -580,7 +589,7 @@ class _StoreQrTabState extends State<StoreQrTab> {
             width: qrSidePt,
             height: qrSidePt,
             drawText: false,
-            color: PdfColors.black,
+            color: PdfColors.black, // ← QR自体も黒
           );
 
           final qrBox = pw.Container(
@@ -596,10 +605,41 @@ class _StoreQrTabState extends State<StoreQrTab> {
             child: qr,
           );
 
+          // ★（任意）QRの下に黒文字の説明やURLを入れる場合：白下地＋黒文字でくっきり
+          final showCaption = false; // ← 表示したい場合は true に
+          final caption = pw.Container(
+            margin: const pw.EdgeInsets.only(top: 6),
+            padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            decoration: pw.BoxDecoration(
+              color: PdfColors.white, // 白下地で背景がどんな色でも読める
+              borderRadius: pw.BorderRadius.circular(4),
+            ),
+            child: pw.Text(
+              _publicStoreUrl!,
+              style: pw.TextStyle(
+                color: PdfColors.black, // くっきり黒
+                fontSize: 10,
+                fontWeight: pw.FontWeight.bold,
+              ),
+              maxLines: 1,
+              overflow: pw.TextOverflow.span,
+            ),
+          );
+
+          final qrWithCaption = pw.Column(
+            mainAxisSize: pw.MainAxisSize.min,
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              qrBox,
+              // ignore: dead_code
+              if (showCaption) caption,
+            ],
+          );
+
           return pw.Stack(
             children: [
               poster,
-              pw.Positioned(left: leftPt, top: topPt, child: qrBox),
+              pw.Positioned(left: leftPt, top: topPt, child: qrWithCaption),
             ],
           );
         },
@@ -680,7 +720,7 @@ class _StoreQrTabState extends State<StoreQrTab> {
         labelStyle: const TextStyle(color: Colors.black87),
         hintStyle: const TextStyle(color: Colors.black54),
         filled: true,
-        fillColor: Colors.white,
+        fillColor: Color(0xFFFCC400),
         isDense: true,
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         border: _border(Colors.black12),
@@ -689,8 +729,8 @@ class _StoreQrTabState extends State<StoreQrTab> {
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: Colors.black,
-          foregroundColor: Colors.white,
+          backgroundColor: Color(0xFFFCC400),
+          foregroundColor: Colors.black,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
@@ -734,8 +774,9 @@ class _StoreQrTabState extends State<StoreQrTab> {
   Widget build(BuildContext context) {
     final black78 = Colors.black.withOpacity(0.78);
     final primary = FilledButton.styleFrom(
-      backgroundColor: Colors.white,
-      foregroundColor: black78,
+      backgroundColor: Color(0xFFFCC400),
+      foregroundColor: Colors.black,
+
       side: const BorderSide(color: Colors.black54),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -755,7 +796,11 @@ class _StoreQrTabState extends State<StoreQrTab> {
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('ポスターの読み込みに失敗しました: ${postersSnap.error}'),
+                        content: Text(
+                          'ポスターの読み込みに失敗しました: ${postersSnap.error}',
+                          style: TextStyle(fontFamily: 'LINEseed'),
+                        ),
+                        backgroundColor: Color(0xFFFCC400),
                       ),
                     );
                   }
@@ -792,25 +837,35 @@ class _StoreQrTabState extends State<StoreQrTab> {
                   ? _selectedPosterId
                   : (options.isNotEmpty ? options.first.id : null);
 
-              final shouldDrawQr =
-                  (_connected == true) &&
-                  _publicStoreUrl != null &&
-                  _publicStoreUrl!.isNotEmpty;
-
               Widget paperSelector() => Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   InputDecorator(
                     decoration: InputDecoration(
+                      //fillColor: Color(0xFFFCC400),
                       labelText: '用紙サイズ',
-                      labelStyle: TextStyle(color: black78),
-                      hintStyle: TextStyle(color: black78),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+                      labelStyle: TextStyle(color: Colors.black),
+                      hintStyle: TextStyle(color: Colors.black),
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 12,
                         vertical: 6,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                          color: Colors.black,
+                          width: 3,
+                        ), // ★
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                          color: Colors.black,
+                          width: 3,
+                        ), // ★
                       ),
                     ),
                     child: DropdownButtonHideUnderline(
@@ -820,9 +875,8 @@ class _StoreQrTabState extends State<StoreQrTab> {
                         isDense: true,
                         onChanged: (v) {
                           if (v == null) return;
-                          // 表示用の値と、プレビュー用の Notifier を更新
                           setState(() => _paper = v);
-                          _paperVN.value = v; // ← これでプレビューは用紙変更時だけ再描画
+                          _paperVN.value = v;
                         },
                         items: _paperDefs.entries
                             .map(
@@ -845,26 +899,47 @@ class _StoreQrTabState extends State<StoreQrTab> {
                     title: const Text(
                       '横向き',
                       style: TextStyle(
-                        color: Colors.black87,
+                        color: Colors.black,
                         fontFamily: 'LINEseed',
                       ),
                     ),
+
                     value: _landscape,
-                    dense: true,
                     onChanged: (v) => setState(() => _landscape = v),
+                    dense: true,
                     contentPadding: EdgeInsets.zero,
+
+                    activeColor: Colors.white, // 親指(thumb)
+                    activeTrackColor: Colors.amberAccent, // レール(track)
+                    // OFF時
+                    inactiveThumbColor: Colors.amber,
+                    inactiveTrackColor: Colors.white,
                   ),
                 ],
               );
 
+              // ▼ PDFダウンロード（FilledButton）
               Widget pdfButton() => FilledButton.icon(
-                style: primary,
+                style: primary.copyWith(
+                  // 太い黒枠（有効/無効で色だけ出し分け）
+                  side: MaterialStateProperty.resolveWith<BorderSide>(
+                    (states) => states.contains(MaterialState.disabled)
+                        ? const BorderSide(color: Colors.black26, width: 3)
+                        : const BorderSide(color: Colors.black, width: 3),
+                  ),
+                  // 角丸を明示（必要なければ消してOK）
+                  shape: MaterialStateProperty.all(
+                    RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
                 onPressed: (_connected! && _publicStoreUrl != null)
                     ? () => _exportPdf(options)
                     : null,
                 icon: const Icon(Icons.file_download),
                 label: const Text(
-                  'PDFをダウンロード',
+                  'ダウンロード',
                   style: TextStyle(fontFamily: 'LINEseed'),
                 ),
               );
@@ -879,20 +954,40 @@ class _StoreQrTabState extends State<StoreQrTab> {
                       onPressed: canUpload ? _addPosterFromFile : null,
                       icon: const Icon(Icons.add_photo_alternate_outlined),
                       label: const Text(
-                        'アップロード（Cプラン）',
+                        'アップロード',
                         style: TextStyle(fontFamily: 'LINEseed'),
                       ),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: black78,
-                        side: const BorderSide(color: Colors.black54),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 12,
-                        ),
-                      ),
+                      style:
+                          OutlinedButton.styleFrom(
+                            backgroundColor: Color(0xFFFCC400),
+                            foregroundColor: Colors.black,
+
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 12,
+                            ),
+                            side: const BorderSide(
+                              color: Colors.black,
+                              width: 3,
+                            ), // ★ 太枠
+                          ).copyWith(
+                            // 無効時も太さを維持（色だけ薄く）
+                            side: MaterialStateProperty.resolveWith<BorderSide>(
+                              (states) =>
+                                  states.contains(MaterialState.disabled)
+                                  ? const BorderSide(
+                                      color: Colors.black26,
+                                      width: 3,
+                                    )
+                                  : const BorderSide(
+                                      color: Colors.black,
+                                      width: 3,
+                                    ),
+                            ),
+                          ),
                     ),
                   ],
                 );
@@ -997,8 +1092,9 @@ class _StoreQrTabState extends State<StoreQrTab> {
 
                 return FilledButton.icon(
                   style: FilledButton.styleFrom(
-                    backgroundColor: Colors.black,
-                    foregroundColor: Colors.white,
+                    backgroundColor: Color(0xFFFCC400),
+                    foregroundColor: Colors.black,
+
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
                       vertical: 12,
@@ -1006,6 +1102,7 @@ class _StoreQrTabState extends State<StoreQrTab> {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
+                    side: BorderSide(color: Colors.black, width: 3),
                   ),
                   onPressed: () async {
                     final ok = await launchUrlString(
@@ -1015,7 +1112,13 @@ class _StoreQrTabState extends State<StoreQrTab> {
                     );
                     if (!ok && context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('リンクを開けませんでした')),
+                        const SnackBar(
+                          content: Text(
+                            'リンクを開けませんでした',
+                            style: TextStyle(fontFamily: 'LINEseed'),
+                          ),
+                          backgroundColor: Color(0xFFFCC400),
+                        ),
                       );
                     }
                   },
@@ -1091,40 +1194,81 @@ class _StoreQrTabState extends State<StoreQrTab> {
                 ),
               );
 
-              Widget connectNotice() => (!_connected!)
-                  ? Column(
-                      children: [
-                        Card(
-                          elevation: 4,
-                          shadowColor: Colors.black26,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: ListTile(
-                            leading: const CircleAvatar(
-                              backgroundColor: Colors.amber,
-                              foregroundColor: Colors.black,
-                              child: Icon(Icons.info_outline),
-                            ),
+              Widget connectNotice() {
+                if (_connected == true) return const SizedBox.shrink();
 
-                            trailing: FilledButton(
-                              style: primary,
-                              onPressed: agency
-                                  ? null
-                                  : () => startOnboarding(
-                                      widget.tenantId,
-                                      widget.tenantName!,
-                                    ),
-                              child: const Text(
-                                'コネクトアカウント作成未完了',
-                                style: TextStyle(fontFamily: 'LINEseed'),
-                              ),
-                            ),
+                // 白背景で見やすい淡色トーン
+                const warnBg = Color(0xFFFFF8E1); // 明るいアンバー系（薄い黄色）
+                const warnBorder = Color(0xFFFFD54F); // 枠線（少し濃い黄色）
+                const iconBg = Color(0xFFFFD54F); // アイコンの円背景
+                const iconFg = Colors.black; // アイコン色
+
+                return Column(
+                  children: [
+                    Card(
+                      elevation: 0,
+                      color: warnBg,
+                      surfaceTintColor: Colors.transparent, // M3の面影色を無効化
+                      shadowColor: Colors.black12,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: const BorderSide(color: warnBorder),
+                      ),
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        leading: const CircleAvatar(
+                          backgroundColor: iconBg,
+                          foregroundColor: iconFg,
+                          child: Icon(Icons.info_outline),
+                        ),
+                        title: const Text(
+                          'コネクトアカウント作成未完了',
+                          style: TextStyle(
+                            fontFamily: 'LINEseed',
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black,
                           ),
                         ),
-                      ],
-                    )
-                  : const SizedBox.shrink();
+                        subtitle: const Padding(
+                          padding: EdgeInsets.only(top: 4),
+                          child: Text(
+                            'チップの受け取りには Stripe Connect アカウントの設定が必要です。',
+                            style: TextStyle(color: Colors.black87),
+                          ),
+                        ),
+                        trailing: FilledButton(
+                          // 既存の `primary` スタイルを使いたければ置き換え可
+                          style: ButtonStyle(
+                            backgroundColor: WidgetStateProperty.resolveWith((
+                              states,
+                            ) {
+                              // agency=true で無効時は薄く
+                              if (agency) return Colors.black.withOpacity(0.12);
+                              return Colors.black;
+                            }),
+                            foregroundColor: const WidgetStatePropertyAll(
+                              Colors.white,
+                            ),
+                          ),
+                          onPressed: agency
+                              ? null
+                              : () => startOnboarding(
+                                  widget.tenantId,
+                                  widget.tenantName!,
+                                ),
+                          child: const Text(
+                            '今すぐ設定',
+                            style: TextStyle(fontFamily: 'LINEseed'),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              }
 
               // 右側プレビュー：用紙変更時だけ再レイアウト（_paperVN）
               Widget previewPane() => ValueListenableBuilder<_Paper>(
@@ -1166,8 +1310,8 @@ class _StoreQrTabState extends State<StoreQrTab> {
                             ? Image.network(selected.url!, fit: BoxFit.cover)
                             : null;
 
-                        final left = _qrPos.dx * w - boxSidePx / 2;
-                        final top = _qrPos.dy * h - boxSidePx / 2;
+                        final left = _qrPos.dx * w - boxSidePx / 4;
+                        final top = _qrPos.dy * h - boxSidePx * 2 / 3;
 
                         final showQr =
                             (_connected == true) &&
@@ -1310,14 +1454,9 @@ class _StoreQrTabState extends State<StoreQrTab> {
                                 child: Column(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Image.asset(
-                                      "assets/icons/staff_qr.png",
-                                      width: 70,
-                                    ),
-                                    const SizedBox(height: 30),
                                     Center(
                                       child: Text(
-                                        "コネクトアカウントを作成すると、QRコードを含んだポスターを作成することができます",
+                                        "コネクトアカウントを作成すると、\n QRコードを含んだポスターを作成することができます",
                                       ),
                                     ),
                                   ],
@@ -1363,64 +1502,86 @@ class _StoreQrTabState extends State<StoreQrTab> {
             },
           )
         : Scaffold(
-            body: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Image.asset("assets/icons/no_subscription.png", width: 50),
-                  const SizedBox(height: 30),
-                  Center(child: Text("サブスクリプションを登録してください")),
-                  const SizedBox(height: 30),
-                  TextButton.icon(
-                    onPressed: () => showTipriInfoDialog(context),
-                    icon: const Icon(Icons.info_outline),
-                    label: const Text(
-                      'チップリについて',
-                      style: TextStyle(color: Color(0xFFFCC400)),
-                    ),
-                    style: TextButton.styleFrom(
-                      foregroundColor: Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 30),
-                  Container(
-                    margin: const EdgeInsets.symmetric(
-                      vertical: 8,
-                      horizontal: 16,
-                    ),
-                    decoration: BoxDecoration(
+            body: SafeArea(
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 450),
+                    child: Material(
+                      elevation: 6,
                       color: Colors.white,
-                      border: Border.all(color: Colors.black26),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
+                      shadowColor: const Color(0x14000000),
+                      borderRadius: BorderRadius.circular(20),
 
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(999),
-                      onTap: logout,
-                      child: const Padding(
-                        padding: EdgeInsets.symmetric(
-                          vertical: 12,
-                          horizontal: 20,
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.logout, color: Colors.black87, size: 18),
-                            SizedBox(width: 8),
-                            Text(
-                              'ログアウト',
-                              style: TextStyle(
-                                color: Colors.black87,
-                                fontWeight: FontWeight.w700,
-                                fontFamily: "LINEseed",
-                              ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+                            child: Column(
+                              children: [
+                                // アイコンのアクセント（黒地に白）
+
+                                // タイトル
+                                const Text(
+                                  'サブスクリプションを登録しよう',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 18,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+
+                                // 補足文（任意で一行足してリッチに）
+                                const Text(
+                                  '登録するとチップ受け取りや詳細レポートが有効になります。',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: Colors.black54,
+                                    height: 1.4,
+                                  ),
+                                ),
+                                const SizedBox(height: 20),
+
+                                // 情報ボタン（色は既存を踏襲：ラベル #FCC400、前景は黒）
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: TextButton.icon(
+                                    onPressed: () =>
+                                        showTipriInfoDialog(context),
+
+                                    label: const Text('チップリについて'),
+                                    style: TextButton.styleFrom(
+                                      side: BorderSide(
+                                        width: 3,
+                                        color: Colors.black,
+                                      ),
+                                      foregroundColor: Colors.black87,
+                                      backgroundColor: Color(0xFFFCC400),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 14,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        side: const BorderSide(
+                                          color: Color(0xFFFCC400), // 枠線だけアクセント
+                                          width: 1.5,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                ],
+                ),
               ),
             ),
           );

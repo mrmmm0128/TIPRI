@@ -114,8 +114,8 @@ class _StaffDetailScreenState extends State<StaffDetailScreen> {
     if (name.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          backgroundColor: Colors.white,
-          content: Text('名前は必須です', style: TextStyle(color: Colors.black87)),
+          content: Text('名前は必須です', style: TextStyle(fontFamily: 'LINEseed')),
+          backgroundColor: Color(0xFFFCC400),
         ),
       );
       return;
@@ -148,8 +148,8 @@ class _StaffDetailScreenState extends State<StaffDetailScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            backgroundColor: Colors.white,
-            content: Text('保存しました', style: TextStyle(color: Colors.black87)),
+            content: Text('保存しました', style: TextStyle(fontFamily: 'LINEseed')),
+            backgroundColor: Color(0xFFFCC400),
           ),
         );
       }
@@ -157,11 +157,11 @@ class _StaffDetailScreenState extends State<StaffDetailScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            backgroundColor: Colors.white,
             content: Text(
               '保存に失敗: $e',
-              style: const TextStyle(color: Colors.black87),
+              style: TextStyle(fontFamily: 'LINEseed'),
             ),
+            backgroundColor: Color(0xFFFCC400),
           ),
         );
       }
@@ -220,8 +220,8 @@ class _StaffDetailScreenState extends State<StaffDetailScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          backgroundColor: Colors.white,
-          content: Text('削除しました', style: TextStyle(color: Colors.black87)),
+          content: Text('削除しました', style: TextStyle(fontFamily: 'LINEseed')),
+          backgroundColor: Color(0xFFFCC400),
         ),
       );
       Navigator.of(context).pop(); // 一覧へ戻る
@@ -229,11 +229,8 @@ class _StaffDetailScreenState extends State<StaffDetailScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          backgroundColor: Colors.white,
-          content: Text(
-            '削除に失敗: $e',
-            style: const TextStyle(color: Colors.black87),
-          ),
+          content: Text('削除に失敗: $e', style: TextStyle(fontFamily: 'LINEseed')),
+          backgroundColor: Color(0xFFFCC400),
         ),
       );
     } finally {
@@ -247,13 +244,15 @@ class _StaffDetailScreenState extends State<StaffDetailScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x14000000),
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
-        ],
+
+        border: Border.all(width: 3, color: Colors.black),
+        // boxShadow: const [
+        //   BoxShadow(
+        //     color: Color(0x14000000),
+        //     blurRadius: 10,
+        //     offset: Offset(0, 4),
+        //   ),
+        // ],
       ),
       padding: const EdgeInsets.all(16),
       child: child,
@@ -289,17 +288,20 @@ class _StaffDetailScreenState extends State<StaffDetailScreen> {
 
     // ボタンも黒87テキストに統一（背景は白／枠あり）
     final blackButton = FilledButton.styleFrom(
-      backgroundColor: Colors.white,
-      foregroundColor: Colors.black87,
-      side: const BorderSide(color: Colors.black54),
+      backgroundColor: Color(0xFFFCC400),
+      foregroundColor: Colors.black,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      side: BorderSide(color: Colors.black, width: 3),
+
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
     );
 
     final outlineButton = OutlinedButton.styleFrom(
-      foregroundColor: Colors.black87,
-      side: const BorderSide(color: Colors.black87),
+      backgroundColor: Color(0xFFFCC400),
+      foregroundColor: Colors.black,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      side: BorderSide(color: Colors.black, width: 3),
+
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
     );
 
@@ -588,10 +590,12 @@ class _StaffDetailScreenState extends State<StaffDetailScreen> {
                                 if (mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
-                                      backgroundColor: Colors.white,
+                                      backgroundColor: Color(0xFFFCC400),
                                       content: Text(
                                         'URLをコピーしました',
-                                        style: TextStyle(color: Colors.black87),
+                                        style: TextStyle(
+                                          fontFamily: 'LINEseed',
+                                        ),
                                       ),
                                     ),
                                   );

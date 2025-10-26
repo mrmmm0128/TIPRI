@@ -3,7 +3,8 @@
     "origin": [
       "https://tipri.pages.dev",
       "https://tipri-app.web.app",
-      "https://tipri.jp"
+      "https://tipri.jp",
+      "https://tip.tipri.jp"
     ],
     "method": ["GET", "HEAD"],
     "responseHeader": ["Content-Type", "Authorization"],

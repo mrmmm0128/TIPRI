@@ -14,6 +14,67 @@ class AdminAnnouncementPage extends StatefulWidget {
 }
 
 class _AdminAnnouncementPageState extends State<AdminAnnouncementPage> {
+  // ===== Brand / Styles =====
+  static const brandYellow = Color(0xFFFCC400);
+
+  InputDecoration _blackThickInput(
+    String label, {
+    String? hint,
+    Widget? prefixIcon,
+    Widget? suffixIcon,
+    bool alignLabelWithHint = false,
+    int? minLines,
+  }) {
+    return InputDecoration(
+      labelText: label,
+      hintText: hint,
+      alignLabelWithHint: alignLabelWithHint,
+      prefixIcon: prefixIcon,
+      suffixIcon: suffixIcon,
+      isDense: true,
+      filled: true,
+      fillColor: Colors.white,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      labelStyle: const TextStyle(
+        color: Colors.black87,
+        fontFamily: 'LINEseed',
+      ),
+      hintStyle: const TextStyle(color: Colors.black54),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Colors.black, width: 3),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Colors.black, width: 3),
+      ),
+    );
+  }
+
+  ButtonStyle get _brandFilled => FilledButton.styleFrom(
+    backgroundColor: brandYellow,
+    foregroundColor: Colors.black,
+    padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    side: const BorderSide(color: Colors.black, width: 3),
+    textStyle: const TextStyle(
+      fontFamily: 'LINEseed',
+      fontWeight: FontWeight.w800,
+    ),
+  );
+
+  ButtonStyle get _brandOutlined => OutlinedButton.styleFrom(
+    foregroundColor: Colors.black,
+    backgroundColor: Colors.white,
+    side: const BorderSide(color: Colors.black, width: 3),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    textStyle: const TextStyle(
+      fontFamily: 'LINEseed',
+      fontWeight: FontWeight.w700,
+    ),
+  );
+
+  // ===== Controllers / States =====
   final _titleCtrl = TextEditingController();
   final _bodyCtrl = TextEditingController();
   final _urlCtrl = TextEditingController();
@@ -40,6 +101,7 @@ class _AdminAnnouncementPageState extends State<AdminAnnouncementPage> {
     super.dispose();
   }
 
+  // ===== Helpers =====
   List<String> _parseTenantIds(String raw) {
     if (raw.trim().isEmpty) return const [];
     final parts = raw
@@ -52,7 +114,27 @@ class _AdminAnnouncementPageState extends State<AdminAnnouncementPage> {
     return parts;
   }
 
-  /// 対象テナントを tenantIndex から解決して {tenantId, ownerUid} の配列で返す
+  Widget _sectionTitle(String text) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 16, 4, 8),
+      child: Row(
+        children: [
+          Container(width: 6, height: 18, color: Colors.black),
+          const SizedBox(width: 8),
+          Text(
+            text,
+            style: const TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 16,
+              fontFamily: 'LINEseed',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ===== Targets resolve / commit =====
   Future<List<Map<String, String>>> _resolveTargets({
     required _TargetScope scope,
     required List<String> tenantIds,
@@ -78,7 +160,6 @@ class _AdminAnnouncementPageState extends State<AdminAnnouncementPage> {
             !(((data['connect'] as Map?)?['charges_enabled']) == true)) {
           continue;
         }
-
         out.add({'tenantId': id, 'ownerUid': uid});
       }
       return out;
@@ -116,7 +197,6 @@ class _AdminAnnouncementPageState extends State<AdminAnnouncementPage> {
     return out;
   }
 
-  /// WriteBatch を 500 件単位で分割コミット
   Future<void> _commitAlertsInBatches(
     List<Map<String, String>> targets, {
     required Map<String, dynamic> alertPayloadBase,
@@ -223,8 +303,7 @@ class _AdminAnnouncementPageState extends State<AdminAnnouncementPage> {
     }
   }
 
-  // ========= 店舗名検索系 =========
-
+  // ========= 店舗名検索 =========
   Future<void> _searchByName() async {
     final q = _nameSearchCtrl.text.trim().toLowerCase();
     setState(() {
@@ -233,8 +312,7 @@ class _AdminAnnouncementPageState extends State<AdminAnnouncementPage> {
     });
 
     try {
-      // シンプル実装：全件取得→クライアントで部分一致フィルタ
-      // 件数が非常に多い場合は Functions 側で nameLower への prefix 検索を推奨。
+      // ※件数多い場合は Functions で nameLower の prefix 検索推奨
       final snap = await FirebaseFirestore.instance
           .collection('tenantIndex')
           .get();
@@ -251,9 +329,7 @@ class _AdminAnnouncementPageState extends State<AdminAnnouncementPage> {
       }
       rows.sort((a, b) => a['name']!.compareTo(b['name']!));
 
-      setState(() {
-        _searchResults = rows;
-      });
+      setState(() => _searchResults = rows);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -268,28 +344,42 @@ class _AdminAnnouncementPageState extends State<AdminAnnouncementPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('店舗名で検索して選択', style: TextStyle(fontWeight: FontWeight.bold)),
+        const Text(
+          '店舗名で検索して選択',
+          style: TextStyle(fontWeight: FontWeight.w800, fontFamily: 'LINEseed'),
+        ),
         const SizedBox(height: 8),
         Row(
           children: [
             Expanded(
               child: TextField(
                 controller: _nameSearchCtrl,
-                decoration: const InputDecoration(
-                  hintText: '店舗名の一部で検索（例: 渋谷, ramen, ...）',
-                  border: OutlineInputBorder(),
-                ),
                 onSubmitted: (_) => _searchByName(),
+                style: const TextStyle(fontFamily: 'LINEseed'),
+                cursorColor: Colors.black,
+                decoration: _blackThickInput(
+                  '店舗名の一部で検索',
+                  hint: '例: 渋谷, ramen, ...',
+                  prefixIcon: const Icon(
+                    Icons.search,
+                    color: Colors.black,
+                    size: 20,
+                  ),
+                ),
               ),
             ),
             const SizedBox(width: 8),
             FilledButton.icon(
+              style: _brandFilled,
               onPressed: _searching ? null : _searchByName,
               icon: _searching
                   ? const SizedBox(
                       width: 18,
                       height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+                      ),
                     )
                   : const Icon(Icons.search),
               label: Text(_searching ? '検索中…' : '検索'),
@@ -298,20 +388,22 @@ class _AdminAnnouncementPageState extends State<AdminAnnouncementPage> {
         ),
         const SizedBox(height: 8),
 
-        // 検索結果リスト（チェックで選択）
+        // 検索結果リスト
         if (_searchResults.isEmpty)
           const Text('検索結果はここに表示されます')
         else
           Container(
             decoration: BoxDecoration(
-              border: Border.all(color: Colors.black12),
-              borderRadius: BorderRadius.circular(8),
+              color: Colors.white,
+              border: Border.all(color: Colors.black, width: 3),
+              borderRadius: BorderRadius.circular(12),
             ),
             constraints: const BoxConstraints(maxHeight: 360),
             child: ListView.separated(
               shrinkWrap: true,
               itemCount: _searchResults.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
+              separatorBuilder: (_, __) =>
+                  const Divider(height: 1, color: Colors.black12),
               itemBuilder: (context, i) {
                 final r = _searchResults[i];
                 final tid = r['tenantId']!;
@@ -329,7 +421,10 @@ class _AdminAnnouncementPageState extends State<AdminAnnouncementPage> {
                       }
                     });
                   },
-                  title: Text(name),
+                  title: Text(
+                    name,
+                    style: const TextStyle(fontFamily: 'LINEseed'),
+                  ),
                   subtitle: Text('tenantId: $tid'),
                   controlAffinity: ListTileControlAffinity.leading,
                 );
@@ -343,14 +438,17 @@ class _AdminAnnouncementPageState extends State<AdminAnnouncementPage> {
           children: [
             Text('選択中: ${_selectedTenantIds.length}件'),
             const Spacer(),
-            TextButton(
+            OutlinedButton(
+              style: _brandOutlined,
               onPressed: () {
                 final ids = _searchResults.map((e) => e['tenantId']!).toList();
                 setState(() => _selectedTenantIds.addAll(ids));
               },
               child: const Text('すべて選択'),
             ),
-            TextButton(
+            const SizedBox(width: 8),
+            OutlinedButton(
+              style: _brandOutlined,
               onPressed: () => setState(() => _selectedTenantIds.clear()),
               child: const Text('選択解除'),
             ),
@@ -360,106 +458,165 @@ class _AdminAnnouncementPageState extends State<AdminAnnouncementPage> {
     );
   }
 
+  // ===== Build =====
   @override
   Widget build(BuildContext context) {
     final isSelect = _scope == _TargetScope.selectByName;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('お知らせ配信')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          TextField(
-            controller: _titleCtrl,
-            decoration: const InputDecoration(
-              labelText: 'タイトル *',
-              border: OutlineInputBorder(),
-            ),
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        title: const Text(
+          'お知らせ配信',
+          style: TextStyle(
+            color: Colors.black,
+            fontWeight: FontWeight.w800,
+            fontFamily: 'LINEseed',
           ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _bodyCtrl,
-            minLines: 5,
-            maxLines: 10,
-            decoration: const InputDecoration(
-              labelText: '本文 *',
-              alignLabelWithHint: true,
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _urlCtrl,
-            decoration: const InputDecoration(
-              labelText: '任意のURL（詳細ページ等）',
-              border: OutlineInputBorder(),
-            ),
-          ),
+        ),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 0,
 
-          const SizedBox(height: 16),
-          const Text('配信対象', style: TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-
-          // 全店舗
-          RadioListTile<_TargetScope>(
-            value: _TargetScope.all,
-            groupValue: _scope,
-            onChanged: (v) => setState(() => _scope = v!),
-            title: const Text('全店舗'),
-          ),
-
-          // 店舗IDを指定
-          RadioListTile<_TargetScope>(
-            value: _TargetScope.tenantIds,
-            groupValue: _scope,
-            onChanged: (v) => setState(() => _scope = v!),
-            title: const Text('店舗IDを指定'),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _tenantIdsCtrl,
-                  minLines: 2,
-                  maxLines: 4,
-                  enabled: _scope == _TargetScope.tenantIds,
-                  decoration: const InputDecoration(
-                    hintText: 'カンマ / スペース / 改行区切りで入力（例: tenA, tenB tenC）',
-                    border: OutlineInputBorder(),
-                  ),
+        surfaceTintColor: Colors.transparent,
+      ),
+      body: Center(
+        child: ConstrainedBox(
+          // 画面幅いっぱいだけど、可読性のため最大幅は少し制限
+          constraints: const BoxConstraints(maxWidth: 960),
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              // ===== 入力フォーム =====
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border.all(color: Colors.black, width: 4),
+                  borderRadius: BorderRadius.circular(16),
                 ),
-              ],
-            ),
-          ),
+                child: Column(
+                  children: [
+                    _sectionTitle('お知らせ内容'),
+                    TextField(
+                      controller: _titleCtrl,
+                      style: const TextStyle(fontFamily: 'LINEseed'),
+                      cursorColor: Colors.black,
+                      decoration: _blackThickInput('タイトル *'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _bodyCtrl,
+                      minLines: 5,
+                      maxLines: 10,
+                      style: const TextStyle(fontFamily: 'LINEseed'),
+                      cursorColor: Colors.black,
+                      decoration: _blackThickInput(
+                        '本文 *',
+                        alignLabelWithHint: true,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _urlCtrl,
+                      style: const TextStyle(fontFamily: 'LINEseed'),
+                      cursorColor: Colors.black,
+                      decoration: _blackThickInput('任意のURL（詳細ページ等）'),
+                    ),
+                  ],
+                ),
+              ),
 
-          // 追加：店舗名で検索して選択
-          RadioListTile<_TargetScope>(
-            value: _TargetScope.selectByName,
-            groupValue: _scope,
-            onChanged: (v) => setState(() => _scope = v!),
-            title: const Text('店舗名で検索して選択'),
-          ),
-          if (isSelect) ...[
-            const SizedBox(height: 8),
-            _buildSelectByNameSection(),
-          ],
+              // ===== 配信対象 =====
+              _sectionTitle('配信対象'),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border.all(color: Colors.black, width: 4),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  children: [
+                    RadioListTile<_TargetScope>(
+                      value: _TargetScope.all,
+                      groupValue: _scope,
+                      onChanged: (v) => setState(() => _scope = v!),
+                      title: const Text(
+                        '全店舗',
+                        style: TextStyle(fontFamily: 'LINEseed'),
+                      ),
+                    ),
+                    // RadioListTile<_TargetScope>(
+                    //   value: _TargetScope.tenantIds,
+                    //   groupValue: _scope,
+                    //   onChanged: (v) => setState(() => _scope = v!),
+                    //   title: const Text(
+                    //     '店舗IDを指定',
+                    //     style: TextStyle(fontFamily: 'LINEseed'),
+                    //   ),
+                    //   subtitle: Column(
+                    //     crossAxisAlignment: CrossAxisAlignment.start,
+                    //     children: [
+                    //       const SizedBox(height: 8),
+                    //       TextField(
+                    //         controller: _tenantIdsCtrl,
+                    //         minLines: 2,
+                    //         maxLines: 4,
+                    //         enabled: _scope == _TargetScope.tenantIds,
+                    //         style: const TextStyle(fontFamily: 'LINEseed'),
+                    //         cursorColor: Colors.black,
+                    //         decoration: _blackThickInput(
+                    //           'カンマ / スペース / 改行区切りで入力',
+                    //           hint: '例: tenA, tenB tenC',
+                    //         ),
+                    //       ),
+                    //     ],
+                    //   ),
+                    // ),
+                    RadioListTile<_TargetScope>(
+                      value: _TargetScope.selectByName,
+                      groupValue: _scope,
+                      onChanged: (v) => setState(() => _scope = v!),
+                      title: const Text(
+                        '店舗名で検索して選択',
+                        style: TextStyle(fontFamily: 'LINEseed'),
+                      ),
+                    ),
+                    if (isSelect) ...[
+                      const SizedBox(height: 8),
+                      _buildSelectByNameSection(),
+                    ],
+                  ],
+                ),
+              ),
 
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: _sending ? null : _send,
-              icon: _sending
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.send),
-              label: Text(_sending ? '送信中…' : '配信する'),
-            ),
+              const SizedBox(height: 20),
+
+              // ===== 送信ボタン =====
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  style: _brandFilled,
+                  onPressed: _sending ? null : _send,
+                  icon: _sending
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.black,
+                            ),
+                          ),
+                        )
+                      : const Icon(Icons.send),
+                  label: Text(_sending ? '送信中…' : '配信する'),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

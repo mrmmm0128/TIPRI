@@ -73,7 +73,7 @@ class StaffCircleTile extends StatelessWidget {
                 children: [
                   LayoutBuilder(
                     builder: (context, c) {
-                      final double size = c.maxWidth.clamp(120.0, 180.0);
+                      final double size = c.maxWidth.clamp(110.0, 150.0);
                       return SizedBox(
                         width: size,
                         height: size,

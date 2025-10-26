@@ -203,7 +203,8 @@ class TenantsListView extends StatelessWidget {
             // 6) リスト表示
             return ListView.separated(
               itemCount: filtered.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
+              separatorBuilder: (_, __) =>
+                  const Divider(height: 1, color: Colors.black),
               itemBuilder: (_, i) {
                 final r = filtered[i];
                 final m = r.data;

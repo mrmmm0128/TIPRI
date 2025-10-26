@@ -1,12 +1,10 @@
-// lib/tenant/store_detail/tabs/staff_tab.dart
-import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // クリップボード
-import 'package:yourpay/endUser/utils/image_scrol.dart';
+import 'package:yourpay/tenant/method/image_scrol.dart';
 import 'package:yourpay/tenant/widget/store_staff/staff_detail.dart';
 import 'package:yourpay/tenant/widget/store_staff/staff_entry.dart';
 import 'dart:async';
@@ -64,6 +62,12 @@ class _StoreStaffTabState extends State<StoreStaffTab> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _loadConnectedOnce();
+  }
+
+  @override
   void didUpdateWidget(covariant StoreStaffTab oldWidget) {
     super.didUpdateWidget(oldWidget);
     // 親から tenantId が変わった時だけ再読込（タップでメニュー開いただけでは変わらない）
@@ -81,7 +85,7 @@ class _StoreStaffTabState extends State<StoreStaffTab> {
 
   // 公開ページのベースURL（末尾スラなし）
   String get _publicBase {
-    final u = Uri.base; // 例: http://localhost:5173/#/qr-all?t=...
+    final u = Uri.base; //
     final isHttp =
         (u.scheme == 'http' || u.scheme == 'https') && u.host.isNotEmpty;
     if (isHttp) {
@@ -89,7 +93,7 @@ class _StoreStaffTabState extends State<StoreStaffTab> {
     }
     const fallback = String.fromEnvironment(
       'PUBLIC_BASE',
-      defaultValue: 'https://venerable-mermaid-fcf8c8.netlify.app',
+      defaultValue: 'https://tipri.jp',
     );
     return fallback;
   }
@@ -123,9 +127,15 @@ class _StoreStaffTabState extends State<StoreStaffTab> {
       Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('ログアウトに失敗: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'ログアウトに失敗: $e',
+            style: TextStyle(fontFamily: 'LINEseed'),
+          ),
+          backgroundColor: Color(0xFFFCC400),
+        ),
+      );
     } finally {
       if (mounted) setState(() => _loggingOut = false);
     }
@@ -239,8 +249,9 @@ class _StoreStaffTabState extends State<StoreStaffTab> {
             FilledButton(
               onPressed: () => Navigator.pop(context, true),
               style: FilledButton.styleFrom(
-                backgroundColor: Colors.black,
-                foregroundColor: Colors.white,
+                backgroundColor: Color(0xFFFCC400),
+                foregroundColor: Colors.black,
+                side: BorderSide(color: Colors.black, width: 3),
               ),
               child: const Text('同一人物（既存を見る）'),
             ),
@@ -261,7 +272,7 @@ class _StoreStaffTabState extends State<StoreStaffTab> {
     await showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => _AddStaffDialog(
+      builder: (_) => _addStaffDialog(
         currentTenantId: widget.tenantId,
         // 親は初期値だけ渡す（コントローラはダイアログが所有）
         initialName: '',
@@ -288,69 +299,6 @@ class _StoreStaffTabState extends State<StoreStaffTab> {
         confirmDuplicateDialog: _confirmDuplicateDialog,
         loadMyTenants: _loadMyTenants,
         ownerId: widget.ownerId!,
-      ),
-    );
-  }
-
-  // ---------- 一覧上部の共有リンクカード ----------
-  Widget _qrAllLinkCard(String url) {
-    final outlinedBtnStyle = OutlinedButton.styleFrom(
-      foregroundColor: Colors.black87,
-      side: const BorderSide(color: Colors.black87),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-    );
-    return Container(
-      padding: const EdgeInsets.all(7),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x14000000),
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Center(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // const Center(
-            //   child: Text(
-            //     'スタッフごとのQRコードをURLから閲覧、ダウンロード',
-            //     style: TextStyle(
-            //       fontWeight: FontWeight.w600,
-            //       color: Colors.black87,
-            //       fontFamily: "LINEseed",
-            //     ),
-            //   ),
-            // ),
-            // const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              children: [
-                Center(
-                  child: OutlinedButton.icon(
-                    style: outlinedBtnStyle,
-                    onPressed: () async {
-                      await Clipboard.setData(ClipboardData(text: url));
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('URLをコピーしました')),
-                        );
-                      }
-                    },
-                    icon: const Icon(Icons.copy),
-                    //label: const Text('スタッフごとのQRコードをURLで共有'),
-                    label: const Text('全スタッフQRコード'),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -437,16 +385,16 @@ class _StoreStaffTabState extends State<StoreStaffTab> {
 
   @override
   Widget build(BuildContext context) {
-    // FABに合わせた動的余白
-    final mq = MediaQuery.of(context);
+    //final mq = MediaQuery.of(context);
     const fabHeight = 44.0;
 
     final primaryBtnStyle = FilledButton.styleFrom(
       minimumSize: const Size(0, fabHeight),
-      backgroundColor: Colors.black,
-      foregroundColor: Colors.white,
+      backgroundColor: Color(0xFFFCC400),
+      foregroundColor: Colors.black,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       padding: const EdgeInsets.symmetric(horizontal: 16),
+      side: BorderSide(color: Colors.black, width: 3),
     );
 
     return _connected
@@ -456,22 +404,44 @@ class _StoreStaffTabState extends State<StoreStaffTab> {
               children: [
                 Column(
                   children: [
-                    Center(
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          _qrAllLinkCard(_allStaffUrl()),
-                          const SizedBox(width: 5),
-                          FilledButton.icon(
-                            style: primaryBtnStyle,
-                            onPressed: _openAddEmployeeDialog,
-                            icon: const Icon(Icons.person_add_alt_1),
-                            label: const Text('スタッフ追加'),
-                          ),
-                        ],
+                    Padding(
+                      padding: const EdgeInsets.all(4.0),
+                      child: Center(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            FilledButton.icon(
+                              style: primaryBtnStyle,
+                              onPressed: () async {
+                                await Clipboard.setData(
+                                  ClipboardData(text: _allStaffUrl()),
+                                );
+                                if (!mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'URLをコピーしました',
+                                      style: TextStyle(fontFamily: 'LINEseed'),
+                                    ),
+                                    backgroundColor: Color(0xFFFCC400),
+                                  ),
+                                );
+                              },
+                              icon: const Icon(Icons.qr_code_2),
+                              label: const Text('全スタッフQRコード'),
+                            ),
+                            const SizedBox(width: 7),
+                            FilledButton.icon(
+                              style: primaryBtnStyle,
+                              onPressed: _openAddEmployeeDialog,
+                              icon: const Icon(Icons.person_add_alt_1),
+                              label: const Text('スタッフ追加'),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 5),
                     Expanded(
                       child: StreamBuilder<QuerySnapshot>(
                         stream: FirebaseFirestore.instance
@@ -497,6 +467,7 @@ class _StoreStaffTabState extends State<StoreStaffTab> {
                               padding: const EdgeInsets.all(16),
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
+                                mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   const Text(
                                     'まだ社員がいません',
@@ -575,71 +546,94 @@ class _StoreStaffTabState extends State<StoreStaffTab> {
             ),
           )
         : Scaffold(
-            body: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Image.asset("assets/icons/no_subscription.png", width: 50),
-                  const SizedBox(height: 30),
-                  Center(child: Text("サブスクリプションを登録してください")),
-                  const SizedBox(height: 30),
-                  TextButton.icon(
-                    onPressed: () => showTipriInfoDialog(context),
-                    icon: const Icon(Icons.info_outline),
-                    label: const Text(
-                      'チップリについて',
-                      style: TextStyle(color: Color(0xFFFCC400)),
-                    ),
-                    style: TextButton.styleFrom(
-                      foregroundColor: Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 30),
-                  Container(
-                    margin: const EdgeInsets.symmetric(
-                      vertical: 8,
-                      horizontal: 16,
-                    ),
-                    decoration: BoxDecoration(
+            body: SafeArea(
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 450),
+                    child: Material(
+                      elevation: 6,
                       color: Colors.white,
-                      border: Border.all(color: Colors.black26),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
+                      shadowColor: const Color(0x14000000),
+                      borderRadius: BorderRadius.circular(20),
 
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(999),
-                      onTap: logout,
-                      child: const Padding(
-                        padding: EdgeInsets.symmetric(
-                          vertical: 12,
-                          horizontal: 20,
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.logout, color: Colors.black87, size: 18),
-                            SizedBox(width: 8),
-                            Text(
-                              'ログアウト',
-                              style: TextStyle(
-                                color: Colors.black87,
-                                fontWeight: FontWeight.w700,
-                                fontFamily: "LINEseed",
-                              ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+                            child: Column(
+                              children: [
+                                // アイコンのアクセント（黒地に白）
+
+                                // タイトル
+                                const Text(
+                                  'サブスクリプションを登録しよう',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 18,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+
+                                // 補足文（任意で一行足してリッチに）
+                                const Text(
+                                  '登録するとチップ受け取りや詳細レポートが有効になります。',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: Colors.black54,
+                                    height: 1.4,
+                                  ),
+                                ),
+                                const SizedBox(height: 20),
+
+                                // 情報ボタン（色は既存を踏襲：ラベル #FCC400、前景は黒）
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: TextButton.icon(
+                                    onPressed: () =>
+                                        showTipriInfoDialog(context),
+
+                                    label: const Text('チップリについて'),
+                                    style: TextButton.styleFrom(
+                                      side: BorderSide(
+                                        width: 3,
+                                        color: Colors.black,
+                                      ),
+                                      foregroundColor: Colors.black87,
+                                      backgroundColor: Color(0xFFFCC400),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 14,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        side: const BorderSide(
+                                          color: Color(0xFFFCC400), // 枠線だけアクセント
+                                          width: 1.5,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                ],
+                ),
               ),
             ),
           );
   }
 }
 
-class _AddStaffDialog extends StatefulWidget {
+// ignore: must_be_immutable, camel_case_types
+class _addStaffDialog extends StatefulWidget {
   final String currentTenantId;
 
   // 親からは初期値のみ受け取る
@@ -679,7 +673,7 @@ class _AddStaffDialog extends StatefulWidget {
   final Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>> Function()
   loadMyTenants;
 
-  _AddStaffDialog({
+  _addStaffDialog({
     required this.currentTenantId,
     required this.initialName,
     required this.initialEmail,
@@ -699,10 +693,10 @@ class _AddStaffDialog extends StatefulWidget {
   });
 
   @override
-  State<_AddStaffDialog> createState() => _AddStaffDialogState();
+  State<_addStaffDialog> createState() => _AddStaffDialogState();
 }
 
-class _AddStaffDialogState extends State<_AddStaffDialog>
+class _AddStaffDialogState extends State<_addStaffDialog>
     with SingleTickerProviderStateMixin {
   late TabController _tab;
 
@@ -808,9 +802,15 @@ class _AddStaffDialogState extends State<_AddStaffDialog>
       }
       if (bytes == null) {
         if (context.mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('画像の読み込みに失敗しました')));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                '画像の読み込みに失敗しました',
+                style: TextStyle(fontFamily: 'LINEseed'),
+              ),
+              backgroundColor: Color(0xFFFCC400),
+            ),
+          );
         }
         return;
       }
@@ -826,9 +826,15 @@ class _AddStaffDialogState extends State<_AddStaffDialog>
       widget.onLocalStateChanged(false, bytes, f.name, null);
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('画像選択エラー: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '画像選択エラー: $e',
+              style: TextStyle(fontFamily: 'LINEseed'),
+            ),
+            backgroundColor: Color(0xFFFCC400),
+          ),
+        );
       }
     }
   }
@@ -837,16 +843,28 @@ class _AddStaffDialogState extends State<_AddStaffDialog>
   Future<void> _searchGlobalByEmail() async {
     final email = widget.normalizeEmail(_emailCtrl.text);
     if (email.isEmpty || !widget.validateEmail(email)) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('検索には正しいメールアドレスが必要です')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            '検索には正しいメールアドレスが必要です',
+            style: TextStyle(fontFamily: 'LINEseed'),
+          ),
+          backgroundColor: Color(0xFFFCC400),
+        ),
+      );
       return;
     }
     final data = await widget.lookupGlobalStaff(email);
     if (data == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('一致するスタッフは見つかりませんでした')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            '一致するスタッフは見つかりませんでした',
+            style: TextStyle(fontFamily: 'LINEseed'),
+          ),
+          backgroundColor: Color(0xFFFCC400),
+        ),
+      );
       return;
     }
 
@@ -937,8 +955,9 @@ class _AddStaffDialogState extends State<_AddStaffDialog>
                 Navigator.pop(context);
               },
               style: FilledButton.styleFrom(
-                backgroundColor: Colors.black,
-                foregroundColor: Colors.white,
+                backgroundColor: Color(0xFFFCC400),
+                foregroundColor: Colors.black,
+                side: BorderSide(color: Colors.black, width: 3),
               ),
               child: const Text('取り込む'),
             ),
@@ -955,15 +974,27 @@ class _AddStaffDialogState extends State<_AddStaffDialog>
     final comment = _commentCtrl.text.trim();
 
     if (name.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('名前を入力してください')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            '名前を入力してください',
+            style: TextStyle(fontFamily: 'LINEseed'),
+          ),
+          backgroundColor: Color(0xFFFCC400),
+        ),
+      );
       return;
     }
     if (email.isNotEmpty && !widget.validateEmail(email)) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('正しいメールアドレスを入力してください')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            '正しいメールアドレスを入力してください',
+            style: TextStyle(fontFamily: 'LINEseed'),
+          ),
+          backgroundColor: Color(0xFFFCC400),
+        ),
+      );
       return;
     }
 
@@ -1076,15 +1107,27 @@ class _AddStaffDialogState extends State<_AddStaffDialog>
 
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('社員を追加しました')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              '社員を追加しました',
+              style: TextStyle(fontFamily: 'LINEseed'),
+            ),
+            backgroundColor: Color(0xFFFCC400),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('追加に失敗: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '追加に失敗: $e',
+              style: TextStyle(fontFamily: 'LINEseed'),
+            ),
+            backgroundColor: Color(0xFFFCC400),
+          ),
+        );
       }
     } finally {
       // 親へ完了通知（ローカル状態で）
@@ -1268,224 +1311,247 @@ class _AddStaffDialogState extends State<_AddStaffDialog>
               .orderBy('createdAt', descending: true)
               .snapshots();
 
-    return Column(
-      mainAxisSize: MainAxisSize.max,
-      children: [
-        // 店舗選択 + 検索
-        Row(
+    return LayoutBuilder(
+      builder: (context, c) {
+        final w = c.maxWidth;
+        final narrow = w < 560; // ← 狭いときは縦並びや下段ボタンに切替
+
+        return Column(
+          mainAxisSize: MainAxisSize.max,
           children: [
-            Expanded(
-              child: GestureDetector(
-                onTap: _openTenantPickerDialog,
-                child: InputDecorator(
-                  decoration: InputDecoration(
-                    labelText: '店舗を選択',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
+            // 店舗選択 + 検索（狭い時は縦に並べて見切れ防止）
+            if (!narrow)
+              Row(
+                children: [
+                  Expanded(
+                    child: _TenantPickerField(
+                      onTap: _openTenantPickerDialog,
+                      labelText: _selectedTenantName(),
                     ),
                   ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          _selectedTenantName(),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const Icon(Icons.arrow_drop_down),
-                    ],
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _LocalSearchField(
+                      onChanged: (v) =>
+                          setState(() => _otherSearch = v.trim().toLowerCase()),
+                    ),
+                  ),
+                ],
+              )
+            else
+              Column(
+                children: [
+                  _TenantPickerField(
+                    onTap: _openTenantPickerDialog,
+                    labelText: _selectedTenantName(),
+                  ),
+                  const SizedBox(height: 8),
+                  _LocalSearchField(
+                    onChanged: (v) =>
+                        setState(() => _otherSearch = v.trim().toLowerCase()),
+                  ),
+                ],
+              ),
+            const SizedBox(height: 8),
+
+            // リスト（店舗未選択なら案内）
+            if (employeesStream == null)
+              const Expanded(
+                child: Center(
+                  child: Text(
+                    'まず「店舗を選択」をタップして候補を選んでください',
+                    style: TextStyle(color: Colors.black87),
                   ),
                 ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: TextField(
-                decoration: InputDecoration(
-                  labelText: '名前/メールで絞り込み（ローカル）',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  isDense: true,
-                ),
-                onChanged: (v) =>
-                    setState(() => _otherSearch = v.trim().toLowerCase()),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
+              )
+            else
+              Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: employeesStream,
+                  builder: (context, snap) {
+                    if (snap.hasError) {
+                      return Center(child: Text('読み込みエラー: ${snap.error}'));
+                    }
+                    if (!snap.hasData) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    final docs = snap.data!.docs;
+                    var items = docs
+                        .map((d) => d.data() as Map<String, dynamic>)
+                        .toList();
 
-        // リスト（店舗未選択なら案内）
-        if (employeesStream == null)
-          const Expanded(
-            child: Center(
-              child: Text(
-                'まず「店舗を選択」をタップして候補を選んでください',
-                style: TextStyle(color: Colors.black87),
-              ),
-            ),
-          )
-        else
-          Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: employeesStream,
-              builder: (context, snap) {
-                if (snap.hasError) {
-                  return Center(child: Text('読み込みエラー: ${snap.error}'));
-                }
-                if (!snap.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                final docs = snap.data!.docs;
-                var items = docs
-                    .map((d) => d.data() as Map<String, dynamic>)
-                    .toList();
-                if (_otherSearch.isNotEmpty) {
-                  items = items.where((m) {
-                    final name = (m['name'] ?? '').toString().toLowerCase();
-                    final email = (m['email'] ?? '').toString().toLowerCase();
-                    return name.contains(_otherSearch) ||
-                        email.contains(_otherSearch);
-                  }).toList();
-                }
+                    if (_otherSearch.isNotEmpty) {
+                      items = items.where((m) {
+                        final name = (m['name'] ?? '').toString().toLowerCase();
+                        final email = (m['email'] ?? '')
+                            .toString()
+                            .toLowerCase();
+                        return name.contains(_otherSearch) ||
+                            email.contains(_otherSearch);
+                      }).toList();
+                    }
 
-                // 常に Scrollbar + ListView を返し、空でも ScrollPosition を持たせる
-                final count = (items.isEmpty) ? 1 : items.length;
-                return Scrollbar(
-                  controller: _otherEmpListCtrl,
-                  thumbVisibility: true,
-                  child: ListView.separated(
-                    controller: _otherEmpListCtrl,
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    itemCount: count,
-                    separatorBuilder: (_, __) => const SizedBox(height: 8),
-                    itemBuilder: (_, i) {
-                      if (items.isEmpty) {
-                        return const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 24),
-                          child: Center(child: Text('該当スタッフがいません')),
-                        );
-                      }
-                      final m = items[i];
-                      final name = (m['name'] ?? '') as String? ?? 'スタッフ';
-                      final email = (m['email'] ?? '') as String? ?? '';
-                      final photoUrl = (m['photoUrl'] ?? '') as String? ?? '';
-                      final comment = (m['comment'] ?? '') as String? ?? '';
+                    // 空でもScroll位置を持たせる
+                    final count = (items.isEmpty) ? 1 : items.length;
+                    return Scrollbar(
+                      controller: _otherEmpListCtrl,
+                      thumbVisibility: true,
+                      child: ListView.separated(
+                        controller: _otherEmpListCtrl,
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        itemCount: count,
+                        separatorBuilder: (_, __) => const SizedBox(height: 8),
+                        itemBuilder: (_, i) {
+                          if (items.isEmpty) {
+                            return const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 24),
+                              child: Center(child: Text('該当スタッフがいません')),
+                            );
+                          }
+                          final m = items[i];
+                          final name = (m['name'] ?? '') as String? ?? 'スタッフ';
+                          final email = (m['email'] ?? '') as String? ?? '';
+                          final photoUrl =
+                              (m['photoUrl'] ?? '') as String? ?? '';
+                          final comment = (m['comment'] ?? '') as String? ?? '';
 
-                      return Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: const Color(0x11000000)),
-                        ),
-                        padding: const EdgeInsets.all(10),
-                        child: Row(
-                          children: [
-                            CircleAvatar(
-                              radius: 22,
-                              backgroundImage: photoUrl.isNotEmpty
-                                  ? NetworkImage(photoUrl)
-                                  : null,
-                              child: photoUrl.isEmpty
-                                  ? const Icon(Icons.person)
-                                  : null,
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
+                          // 取り込み処理（共通化）
+                          void _import() {
+                            _nameCtrl.text = name;
+                            _emailCtrl.text = email;
+                            _commentCtrl.text = comment;
+                            setState(() {
+                              _localPhotoBytes = null;
+                              _localPhotoName = null;
+                              _localPrefilledPhotoUrl = photoUrl;
+                            });
+                            widget.onLocalStateChanged(
+                              false,
+                              null,
+                              null,
+                              photoUrl,
+                            );
+                            _tab.animateTo(0);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'フォームに取り込みました（取り込み先は現在の店舗）',
+                                  style: TextStyle(fontFamily: 'LINEseed'),
+                                ),
+                                backgroundColor: Color(0xFFFCC400),
+                              ),
+                            );
+                          }
+
+                          // 狭い幅ではボタンを下段フル幅にして見切れ防止
+                          if (narrow) {
+                            return Container(
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: const Color(0x11000000),
+                                ),
+                              ),
+                              padding: const EdgeInsets.all(10),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    name,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.black87,
+                                  Row(
+                                    children: [
+                                      CircleAvatar(
+                                        radius: 22,
+                                        backgroundImage: photoUrl.isNotEmpty
+                                            ? NetworkImage(photoUrl)
+                                            : null,
+                                        child: photoUrl.isEmpty
+                                            ? const Icon(Icons.person)
+                                            : null,
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: _EmpTexts(
+                                          name: name,
+                                          email: email,
+                                          comment: comment,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 10),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: FilledButton.tonalIcon(
+                                      onPressed: _import,
+                                      icon: const Icon(Icons.download),
+                                      label: const Text('取り込む'),
                                     ),
                                   ),
-                                  const SizedBox(height: 2),
-                                  if (email.isNotEmpty)
-                                    Text(
-                                      email,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        color: Colors.black54,
-                                      ),
-                                    ),
-                                  if (comment.isNotEmpty) ...[
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      comment,
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        color: Colors.black87,
-                                      ),
-                                    ),
-                                  ],
                                 ],
                               ),
+                            );
+                          }
+
+                          // 広い幅：従来の横並び（でもオーバーフローしないよう余白管理）
+                          return Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: const Color(0x11000000),
+                              ),
                             ),
-                            const SizedBox(width: 8),
-                            FilledButton.tonalIcon(
-                              onPressed: () {
-                                // 取り込み（タブ1のフォームに反映）
-                                _nameCtrl.text = name;
-                                _emailCtrl.text = email;
-                                _commentCtrl.text = comment;
-
-                                // ローカル状態を URL で更新
-                                setState(() {
-                                  _localPhotoBytes = null;
-                                  _localPhotoName = null;
-                                  _localPrefilledPhotoUrl = photoUrl;
-                                });
-
-                                // 親にも通知（任意）
-                                widget.onLocalStateChanged(
-                                  false,
-                                  null,
-                                  null,
-                                  photoUrl,
-                                );
-
-                                // タブ1に切り替え
-                                _tab.animateTo(0);
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('フォームに取り込みました（取り込み先は現在の店舗）'),
+                            padding: const EdgeInsets.all(10),
+                            child: Row(
+                              children: [
+                                CircleAvatar(
+                                  radius: 22,
+                                  backgroundImage: photoUrl.isNotEmpty
+                                      ? NetworkImage(photoUrl)
+                                      : null,
+                                  child: photoUrl.isEmpty
+                                      ? const Icon(Icons.person)
+                                      : null,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: _EmpTexts(
+                                    name: name,
+                                    email: email,
+                                    comment: comment,
                                   ),
-                                );
-                              },
-                              icon: const Icon(Icons.download),
-                              label: const Text('取り込む'),
+                                ),
+                                const SizedBox(width: 8),
+                                ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    minWidth: 120,
+                                  ),
+                                  child: FilledButton.tonalIcon(
+                                    onPressed: _import,
+                                    icon: const Icon(Icons.download),
+                                    label: const Text('取り込む'),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-                );
-              },
+                          );
+                        },
+                      ),
+                    );
+                  },
+                ),
+              ),
+            const SizedBox(height: 8),
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                '※ 取り込み先は「現在の店舗」です。保存ボタンで確定します。',
+                style: TextStyle(fontSize: 12, color: Colors.black54),
+              ),
             ),
-          ),
-        const SizedBox(height: 8),
-        const Align(
-          alignment: Alignment.centerLeft,
-          child: Text(
-            '※ 取り込み先は「現在の店舗」です。保存ボタンで確定します。',
-            style: TextStyle(fontSize: 12, color: Colors.black54),
-          ),
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
 
@@ -1519,6 +1585,7 @@ class _AddStaffDialogState extends State<_AddStaffDialog>
         surfaceTintColor: Colors.transparent,
         titlePadding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
         contentPadding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1531,22 +1598,40 @@ class _AddStaffDialogState extends State<_AddStaffDialog>
               ),
             ),
             const SizedBox(height: 8),
-            DecoratedBox(
+            Container(
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
               ),
+              padding: const EdgeInsets.all(4), // ← 白い外枠を残す
               child: TabBar(
                 controller: _tab,
-                labelColor: Colors.black87,
-                unselectedLabelColor: Colors.black54,
-                indicator: BoxDecoration(
-                  color: const Color(0xFFEAEAEA),
-                  borderRadius: BorderRadius.circular(12),
+                isScrollable: false, // 幅いっぱい均等
+                dividerColor: Colors.transparent,
+                overlayColor: WidgetStateProperty.all(Colors.transparent),
+                labelPadding: const EdgeInsets.symmetric(
+                  horizontal: 6,
+                  vertical: 2,
+                ),
+                indicatorPadding: const EdgeInsets.all(2), // ← 内側に2pxマージン
+                indicatorSize: TabBarIndicatorSize.tab,
+                // “_ModeChip”の見た目をindicatorで再現（黄色＋黒ぶち）
+                indicator: ShapeDecoration(
+                  color: const Color(0xFFFCC400), // アクティブ黄
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    side: const BorderSide(color: Colors.black, width: 4),
+                  ),
+                ),
+                labelColor: Colors.white, // アクティブ文字色
+                unselectedLabelColor: Colors.black87,
+                labelStyle: const TextStyle(fontWeight: FontWeight.w600),
+                unselectedLabelStyle: const TextStyle(
+                  fontWeight: FontWeight.w500,
                 ),
                 tabs: const [
-                  Tab(text: '新規 / グローバル'),
-                  Tab(text: '他店舗から取り込み'),
+                  Tab(child: _TabLabel('新規 / グローバル')),
+                  Tab(child: _TabLabel('他店舗から取り込み')),
                 ],
               ),
             ),
@@ -1576,6 +1661,7 @@ class _AddStaffDialogState extends State<_AddStaffDialog>
                               child: CircleAvatar(
                                 radius: 40,
                                 backgroundImage: photoProvider,
+                                backgroundColor: Colors.black26,
                                 child: photoProvider == null
                                     ? const Icon(Icons.camera_alt, size: 28)
                                     : null,
@@ -1614,7 +1700,7 @@ class _AddStaffDialogState extends State<_AddStaffDialog>
                             Align(
                               alignment: Alignment.centerLeft,
                               child: Text(
-                                '名前は必須。写真・メール・コメントは任意です。\nメール検索で「staff/{email}」から取り込めます。',
+                                '名前は必須。写真・メール・コメントは任意です。',
                                 style: Theme.of(context).textTheme.bodySmall
                                     ?.copyWith(color: Colors.black54),
                               ),
@@ -1642,8 +1728,9 @@ class _AddStaffDialogState extends State<_AddStaffDialog>
           FilledButton(
             onPressed: widget.addingEmp ? null : _submitCreate,
             style: FilledButton.styleFrom(
-              backgroundColor: Colors.black,
-              foregroundColor: Colors.white,
+              backgroundColor: Color(0xFFFCC400),
+              foregroundColor: Colors.black,
+              side: BorderSide(color: Colors.black, width: 3),
             ),
             child: widget.addingEmp
                 ? const SizedBox(
@@ -1674,6 +1761,130 @@ class _AddStaffDialogState extends State<_AddStaffDialog>
         borderSide: const BorderSide(color: Colors.black87, width: 1.2),
       ),
       suffixIcon: suffix,
+    );
+  }
+}
+
+class _TabLabel extends StatelessWidget {
+  final String text;
+  const _TabLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+      child: FittedBox(
+        fit: BoxFit.scaleDown, // 枠内で自動縮小（オーバーフロー防止）
+        child: Text(
+          text,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(fontFamily: "LINEseed"),
+        ),
+      ),
+    );
+  }
+}
+
+/// 店舗ピッカー（見切れ対策：suffixIconで矢印／右に十分な余白）
+class _TenantPickerField extends StatelessWidget {
+  final VoidCallback onTap;
+  final String labelText;
+  const _TenantPickerField({required this.onTap, required this.labelText});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: InputDecorator(
+        isFocused: false,
+        decoration: InputDecoration(
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 10,
+          ).copyWith(right: 44), // ← 矢印ぶんの右余白を確保
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          suffixIcon: const Padding(
+            padding: EdgeInsets.only(right: 8),
+            child: Icon(Icons.arrow_drop_down),
+          ),
+          suffixIconConstraints: const BoxConstraints(minWidth: 40),
+        ),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            labelText,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis, // ← 長い店名でも見切れない
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// ローカル検索（安全な省略表示）
+class _LocalSearchField extends StatelessWidget {
+  final ValueChanged<String> onChanged;
+  const _LocalSearchField({required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      decoration: InputDecoration(
+        labelText: '名前/メールで絞り込み（ローカル）',
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        isDense: true,
+      ),
+      onChanged: onChanged,
+    );
+  }
+}
+
+/// 名前／メール／コメント（省略・行数制御を統一）
+class _EmpTexts extends StatelessWidget {
+  final String name;
+  final String email;
+  final String comment;
+  const _EmpTexts({
+    required this.name,
+    required this.email,
+    required this.comment,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+          ),
+        ),
+        const SizedBox(height: 2),
+        if (email.isNotEmpty)
+          Text(
+            email,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Colors.black54),
+          ),
+        if (comment.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            comment,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Colors.black87),
+          ),
+        ],
+      ],
     );
   }
 }

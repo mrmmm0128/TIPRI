@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 
@@ -77,9 +78,12 @@ class _AccountDetailScreenState extends State<tenantDetailScreen> {
   Future<void> _loadPayouts() async {
     final tid = _tenantId;
     if (tid == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('店舗が見つかりません')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('店舗が見つかりません', style: TextStyle(fontFamily: 'LINEseed')),
+          backgroundColor: Color(0xFFFCC400),
+        ),
+      );
       return;
     }
     setState(() => _loadingPayouts = true);
@@ -98,9 +102,15 @@ class _AccountDetailScreenState extends State<tenantDetailScreen> {
       await _showPayoutsDialog(context);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('入金の取得に失敗: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '入金の取得に失敗: $e',
+              style: TextStyle(fontFamily: 'LINEseed'),
+            ),
+            backgroundColor: Color(0xFFFCC400),
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _loadingPayouts = false);
@@ -118,9 +128,15 @@ class _AccountDetailScreenState extends State<tenantDetailScreen> {
       return (res.data as Map?)?.cast<String, dynamic>();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('入金詳細の取得に失敗: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '入金詳細の取得に失敗: $e',
+              style: TextStyle(fontFamily: 'LINEseed'),
+            ),
+            backgroundColor: Color(0xFFFCC400),
+          ),
+        );
       }
       return null;
     }
@@ -128,9 +144,15 @@ class _AccountDetailScreenState extends State<tenantDetailScreen> {
 
   Future<void> _showPayoutsDialog(BuildContext context) async {
     if (_payouts.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('入金履歴はまだありません')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            '入金履歴はまだありません',
+            style: TextStyle(fontFamily: 'LINEseed'),
+          ),
+          backgroundColor: Color(0xFFFCC400),
+        ),
+      );
       return;
     }
 
@@ -303,14 +325,17 @@ class _AccountDetailScreenState extends State<tenantDetailScreen> {
   Future<void> _cancelSubscription() async {
     final tid = _tenantId;
     if (tid == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('店舗が見つかりません')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('店舗が見つかりません', style: TextStyle(fontFamily: 'LINEseed')),
+          backgroundColor: Color(0xFFFCC400),
+        ),
+      );
       return;
     }
 
     // 同意ダイアログ（チェック必須）
-    bool agreed = false;
+    //bool agreed = false;
     final ok = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -388,7 +413,12 @@ class _AccountDetailScreenState extends State<tenantDetailScreen> {
       }
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(msg, style: TextStyle(fontFamily: 'LINEseed')),
+          backgroundColor: Color(0xFFFCC400),
+        ),
+      );
     } on FirebaseFunctionsException catch (e) {
       final code = e.code;
       final friendly = switch (code) {
@@ -398,15 +428,21 @@ class _AccountDetailScreenState extends State<tenantDetailScreen> {
         _ => '解約に失敗: ${e.code} ${e.message ?? ''}',
       };
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(friendly)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(friendly, style: TextStyle(fontFamily: 'LINEseed')),
+            backgroundColor: Color(0xFFFCC400),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('エラー: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('エラー: $e', style: TextStyle(fontFamily: 'LINEseed')),
+            backgroundColor: Color(0xFFFCC400),
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _cancelingSub = false);
@@ -467,9 +503,12 @@ class _AccountDetailScreenState extends State<tenantDetailScreen> {
   Future<void> _fetchUpcomingInvoice() async {
     final tid = _tenantId;
     if (tid == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('店舗が見つかりません')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('店舗が見つかりません', style: TextStyle(fontFamily: 'LINEseed')),
+          backgroundColor: Color(0xFFFCC400),
+        ),
+      );
       return;
     }
 
@@ -500,9 +539,15 @@ class _AccountDetailScreenState extends State<tenantDetailScreen> {
       // upcoming が無い（invoice_upcoming_none）ケース
       if (data['ok'] == true && data['none'] == true) {
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('現在、次回の請求予定はありません')));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                '現在、次回の請求予定はありません',
+                style: TextStyle(fontFamily: 'LINEseed'),
+              ),
+              backgroundColor: Color(0xFFFCC400),
+            ),
+          );
         }
         return;
       }
@@ -519,15 +564,21 @@ class _AccountDetailScreenState extends State<tenantDetailScreen> {
         _ => '請求予定の取得に失敗: ${e.code} ${e.message ?? ''}',
       };
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(msg)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(msg, style: TextStyle(fontFamily: 'LINEseed')),
+            backgroundColor: Color(0xFFFCC400),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('エラー: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('エラー: $e', style: TextStyle(fontFamily: 'LINEseed')),
+            backgroundColor: Color(0xFFFCC400),
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _loadingUpcoming = false);
@@ -536,6 +587,7 @@ class _AccountDetailScreenState extends State<tenantDetailScreen> {
 
   Future<void> _showUpcomingDialog(BuildContext context) async {
     final up = _upcomingInvoice ?? {};
+
     DateTime _toDate(dynamic raw) {
       if (raw is int) return DateTime.fromMillisecondsSinceEpoch(raw * 1000);
       if (raw is double)
@@ -547,23 +599,57 @@ class _AccountDetailScreenState extends State<tenantDetailScreen> {
     String _fmtYMD(DateTime d) =>
         '${d.year}/${d.month.toString().padLeft(2, '0')}/${d.day.toString().padLeft(2, '0')}';
 
+    // 0小数の通貨（Stripe基準）
+    const zeroDecimal = {
+      'BIF',
+      'CLP',
+      'DJF',
+      'GNF',
+      'JPY',
+      'KMF',
+      'KRW',
+      'MGA',
+      'PYG',
+      'RWF',
+      'UGX',
+      'VND',
+      'VUV',
+      'XAF',
+      'XOF',
+      'XPF',
+    };
+
+    // 金額フォーマッタ（minor→表示文字列）
+    String _money(num minor, String currency) {
+      final cur = currency.toUpperCase();
+      final isZero = zeroDecimal.contains(cur);
+      final major = isZero ? minor.toDouble() : minor.toDouble() / 100.0;
+      final decimals = isZero ? 0 : 2;
+
+      // 記号は JPY のみ「¥」に、他は通貨コードを後置
+      final symbol = (cur == 'JPY') ? '¥' : '';
+      final formatted = NumberFormat.currency(
+        locale: 'ja_JP',
+        symbol: symbol,
+        decimalDigits: decimals,
+      ).format(major);
+
+      return (symbol.isNotEmpty) ? formatted : '$formatted $cur';
+    }
+
+    // 単価・小計などの通貨
     final currency = (up['currency'] ?? 'JPY').toString().toUpperCase();
-    final amountDue = ((up['amount_due'] ?? up['amountDue'] ?? 0) as num)
-        .toDouble(); // CFによってキー差異を吸収
-    final subtotal = ((up['subtotal'] ?? 0) as num).toDouble();
-    final tax = ((up['tax'] ?? 0) as num).toDouble();
-    final total = ((up['total'] ?? amountDue) as num).toDouble();
 
+    // 金額（Stripeは最小単位）
+    final subtotal = ((up['subtotal'] ?? 0) as num);
+    final tax = ((up['tax'] ?? 0) as num);
+    final total =
+        ((up['total'] ?? up['amount_due'] ?? up['amountDue'] ?? 0) as num);
     final nextAt = up['next_payment_attempt'] ?? up['nextPaymentAttempt'];
-    final periodStart = up['period_start'] ?? up['periodStart'];
-    final periodEnd = up['period_end'] ?? up['periodEnd'];
-
     final lines = ((up['lines'] ?? const []) as List)
         .cast<Map>()
         .map((e) => e.cast<String, dynamic>())
         .toList();
-
-    String _money(num v) => (v / 100).toStringAsFixed(2); // Stripeは最小通貨単位
 
     await showDialog<void>(
       context: context,
@@ -602,16 +688,16 @@ class _AccountDetailScreenState extends State<tenantDetailScreen> {
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         Text(
-                          '小計: ${_money(subtotal)} $currency',
+                          '小計: ${_money(subtotal, currency)}',
                           style: const TextStyle(color: Colors.black87),
                         ),
                         Text(
-                          '税額: ${_money(tax)} $currency',
+                          '税額: ${_money(tax, currency)}',
                           style: const TextStyle(color: Colors.black87),
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          '合計: ${_money(total)} $currency',
+                          '合計: ${_money(total, currency)}',
                           style: const TextStyle(
                             fontWeight: FontWeight.w700,
                             fontSize: 16,
@@ -624,6 +710,7 @@ class _AccountDetailScreenState extends State<tenantDetailScreen> {
                 const SizedBox(height: 12),
                 const Divider(height: 1),
                 const SizedBox(height: 8),
+
                 // 明細
                 Flexible(
                   child: lines.isEmpty
@@ -637,21 +724,28 @@ class _AccountDetailScreenState extends State<tenantDetailScreen> {
                           separatorBuilder: (_, __) => const Divider(height: 1),
                           itemBuilder: (_, i) {
                             final ln = lines[i];
+
+                            // 商品名を最優先（getUpcomingInvoiceByCustomer で expand 済み）
+                            final productName = (ln['product'] is Map)
+                                ? (ln['product']?['name'] as String?)
+                                : null;
+
                             final desc =
+                                productName ??
                                 (ln['description'] ??
                                         ln['planNickname'] ??
                                         ln['priceNickname'] ??
                                         '')
                                     .toString();
+
                             final qty = (ln['quantity'] ?? 1) as num;
-                            final unit =
+                            final unitMinor =
                                 ((ln['unit_amount'] ??
                                             ln['unitAmount'] ??
                                             ln['price']?['unit_amount']) ??
                                         0)
                                     as num;
-                            final lineTotal = ((ln['amount'] ?? 0) as num)
-                                .toDouble();
+                            final lineTotalMinor = ((ln['amount'] ?? 0) as num);
                             final isProration = (ln['proration'] == true);
 
                             return ListTile(
@@ -664,11 +758,11 @@ class _AccountDetailScreenState extends State<tenantDetailScreen> {
                               subtitle: Text(
                                 isProration
                                     ? '按分（期間途中の差額調整）'
-                                    : '数量: $qty  単価: ${_money(unit)} $currency',
+                                    : '数量: $qty  単価: ${_money(unitMinor, currency)}',
                                 style: const TextStyle(color: Colors.black54),
                               ),
                               trailing: Text(
-                                '${_money(lineTotal)} $currency',
+                                _money(lineTotalMinor, currency),
                                 style: const TextStyle(
                                   fontWeight: FontWeight.w600,
                                 ),
@@ -808,9 +902,15 @@ class _AccountDetailScreenState extends State<tenantDetailScreen> {
               }, SetOptions(merge: true));
 
           if (mounted) {
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(SnackBar(content: Text('代理店とリンクしました（code: $code）')));
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  '代理店とリンクしました（code: $code）',
+                  style: TextStyle(fontFamily: 'LINEseed'),
+                ),
+                backgroundColor: Color(0xFFFCC400),
+              ),
+            );
           }
 
           agency = merged; // UI 反映用
@@ -833,15 +933,21 @@ class _AccountDetailScreenState extends State<tenantDetailScreen> {
     final user = FirebaseAuth.instance.currentUser;
     final code = _agencyCodeCtrl.text.trim();
     if (tid == null || user == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('店舗が見つかりません')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('店舗が見つかりません', style: TextStyle(fontFamily: 'LINEseed')),
+          backgroundColor: Color(0xFFFCC400),
+        ),
+      );
       return;
     }
     if (code.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('代理店コードを入力してください')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('代理店コードを入力してください'),
+          backgroundColor: Color(0xFFFCC400),
+        ),
+      );
       return;
     }
 
@@ -917,15 +1023,27 @@ class _AccountDetailScreenState extends State<tenantDetailScreen> {
       _agencyCodeCtrl.text = code;
       if (mounted) {
         setState(() {});
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('代理店と連携しました')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              '代理店と連携しました',
+              style: TextStyle(fontFamily: 'LINEseed'),
+            ),
+            backgroundColor: Color(0xFFFCC400),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(e is String ? e : '連携に失敗: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              e is String ? e : '連携に失敗: $e',
+              style: TextStyle(fontFamily: 'LINEseed'),
+            ),
+            backgroundColor: Color(0xFFFCC400),
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _linkingAgency = false);
@@ -944,16 +1062,25 @@ class _AccountDetailScreenState extends State<tenantDetailScreen> {
     final user = FirebaseAuth.instance.currentUser;
     final tid = _tenantId;
     if (user == null || tid == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('店舗が見つかりません')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('店舗が見つかりません', style: TextStyle(fontFamily: 'LINEseed')),
+          backgroundColor: Color(0xFFFCC400),
+        ),
+      );
       return;
     }
     final newName = _tenantName.text.trim();
     if (newName.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('店舗名を入力してください')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            '店舗名を入力してください',
+            style: TextStyle(fontFamily: 'LINEseed'),
+          ),
+          backgroundColor: Color(0xFFFCC400),
+        ),
+      );
       return;
     }
 
@@ -966,14 +1093,20 @@ class _AccountDetailScreenState extends State<tenantDetailScreen> {
       }, SetOptions(merge: true));
 
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('店舗名を保存しました')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('店舗名を保存しました', style: TextStyle(fontFamily: 'LINEseed')),
+          backgroundColor: Color(0xFFFCC400),
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('保存に失敗: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('保存に失敗: $e', style: TextStyle(fontFamily: 'LINEseed')),
+          backgroundColor: Color(0xFFFCC400),
+        ),
+      );
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -995,9 +1128,12 @@ class _AccountDetailScreenState extends State<tenantDetailScreen> {
   Future<void> _openCustomerPortalForPaymentMethod() async {
     final tid = _tenantId;
     if (tid == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('店舗が見つかりません')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('店舗が見つかりません', style: TextStyle(fontFamily: 'LINEseed')),
+          backgroundColor: Color(0xFFFCC400),
+        ),
+      );
       return;
     }
 
@@ -1025,9 +1161,12 @@ class _AccountDetailScreenState extends State<tenantDetailScreen> {
       if (!ok) throw 'ブラウザ起動に失敗しました';
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('エラー: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('エラー: $e', style: TextStyle(fontFamily: 'LINEseed')),
+            backgroundColor: Color(0xFFFCC400),
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _openingCustomerPortal = false);
@@ -1048,9 +1187,15 @@ class _AccountDetailScreenState extends State<tenantDetailScreen> {
       _history = (map['history'] as List? ?? []).cast<Map<String, dynamic>>();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('請求履歴の読込に失敗: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '請求履歴の読込に失敗: $e',
+              style: TextStyle(fontFamily: 'LINEseed'),
+            ),
+            backgroundColor: Color(0xFFFCC400),
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _loadingInvoices = false);
@@ -1304,9 +1449,12 @@ class _AccountDetailScreenState extends State<tenantDetailScreen> {
   Future<void> _openConnectPortal() async {
     final tid = _tenantId;
     if (tid == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('店舗が見つかりません')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('店舗が見つかりません', style: TextStyle(fontFamily: 'LINEseed')),
+          backgroundColor: Color(0xFFFCC400),
+        ),
+      );
       return;
     }
     print(_tenantId);
@@ -1338,13 +1486,19 @@ class _AccountDetailScreenState extends State<tenantDetailScreen> {
         'permission-denied' => '権限がありません。',
         _ => 'リンク作成に失敗: $code $msg',
       };
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(friendly)));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(friendly, style: TextStyle(fontFamily: 'LINEseed')),
+          backgroundColor: Color(0xFFFCC400),
+        ),
+      );
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('エラー: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('エラー: $e', style: TextStyle(fontFamily: 'LINEseed')),
+          backgroundColor: Color(0xFFFCC400),
+        ),
+      );
     } finally {
       if (mounted) setState(() => _openingConnectPortal = false);
     }
@@ -1353,9 +1507,10 @@ class _AccountDetailScreenState extends State<tenantDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final primaryBtnStyle = FilledButton.styleFrom(
-      backgroundColor: Colors.black,
-      foregroundColor: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      backgroundColor: Color(0xFFFCC400),
+      foregroundColor: Colors.black,
+
+      side: BorderSide(color: Colors.black, width: 3),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
     );
 
@@ -1366,6 +1521,7 @@ class _AccountDetailScreenState extends State<tenantDetailScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
         title: const Text(
           '店舗設定',
@@ -1521,6 +1677,12 @@ class _AccountDetailScreenState extends State<tenantDetailScreen> {
                       title: '入金履歴',
                       subtitle: '接続アカウントへの入金と、その内訳明細を確認します。',
                       trailing: FilledButton(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Color(0xFFFCC400),
+                          foregroundColor: Colors.black,
+
+                          side: BorderSide(color: Colors.black, width: 3),
+                        ),
                         onPressed: (_tenantId == null || _loadingPayouts)
                             ? null
                             : _loadPayouts,
@@ -1542,6 +1704,13 @@ class _AccountDetailScreenState extends State<tenantDetailScreen> {
                       title: '支払方法の変更',
                       subtitle: 'サブスクリプションで利用するカード/支払い方法を更新します。',
                       trailing: FilledButton(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Color(0xFFFCC400),
+                          foregroundColor: Colors.black,
+
+                          side: BorderSide(color: Colors.black, width: 3),
+                        ),
+
                         onPressed: (_tenantId == null || _openingCustomerPortal)
                             ? null
                             : _openCustomerPortalForPaymentMethod,
@@ -1562,6 +1731,13 @@ class _AccountDetailScreenState extends State<tenantDetailScreen> {
                       title: '請求予定を確認',
                       subtitle: '次回の請求日・合計金額・明細を確認します。',
                       trailing: FilledButton(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Color(0xFFFCC400),
+                          foregroundColor: Colors.black,
+
+                          side: BorderSide(color: Colors.black, width: 3),
+                        ),
+
                         onPressed: (_tenantId == null || _loadingUpcoming)
                             ? null
                             : _fetchUpcomingInvoice,
@@ -1583,6 +1759,13 @@ class _AccountDetailScreenState extends State<tenantDetailScreen> {
                       title: '請求書履歴',
                       subtitle: 'サポート費用・サブスクリプションの支払い履歴を確認する。',
                       trailing: FilledButton(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Color(0xFFFCC400),
+                          foregroundColor: Colors.black,
+
+                          side: BorderSide(color: Colors.black, width: 3),
+                        ),
+
                         onPressed: (_tenantId == null || _loadingInvoices)
                             ? null
                             : () => _showInvoicesDialog(context),
@@ -1603,6 +1786,13 @@ class _AccountDetailScreenState extends State<tenantDetailScreen> {
                       title: 'コネクトアカウント',
                       subtitle: 'チップ受け取り口座を確認する。',
                       trailing: FilledButton(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Color(0xFFFCC400),
+                          foregroundColor: Colors.black,
+
+                          side: BorderSide(color: Colors.black, width: 3),
+                        ),
+
                         onPressed: (_tenantId == null || _openingConnectPortal)
                             ? null
                             : _openConnectPortal,
@@ -1665,6 +1855,8 @@ class _AccountDetailScreenState extends State<tenantDetailScreen> {
                             } else if (status == 'trialing') {
                               subtitle =
                                   'トライアル中は解約すると即時停止します。一度解約するとトライアルは再開できません。';
+                            } else if (status != "nonactive") {
+                              subtitle = "サブスクリプションが登録されていません。";
                             }
                           }
                         }
@@ -1742,13 +1934,15 @@ class _FieldCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x1A000000),
-            blurRadius: 16,
-            offset: Offset(0, 8),
-          ),
-        ],
+        border: Border.all(width: 3, color: Colors.black),
+
+        // boxShadow: const [
+        //   BoxShadow(
+        //     color: Color(0x1A000000),
+        //     blurRadius: 16,
+        //     offset: Offset(0, 8),
+        //   ),
+        // ],
       ),
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -1783,6 +1977,7 @@ class _StripeRow extends StatelessWidget {
           decoration: BoxDecoration(
             color: Colors.black,
             borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.black, width: 3.0),
           ),
           padding: const EdgeInsets.all(8),
           child: Icon(icon, color: Colors.white, size: 20),

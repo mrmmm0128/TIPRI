@@ -11,10 +11,14 @@ class AgentLoginPage extends StatefulWidget {
 }
 
 class _AgentLoginPageState extends State<AgentLoginPage> {
+  // ===== Brand =====
+  static const brandYellow = Color(0xFFFCC400);
+
   final _code = TextEditingController();
   final _pass = TextEditingController();
   bool _busy = false;
   String? _error;
+  bool _obscure = true;
 
   @override
   void dispose() {
@@ -44,7 +48,8 @@ class _AgentLoginPageState extends State<AgentLoginPage> {
       final data = Map<String, dynamic>.from(res.data as Map);
       final token = data['token'] as String;
       final agentId = data['agentId'] as String;
-      final agent = data["agent"] as bool;
+      final agent = true;
+      print(agent);
 
       await FirebaseAuth.instance.signInWithCustomToken(token);
 
@@ -69,65 +74,233 @@ class _AgentLoginPageState extends State<AgentLoginPage> {
     }
   }
 
+  // ===== Styles =====
+  InputDecoration _blackThickInput(
+    String label, {
+    String? hint,
+    Widget? prefixIcon,
+    Widget? suffixIcon,
+  }) {
+    return InputDecoration(
+      labelText: label,
+      hintText: hint,
+      labelStyle: const TextStyle(
+        color: Colors.black87,
+        fontFamily: 'LINEseed',
+      ),
+      hintStyle: const TextStyle(color: Colors.black54),
+      prefixIcon: prefixIcon,
+      suffixIcon: suffixIcon,
+      isDense: true,
+      filled: true,
+      fillColor: Colors.white,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Colors.black, width: 3),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Colors.black, width: 3),
+      ),
+    );
+  }
+
+  ButtonStyle get _brandFilled => FilledButton.styleFrom(
+    backgroundColor: brandYellow,
+    foregroundColor: Colors.black,
+    padding: const EdgeInsets.symmetric(vertical: 16),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    side: const BorderSide(color: Colors.black, width: 3),
+    textStyle: const TextStyle(
+      fontFamily: 'LINEseed',
+      fontWeight: FontWeight.w800,
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('代理店ログイン'),
-        automaticallyImplyLeading: false,
-      ),
+      backgroundColor: Colors.white,
+      // appBar: AppBar(
+      //   backgroundColor: Colors.white,
+      //   foregroundColor: Colors.black,
+      //   elevation: 0,
+      //   title: const Text(
+      //     '代理店ログイン',
+      //     style: TextStyle(
+      //       color: Colors.black,
+      //       fontWeight: FontWeight.w800,
+      //       fontFamily: 'LINEseed',
+      //     ),
+      //   ),
+      //   bottom: PreferredSize(
+      //     preferredSize: const Size.fromHeight(4),
+      //     child: Container(height: 4, color: Colors.black),
+      //   ),
+      //   automaticallyImplyLeading: false,
+      //   surfaceTintColor: Colors.transparent,
+      // ),
       body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 420),
-          child: Padding(
+          constraints: const BoxConstraints(maxWidth: 520), // ちょい広めでもOK
+          child: SingleChildScrollView(
             padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: _code,
-                  decoration: const InputDecoration(
-                    labelText: '紹介コード',
-                    border: OutlineInputBorder(),
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                border: Border.all(color: Colors.black, width: 4),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // ===== ロゴ（assets/posters/tipri.png） =====
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4, bottom: 12),
+                    child: Image.asset(
+                      'assets/posters/tipri.png',
+                      height: 64,
+                      fit: BoxFit.contain,
+                    ),
                   ),
-                  textInputAction: TextInputAction.next,
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _pass,
-                  obscureText: true,
-                  decoration: const InputDecoration(
-                    labelText: 'パスワード',
-                    border: OutlineInputBorder(),
+
+                  // タイトル
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      '代理店専用ログイン',
+                      style: TextStyle(
+                        color: Colors.black,
+                        fontFamily: 'LINEseed',
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
                   ),
-                  onSubmitted: (_) => _login(),
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: _busy ? null : _login,
-                    child: _busy
-                        ? const SizedBox(
-                            height: 18,
-                            width: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('ログイン'),
+                  const SizedBox(height: 6),
+                  const Align(
+                    alignment: Alignment.center,
+                    child: Text(
+                      'このログインは代理店担当者のみが利用できます。\n'
+                      '紹介コードと代理店用パスワードを入力してください。',
+                      style: TextStyle(color: Colors.black87, height: 1.4),
+                    ),
                   ),
-                ),
-                if (_error != null) ...[
+                  const SizedBox(height: 16),
+
+                  // 紹介コード
+                  TextField(
+                    controller: _code,
+                    style: const TextStyle(
+                      color: Colors.black,
+                      fontFamily: 'LINEseed',
+                    ),
+                    cursorColor: Colors.black,
+                    decoration: _blackThickInput(
+                      '紹介コード',
+                      hint: '例: AGT-XXXXXX',
+                      prefixIcon: const Icon(
+                        Icons.badge_outlined,
+                        color: Colors.black,
+                      ),
+                    ),
+                    textInputAction: TextInputAction.next,
+                  ),
                   const SizedBox(height: 12),
-                  Text(
-                    _error!,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: Colors.red.shade700,
+
+                  // パスワード
+                  TextField(
+                    controller: _pass,
+                    obscureText: _obscure,
+                    style: const TextStyle(
+                      color: Colors.black,
+                      fontFamily: 'LINEseed',
+                    ),
+                    cursorColor: Colors.black,
+                    decoration: _blackThickInput(
+                      'パスワード',
+                      prefixIcon: const Icon(
+                        Icons.lock_outline,
+                        color: Colors.black,
+                      ),
+                      suffixIcon: IconButton(
+                        onPressed: () => setState(() => _obscure = !_obscure),
+                        icon: Icon(
+                          _obscure ? Icons.visibility_off : Icons.visibility,
+                          color: Colors.black,
+                        ),
+                        tooltip: _obscure ? '表示' : '非表示',
+                      ),
+                    ),
+                    onSubmitted: (_) => _login(),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // ログインボタン（ブランド黄 + 太枠） — ほか画面と統一
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      style: _brandFilled,
+                      onPressed: _busy ? null : _login,
+                      child: _busy
+                          ? const SizedBox(
+                              height: 18,
+                              width: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.black,
+                                ),
+                              ),
+                            )
+                          : const Text('ログイン'),
+                    ),
+                  ),
+
+                  // エラー表示（赤）
+                  if (_error != null) ...[
+                    const SizedBox(height: 12),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(
+                          Icons.error_outline,
+                          color: Colors.red,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _error!,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: Colors.red.shade700,
+                              height: 1.3,
+                              fontFamily: 'LINEseed',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+
+                  const SizedBox(height: 12),
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      '※ 一般の店舗オーナー/スタッフの方は通常ログインをご利用ください。',
+                      style: TextStyle(
+                        color: Colors.black54,
+                        fontSize: 12,
+                        height: 1.3,
+                      ),
                     ),
                   ),
                 ],
-              ],
+              ),
             ),
           ),
         ),

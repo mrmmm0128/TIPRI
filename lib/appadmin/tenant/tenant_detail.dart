@@ -1,8 +1,35 @@
-// ======= 店舗詳細 =======
+// ======= 店舗詳細（フル幅レスポンシブ / myCard不使用 / 旧表記維持） =======
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:yourpay/appadmin/util.dart';
+// import 'package:yourpay/appadmin/util.dart'; // 未使用なら削除OK
 import 'package:yourpay/tenant/store_detail/tabs/store_qr_tab.dart';
+
+enum _ChipKind { good, warn, bad }
+
+/// --------------------
+/// 統合済みの課金情報モデル
+/// --------------------
+class _BillingInfo {
+  _BillingInfo({
+    required this.initStatus, // 'paid' | 'checkout_open' | 'none' | その他
+    required this.subscriptionStatus, // 'active' | 'trialing' | 'past_due' | ...
+    required this.subscriptionPlan, // プラン名 or '選択なし'
+    required this.isTrialing,
+    required this.trialEnd,
+    required this.nextPaymentAt,
+    required this.overdue,
+    required this.chargesEnabled,
+  });
+
+  final String initStatus;
+  final String subscriptionStatus;
+  final String subscriptionPlan;
+  final bool isTrialing;
+  final DateTime? trialEnd;
+  final DateTime? nextPaymentAt;
+  final bool overdue;
+  final bool chargesEnabled;
+}
 
 class AdminTenantDetailPage extends StatelessWidget {
   final String ownerUid;
@@ -16,27 +43,157 @@ class AdminTenantDetailPage extends StatelessWidget {
     required this.tenantName,
   });
 
-  String _yen(int v) => '¥${v.toString()}';
+  // ========== brand / helpers ==========
+  static const brandYellow = Color(0xFFFCC400);
+
+  // 横パディング（ブレークポイントで調整）
+  double _hpad(BuildContext context) {
+    final w = MediaQuery.of(context).size.width;
+    if (w < 480) return 12; // phone
+    if (w < 840) return 16; // tablet / small window
+    return 24; // desktop wide
+  }
+
+  String _ymd(DateTime d) =>
+      '${d.year}/${d.month.toString().padLeft(2, '0')}/${d.day.toString().padLeft(2, '0')}';
   String _ymdhm(DateTime d) =>
       '${d.year}/${d.month.toString().padLeft(2, '0')}/${d.day.toString().padLeft(2, '0')} '
       '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+  String _yen(int v) => '¥${v.toString()}';
 
-  void _openQrPoster(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => Scaffold(
-          appBar: AppBar(title: const Text('QRポスター作成')),
-          body: StoreQrTab(
-            tenantId: tenantId,
-            tenantName: tenantName,
-            ownerId: ownerUid,
-            agency: true,
-          ),
+  DateTime? _toDate(dynamic v) {
+    if (v is Timestamp) return v.toDate();
+    if (v is int) return DateTime.fromMillisecondsSinceEpoch(v * 1000);
+    if (v is double)
+      return DateTime.fromMillisecondsSinceEpoch((v * 1000).round());
+    return null;
+  }
+
+  // ステータスチップ（修正前の色・表記復帰用 / レスポンシブ拡張）
+  Widget _statusChip(
+    String label,
+    _ChipKind kind, {
+    int maxLines = 2, // ← 追加: スマホで2行まで許可
+    bool fullWidth = false, // ← 追加: スマホでフル幅に
+  }) {
+    final color = switch (kind) {
+      _ChipKind.good => const Color(0xFF1B5E20), // 深緑
+      _ChipKind.warn => const Color(0xFFB26A00), // 濃オレンジ
+      _ChipKind.bad => const Color(0xFFB00020), // 濃赤
+    };
+
+    final chip = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        label,
+        maxLines: maxLines, // 2 以上で呼ぶと折り返し候補
+        softWrap: true, // 常に許可してOK
+        overflow: TextOverflow.ellipsis, // 溢れたら省略記号（2行でも有効）
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w700,
+          letterSpacing: .2,
+          height: 1.2,
         ),
+      ),
+    );
+
+    // スマホ時はフル幅で置く
+    return fullWidth ? SizedBox(width: double.infinity, child: chip) : chip;
+  }
+
+  // セクション見出し（左に太バー）— パディングは画面幅に追従
+  Widget _sectionTitle(BuildContext context, String text, {Widget? trailing}) {
+    final hp = _hpad(context);
+    return Padding(
+      padding: EdgeInsets.fromLTRB(hp, 12, hp, 8),
+      child: Row(
+        children: [
+          Container(width: 6, height: 18, color: Colors.black),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+            ),
+          ),
+          if (trailing != null) trailing,
+        ],
       ),
     );
   }
 
+  // ラベル:値（レスポンシブ幅可変）— キー列幅もブレークポイントで伸縮
+  Widget _kv(BuildContext context, String k, String v) {
+    final hp = _hpad(context);
+    final w = MediaQuery.of(context).size.width;
+    final bool isNarrow = w < 520;
+    final double minKey = isNarrow ? 96 : (w < 840 ? 140 : 180);
+    final double maxKey = isNarrow ? 160 : (w < 840 ? 240 : 320);
+
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: hp, vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ConstrainedBox(
+            constraints: BoxConstraints(minWidth: minKey, maxWidth: maxKey),
+            child: Text(k, style: const TextStyle(color: Colors.black54)),
+          ),
+          const SizedBox(width: 8),
+          Expanded(child: Text(v)),
+        ],
+      ),
+    );
+  }
+
+  // サブスク状態：日本語化
+  String _jpSubStatus(String s) {
+    switch (s.toLowerCase()) {
+      case 'active':
+        return '有効';
+      case 'trialing':
+        return 'トライアル中';
+      case 'past_due':
+        return '支払い遅延';
+      case 'unpaid':
+        return '未払い';
+      case 'canceled':
+        return 'キャンセル';
+      case 'incomplete':
+        return '未完了';
+      case 'incomplete_expired':
+        return '期限切れ（未完了）';
+      case 'paused':
+        return '一時停止';
+      case 'inactive':
+      case 'nonactive':
+      case 'non_active':
+        return '無効';
+      default:
+        return s.isEmpty ? '' : s;
+    }
+  }
+
+  // Connectまとめステータス（chargesEnabled / hasAccount）
+  (Color bg, IconData icon, String label) _connectOverallStatus({
+    required bool chargesEnabled,
+    required bool hasAccount,
+  }) {
+    if (chargesEnabled && hasAccount) {
+      return (brandYellow, Icons.check_circle, '接続完了');
+    } else if (chargesEnabled || hasAccount) {
+      return (const Color(0xFFFFE0B2), Icons.warning_amber_rounded, '要対応');
+    } else {
+      return (Colors.white, Icons.info_outline, '未接続');
+    }
+  }
+
+  // ===== 連絡先編集 =====
   Future<void> _openEditContactSheet(
     BuildContext context,
     DocumentReference<Map<String, dynamic>> tenantRef, {
@@ -69,7 +226,6 @@ class AdminTenantDetailPage extends StatelessWidget {
                   try {
                     final phone = phoneCtrl.text.trim();
                     final memo = memoCtrl.text.trim();
-
                     await tenantRef.set({
                       'contact': {
                         'phone': phone.isEmpty ? FieldValue.delete() : phone,
@@ -77,7 +233,6 @@ class AdminTenantDetailPage extends StatelessWidget {
                       },
                       'contactUpdatedAt': FieldValue.serverTimestamp(),
                     }, SetOptions(merge: true));
-
                     if (Navigator.canPop(ctx)) Navigator.pop(ctx);
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -123,7 +278,6 @@ class AdminTenantDetailPage extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 8),
-
                       TextField(
                         controller: phoneCtrl,
                         keyboardType: TextInputType.phone,
@@ -131,6 +285,18 @@ class AdminTenantDetailPage extends StatelessWidget {
                           labelText: '電話番号（任意）',
                           hintText: '例: 03-1234-5678 / 090-1234-5678',
                           prefixIcon: Icon(Icons.phone_outlined),
+                          enabledBorder: OutlineInputBorder(
+                            borderSide: BorderSide(
+                              color: Colors.black,
+                              width: 3,
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderSide: BorderSide(
+                              color: Colors.black,
+                              width: 3,
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -141,14 +307,36 @@ class AdminTenantDetailPage extends StatelessWidget {
                           labelText: 'メモ（任意）',
                           hintText: '店舗メモ・注意事項など',
                           prefixIcon: Icon(Icons.notes_outlined),
+                          enabledBorder: OutlineInputBorder(
+                            borderSide: BorderSide(
+                              color: Colors.black,
+                              width: 3,
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderSide: BorderSide(
+                              color: Colors.black,
+                              width: 3,
+                            ),
+                          ),
                         ),
                       ),
-
                       const SizedBox(height: 12),
                       Row(
                         children: [
                           Expanded(
                             child: FilledButton.icon(
+                              style: FilledButton.styleFrom(
+                                backgroundColor: brandYellow,
+                                foregroundColor: Colors.black,
+                                side: const BorderSide(
+                                  color: Colors.black,
+                                  width: 3,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
                               onPressed: saving ? null : save,
                               icon: saving
                                   ? const SizedBox(
@@ -156,7 +344,7 @@ class AdminTenantDetailPage extends StatelessWidget {
                                       height: 16,
                                       child: CircularProgressIndicator(
                                         strokeWidth: 2,
-                                        color: Colors.white,
+                                        color: Colors.black,
                                       ),
                                     )
                                   : const Icon(Icons.save),
@@ -176,259 +364,400 @@ class AdminTenantDetailPage extends StatelessWidget {
     );
   }
 
+  // 初期費用・サブスク・Connect（chargesEnabled）を統合
+  _BillingInfo _parseBilling(Map<String, dynamic> m) {
+    final dynamic init1 = (m['initialFee'] as Map?)?['status'];
+    final dynamic init2 = (m['billing'] as Map?)?['initialFee']?['status'];
+    final String initStatus = ((init1 ?? init2) ?? 'none').toString();
+
+    final sub = (m['subscription'] as Map?) ?? const {};
+    final String subStatus = (sub['status'] ?? '').toString();
+    final String subPlan = (sub['plan'] ?? '選択なし').toString();
+
+    final trialMap = (sub['trial'] as Map?) ?? const {};
+    final bool isTrialing =
+        (trialMap['status'] == 'trialing') || (subStatus == 'trialing');
+
+    final DateTime? trialEnd =
+        _toDate(sub['trialEnd']) ??
+        _toDate(sub['trial_end']) ??
+        _toDate(sub['currentPeriodEnd']);
+
+    final DateTime? nextAt =
+        _toDate(sub['nextPaymentAt']) ?? _toDate(sub['currentPeriodEnd']);
+
+    final bool overdue =
+        (sub['overdue'] == true) ||
+        subStatus == 'past_due' ||
+        subStatus == 'unpaid';
+
+    final bool chargesEnabled = m['connect']?['charges_enabled'] == true;
+
+    return _BillingInfo(
+      initStatus: initStatus,
+      subscriptionStatus: subStatus,
+      subscriptionPlan: subPlan,
+      isTrialing: isTrialing,
+      trialEnd: trialEnd,
+      nextPaymentAt: nextAt,
+      overdue: overdue,
+      chargesEnabled: chargesEnabled,
+    );
+  }
+
+  void _openQrPoster(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => Scaffold(
+          appBar: AppBar(title: const Text('QRポスター作成')),
+          body: StoreQrTab(
+            tenantId: tenantId,
+            tenantName: tenantName,
+            ownerId: ownerUid,
+            agency: true,
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final tenantRef = FirebaseFirestore.instance
         .collection(ownerUid)
         .doc(tenantId);
 
-    final pageTheme = Theme.of(context).copyWith(
-      useMaterial3: true,
-      colorScheme: const ColorScheme.light(
-        primary: Colors.black,
-        onPrimary: Colors.white,
-        secondary: Colors.black,
-        onSecondary: Colors.white,
-        surface: Colors.white,
-        onSurface: Colors.black,
-        background: Colors.white,
-        onBackground: Colors.black,
-      ),
-      scaffoldBackgroundColor: Colors.white,
-      appBarTheme: const AppBarTheme(
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0,
-        scrolledUnderElevation: 0,
+    final hp = _hpad(context); // 先に算出
+
+    return Scaffold(
+      appBar: AppBar(
+        toolbarHeight: 53,
+        titleSpacing: 0,
+        leadingWidth: 44,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          iconSize: 25,
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text(
+          '店舗詳細',
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+        ),
         surfaceTintColor: Colors.transparent,
-      ),
-      dividerTheme: const DividerThemeData(
-        color: Colors.black12,
-        thickness: 1,
-        space: 1,
-      ),
-      filledButtonTheme: FilledButtonThemeData(
-        style: FilledButton.styleFrom(
-          backgroundColor: Colors.black,
-          foregroundColor: Colors.white,
-          shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.all(Radius.circular(8)),
-            side: BorderSide(color: Colors.black),
-          ),
-        ),
-      ),
-      elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.black,
-          foregroundColor: Colors.white,
-          shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.all(Radius.circular(8)),
-            side: BorderSide(color: Colors.black),
-          ),
-        ),
-      ),
-      textButtonTheme: TextButtonThemeData(
-        style: TextButton.styleFrom(foregroundColor: Colors.black),
-      ),
-      chipTheme: ChipThemeData(
         backgroundColor: Colors.white,
-        selectedColor: Colors.black,
-        disabledColor: Colors.white,
-        checkmarkColor: Colors.white,
-        labelStyle: const TextStyle(color: Colors.black),
-        secondaryLabelStyle: const TextStyle(color: Colors.white),
-        side: const BorderSide(color: Colors.black),
-        shape: const StadiumBorder(),
       ),
-      segmentedButtonTheme: SegmentedButtonThemeData(
-        style: ButtonStyle(
-          backgroundColor: MaterialStateProperty.resolveWith(
-            (s) => s.contains(MaterialState.selected)
-                ? Colors.black
-                : Colors.white,
-          ),
-          foregroundColor: MaterialStateProperty.resolveWith(
-            (s) => s.contains(MaterialState.selected)
-                ? Colors.white
-                : Colors.black,
-          ),
-          side: MaterialStateProperty.all(
-            const BorderSide(color: Colors.black),
-          ),
-          shape: MaterialStateProperty.all(
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          ),
-        ),
-      ),
-    );
+      backgroundColor: Colors.white,
+      body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+        stream: tenantRef.snapshots(),
+        builder: (context, snap) {
+          if (snap.hasError) {
+            return Center(child: Text('読み込みエラー：${snap.error}'));
+          }
+          if (!snap.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-    return Theme(
-      data: pageTheme,
-      child: Scaffold(
-        appBar: AppBar(title: Text('店舗詳細：$tenantName')),
-        body: ListView(
-          children: [
-            // 基本情報カード
-            StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-              stream: tenantRef.snapshots(),
-              builder: (context, snap) {
-                final m = snap.data?.data();
-                final plan = (m?['subscription']?['plan'] ?? '').toString();
-                final status = (m?['status'] ?? '').toString();
-                final chargesEnabled =
-                    m?['connect']?['charges_enabled'] == true;
+          final m = snap.data!.data() ?? const <String, dynamic>{};
+          final plan = (m['subscription']?['plan'] ?? '').toString();
+          final status = (m['status'] ?? '').toString();
+          final creatorEmailFromDoc =
+              (m['creatorEmail'] ?? m['createdBy']?['email'])?.toString();
+          final connect =
+              (m['connect'] as Map?)?.cast<String, dynamic>() ?? const {};
+          final chargesEnabled = connect['charges_enabled'] == true;
+          final accountId = (m['stripeAccountId'] ?? '').toString();
 
-                // 作成者メールの候補（ドキュメント内）
-                final creatorEmailFromDoc =
-                    (m?['creatorEmail'] ?? m?['createdBy']?['email'])
-                        ?.toString();
+          final (_bg, _icon, _label) = _connectOverallStatus(
+            chargesEnabled: chargesEnabled,
+            hasAccount: accountId.isNotEmpty,
+          );
 
-                return myCard(
-                  title: '基本情報',
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _kv('Tenant ID', tenantId),
-                      _kv('Owner UID', ownerUid),
-                      _kv('Name', tenantName),
-                      _kv('Plan', plan.isEmpty ? '-' : plan),
-                      _kv('Status', status),
-                      _kv('Stripe', chargesEnabled ? 'charges_enabled' : '—'),
+          final payoutSchedule =
+              (m['payoutSchedule'] as Map?)?.cast<String, dynamic>() ??
+              const {};
+          final anchor = payoutSchedule['monthly_anchor'] ?? 1;
 
-                      // 作成者メール：tenant doc に無ければ users/{ownerUid} から取得して表示
-                      if (creatorEmailFromDoc != null &&
-                          creatorEmailFromDoc.isNotEmpty)
-                        _kv('Creator Email', creatorEmailFromDoc)
-                      else
-                        StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                          stream: FirebaseFirestore.instance
-                              .collection('users')
-                              .doc(ownerUid)
-                              .snapshots(),
-                          builder: (context, userSnap) {
-                            final mail =
-                                userSnap.data?.data()?['email']?.toString() ??
-                                '-';
-                            return _kv('Creator Email', mail);
-                          },
-                        ),
-                      const SizedBox(height: 10),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: FilledButton.icon(
-                          onPressed: () => _openQrPoster(context),
-                          icon: const Icon(Icons.qr_code_2),
-                          label: const Text('QRポスターを作成・ダウンロード'),
-                        ),
+          final bill = _parseBilling(m);
+
+          // ======= ここからフル幅 ListView（Align/ConstrainedBox は使わない） =======
+          return ListView(
+            padding: EdgeInsets.symmetric(horizontal: hp, vertical: 8),
+            children: [
+              // ===== ヘッダ（店舗名） =====
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: hp, vertical: 6),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      tenantName,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
                       ),
-                    ],
-                  ),
-                );
-              },
-            ),
-
-            // 連絡先カード（電話・メモ）
-            StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-              stream: tenantRef.snapshots(),
-              builder: (context, snap) {
-                final m = snap.data?.data() ?? const <String, dynamic>{};
-                final contact =
-                    (m['contact'] as Map?)?.cast<String, dynamic>() ?? const {};
-                final phone = (contact['phone'] as String?) ?? '';
-                final memo = (contact['memo'] as String?) ?? '';
-
-                return myCard(
-                  title: '連絡先',
-                  action: TextButton.icon(
-                    onPressed: () => _openEditContactSheet(
-                      context,
-                      tenantRef,
-                      currentPhone: phone,
-                      currentMemo: memo,
                     ),
-                    icon: const Icon(Icons.edit),
-                    label: const Text('編集'),
+                    const SizedBox(height: 8),
+                  ],
+                ),
+              ),
+              const Divider(height: 1, color: Colors.black12),
+              const SizedBox(height: 8),
+
+              // ===== 基本情報 =====
+              _sectionTitle(
+                context,
+                '基本情報',
+                trailing: FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: brandYellow,
+                    foregroundColor: Colors.black,
+                    side: const BorderSide(color: Colors.black, width: 3),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
-                  child: Column(
+                  onPressed: () => _openQrPoster(context),
+                  icon: const Icon(Icons.qr_code_2),
+                  label: const Text('QRポスターダウンロード'),
+                ),
+              ),
+              _kv(context, '名前', tenantName),
+              _kv(context, 'プラン', plan.isEmpty ? '—' : plan),
+              _kv(
+                context,
+                'ステータス',
+                status.isEmpty
+                    ? '—'
+                    : status == "active"
+                    ? "有効"
+                    : "無効",
+              ),
+              _kv(context, 'Stripe', chargesEnabled ? '有効' : '未登録'),
+              if (creatorEmailFromDoc != null && creatorEmailFromDoc.isNotEmpty)
+                _kv(context, '作成者メール', creatorEmailFromDoc)
+              else
+                StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                  stream: FirebaseFirestore.instance
+                      .collection('users')
+                      .doc(ownerUid)
+                      .snapshots(),
+                  builder: (context, userSnap) {
+                    final mail =
+                        userSnap.data?.data()?['email']?.toString() ?? '—';
+                    return _kv(context, 'Creator Email', mail);
+                  },
+                ),
+
+              const SizedBox(height: 12),
+              const Divider(height: 1, color: Colors.black12),
+
+              // ===== 入金・決済（Connect） ※使う場合はコメント解除 =====
+              // _sectionTitle(context, '入金・決済（Stripe Connect）'),
+              // Padding(
+              //   padding: EdgeInsets.symmetric(horizontal: hp),
+              //   child: Column(
+              //     crossAxisAlignment: CrossAxisAlignment.start,
+              //     children: [
+              //       // ここは任意のチップUIに差し替え可
+              //       Container(
+              //         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              //         decoration: BoxDecoration(
+              //           color: _bg,
+              //           borderRadius: BorderRadius.circular(999),
+              //           border: Border.all(color: Colors.black, width: 2),
+              //         ),
+              //         child: Row(
+              //           mainAxisSize: MainAxisSize.min,
+              //           children: [
+              //             Icon(_icon, size: 14, color: Colors.black),
+              //             const SizedBox(width: 6),
+              //             Text('Connect: $_label', style: const TextStyle(fontWeight: FontWeight.w700)),
+              //           ],
+              //         ),
+              //       ),
+              //       const SizedBox(height: 6),
+              //       Text('入金サイクル: 毎月$anchor日', style: const TextStyle(color: Colors.black54)),
+              //       if (accountId.isNotEmpty) ...[
+              //         const SizedBox(height: 6),
+              //         Text('アカウントID: $accountId', style: const TextStyle(color: Colors.black54)),
+              //       ],
+              //     ],
+              //   ),
+              // ),
+
+              // const SizedBox(height: 12),
+              // const Divider(height: 1, color: Colors.black12),
+
+              // ===== 課金・トライアル状況（旧スタイル） =====
+              _sectionTitle(context, '課金・トライアル状況'),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: hp),
+                child: Builder(
+                  builder: (context) {
+                    final b = bill;
+
+                    // 初期費用（旧表記）
+                    late String initLabel;
+                    late _ChipKind initKind;
+                    if (b.isTrialing && b.trialEnd != null) {
+                      initLabel = '初期費用 ${_ymd(b.trialEnd!)} 支払予定';
+                      initKind = _ChipKind.warn;
+                    } else if (b.initStatus == 'paid') {
+                      initLabel = '初期費用 済';
+                      initKind = _ChipKind.good;
+                    } else if (b.initStatus == 'checkout_open') {
+                      initLabel = '初期費用 決済中';
+                      initKind = _ChipKind.warn;
+                    } else {
+                      initLabel = '初期費用 未払い';
+                      initKind = _ChipKind.bad;
+                    }
+
+                    // サブスク（旧表記）
+                    final subLabel =
+                        'サブスク: '
+                        '${b.subscriptionPlan.isEmpty ? '未選択' : b.subscriptionPlan} '
+                        '${_jpSubStatus(b.subscriptionStatus)}'
+                        '${b.nextPaymentAt != null && _jpSubStatus(b.subscriptionStatus) != "無効" ? '・次回請求: ${_ymdhm(b.nextPaymentAt!)}' : ''}'
+                        '${b.overdue ? '・未払い' : ''}';
+
+                    final _ChipKind subKind = b.overdue
+                        ? _ChipKind.bad
+                        : ((b.subscriptionStatus == 'active' ||
+                                  b.subscriptionStatus == 'trialing')
+                              ? _ChipKind.good
+                              : _ChipKind.bad);
+
+                    // Connect（良/悪チップ）
+                    final bool connectOk = b.chargesEnabled;
+                    final connectLabel = connectOk
+                        ? 'Stripe: 登録済'
+                        : 'Stripe: 未登録';
+                    final _ChipKind connectKind = connectOk
+                        ? _ChipKind.good
+                        : _ChipKind.bad;
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            _statusChip(initLabel, initKind),
+                            _statusChip(subLabel, subKind),
+                            _statusChip(connectLabel, connectKind),
+                          ],
+                        ),
+                        if (b.isTrialing) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            'トライアル終了日: ${b.trialEnd == null ? '—' : _ymd(b.trialEnd!)}',
+                            style: const TextStyle(color: Colors.black54),
+                          ),
+                        ],
+                      ],
+                    );
+                  },
+                ),
+              ),
+
+              const SizedBox(height: 12),
+              const Divider(height: 1, color: Colors.black12),
+
+              // ===== 連絡先 =====
+              _sectionTitle(
+                context,
+                '連絡先',
+                trailing: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Colors.black, width: 3),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    foregroundColor: Colors.black,
+                    backgroundColor: brandYellow,
+                  ),
+                  onPressed: () => _openEditContactSheet(
+                    context,
+                    tenantRef,
+                    currentPhone: (m['contact']?['phone'] ?? '').toString(),
+                    currentMemo: (m['contact']?['memo'] ?? '').toString(),
+                  ),
+                  icon: const Icon(Icons.edit),
+                  label: const Text('編集'),
+                ),
+              ),
+              Builder(
+                builder: (_) {
+                  final contact =
+                      (m['contact'] as Map?)?.cast<String, dynamic>() ??
+                      const {};
+                  final phone = (contact['phone'] as String?) ?? '';
+                  final memo = (contact['memo'] as String?) ?? '';
+                  return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _kv('電話番号', phone.isEmpty ? '—' : phone),
-                      const SizedBox(height: 6),
-                      const Text('メモ', style: TextStyle(color: Colors.black54)),
-                      Container(
-                        width: double.infinity,
-                        margin: const EdgeInsets.only(top: 4),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.03),
-                          border: Border.all(color: Colors.black12),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(memo.isEmpty ? '—' : memo),
-                      ),
+                      _kv(context, '電話番号', phone.isEmpty ? '' : phone),
+                      _kv(context, 'メモ', memo.isEmpty ? '' : memo),
                     ],
-                  ),
-                );
-              },
-            ),
+                  );
+                },
+              ),
 
-            // 登録状況カード（既存）
-            StatusCard(tenantId: tenantId),
+              const SizedBox(height: 12),
+              const Divider(height: 1, color: Colors.black12),
 
-            // 直近チップ（既存）
-            StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: tenantRef
-                  .collection('tips')
-                  .where('status', isEqualTo: 'succeeded')
-                  .orderBy('createdAt', descending: true)
-                  .limit(50)
-                  .snapshots(),
-              builder: (context, snap) {
-                final docs = snap.data?.docs ?? const [];
-                return myCard(
-                  title: '直近のチップ（50件）',
-                  child: Column(
-                    children: docs.isEmpty
-                        ? [const ListTile(title: Text('データがありません'))]
-                        : docs.map((d) {
-                            final m = d.data();
-                            final amount = (m['amount'] as num?)?.toInt() ?? 0;
-                            final emp = (m['employeeName'] ?? 'スタッフ')
-                                .toString();
-                            final ts = m['createdAt'];
-                            final when = (ts is Timestamp) ? ts.toDate() : null;
-                            return ListTile(
-                              dense: true,
-                              title: Text('${_yen(amount)}  /  $emp'),
-                              subtitle: Text(when == null ? '-' : _ymdhm(when)),
-                              trailing: Text(
-                                (m['currency'] ?? 'JPY')
-                                    .toString()
-                                    .toUpperCase(),
-                              ),
-                            );
-                          }).toList(),
-                  ),
-                );
-              },
-            ),
-            const SizedBox(height: 24),
-          ],
-        ),
+              // ===== 直近のチップ =====
+              _sectionTitle(context, '直近のチップ（50件）'),
+              StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                stream: tenantRef
+                    .collection('tips')
+                    .where('status', isEqualTo: 'succeeded')
+                    .orderBy('createdAt', descending: true)
+                    .limit(50)
+                    .snapshots(),
+                builder: (context, tipsSnap) {
+                  final docs = tipsSnap.data?.docs ?? const [];
+                  if (docs.isEmpty) {
+                    return Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: hp,
+                        vertical: 8,
+                      ),
+                      child: const Text('データがありません'),
+                    );
+                  }
+                  return Column(
+                    children: docs.map((d) {
+                      final m = d.data();
+                      final amount = (m['amount'] as num?)?.toInt() ?? 0;
+                      final emp = (m['employeeName'] ?? 'スタッフ').toString();
+                      final ts = m['createdAt'];
+                      final when = (ts is Timestamp) ? ts.toDate() : null;
+                      return ListTile(
+                        dense: true,
+                        title: Text('${_yen(amount)} / $emp'),
+                        subtitle: Text(when == null ? '—' : _ymdhm(when)),
+                        trailing: Text(
+                          (m['currency'] ?? 'JPY').toString().toUpperCase(),
+                        ),
+                        contentPadding: EdgeInsets.symmetric(horizontal: hp),
+                      );
+                    }).toList(),
+                  );
+                },
+              ),
+
+              const SizedBox(height: 24),
+            ],
+          );
+        },
       ),
     );
   }
-
-  Widget _kv(String k, String v) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 2),
-    child: Row(
-      children: [
-        SizedBox(
-          width: 120,
-          child: Text(k, style: const TextStyle(color: Colors.black54)),
-        ),
-        Expanded(child: Text(v)),
-      ],
-    ),
-  );
 }

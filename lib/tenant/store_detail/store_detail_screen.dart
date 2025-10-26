@@ -5,13 +5,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:yourpay/tenant/newTenant/tenant_switch_bar_2.dart';
+import 'package:yourpay/tenant/newTenant/tenant_switch_bar_drawer.dart';
 import 'package:yourpay/tenant/store_detail/tabs/srore_home_tab.dart';
 import 'package:yourpay/tenant/store_detail/tabs/store_qr_tab.dart';
 import 'package:yourpay/tenant/store_detail/tabs/store_setting_tab.dart';
 import 'package:yourpay/tenant/store_detail/tabs/store_staff_tab.dart';
 import 'package:yourpay/tenant/newTenant/tenant_switch_bar.dart';
-import 'package:yourpay/tenant/newTenant/onboardingSheet_2.dart';
+import 'package:yourpay/tenant/newTenant/onboardingSheet.dart';
 
 class StoreDetailScreen extends StatefulWidget {
   const StoreDetailScreen({super.key});
@@ -26,7 +26,6 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
 
   // ---- state ----
   final amountCtrl = TextEditingController(text: '1000');
-  final _functions = FirebaseFunctions.instanceFor(region: 'us-central1');
 
   bool loading = false;
   int _currentIndex = 0;
@@ -41,7 +40,6 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
   String? tenantId;
   String? tenantName;
   bool _loggingOut = false;
-  bool _loading = true;
   String? ownerUid;
   bool invited = false;
 
@@ -98,7 +96,13 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
     if (ownerUidResolved == null) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('通知の取得に失敗しました（ownerUid 不明）')),
+        const SnackBar(
+          content: Text(
+            '通知の取得に失敗しました',
+            style: TextStyle(fontFamily: 'LINEseed'),
+          ),
+          backgroundColor: Color(0xFFFCC400),
+        ),
       );
       return;
     }
@@ -119,6 +123,9 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
       ),
       builder: (ctx) {
         return SafeArea(
+          right: true,
+          left: true,
+          minimum: EdgeInsets.all(6),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
             child: Column(
@@ -481,7 +488,6 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
     }
     ownerUid = user.uid;
     _checkAdmin();
-    _loading = false;
   }
 
   Future<List<Map<String, dynamic>>> checkAlerts({
@@ -534,9 +540,15 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
       Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('ログアウトに失敗: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'ログアウトに失敗: $e',
+            style: TextStyle(fontFamily: 'LINEseed'),
+          ),
+          backgroundColor: Color(0xFFFCC400),
+        ),
+      );
     } finally {
       if (mounted) setState(() => _loggingOut = false);
     }
@@ -545,23 +557,32 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
   // ---- 店舗作成ダイアログ（TenantSwitcherBar と同等の仕様）----
   Future<void> createTenantDialog() async {
     final nameCtrl = TextEditingController();
-    final agentCtrl = TextEditingController(); // 代理店コード
+    final agentCtrl = TextEditingController();
     final ok = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      barrierColor: Colors.black38,
+      barrierColor: Colors.black45, // ほんの少し濃く
       useRootNavigator: true,
       builder: (_) => Theme(
         data: _bwTheme(context),
         child: WillPopScope(
           onWillPop: () async => false,
           child: AlertDialog(
+            // ★★★ ここがポイント：黒く太い枠線 + 角丸
+            shape: RoundedRectangleBorder(
+              borderRadius: const BorderRadius.all(Radius.circular(16)),
+              side: const BorderSide(color: Colors.black, width: 3), // ← 太い黒枠
+            ),
+            clipBehavior: Clip.antiAlias, // 角丸に沿ってクリップ
+            elevation: 0, // 影は消して枠を主役に
             backgroundColor: const Color(0xFFF5F5F5),
             surfaceTintColor: Colors.transparent,
+
+            // タイトル・本文はそのまま（強めたいなら太字済み）
             titleTextStyle: const TextStyle(
               color: Colors.black87,
               fontSize: 20,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w700, // 少し強め
               fontFamily: 'LINEseed',
             ),
             contentTextStyle: const TextStyle(
@@ -569,16 +590,67 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
               fontSize: 14,
               fontFamily: 'LINEseed',
             ),
+
+            // ここから下は元のまま（必要ならそのまま流用）
             title: const Text('新しい店舗を作成'),
             content: Column(
               mainAxisSize: MainAxisSize.min,
-              children: const [
-                _LabeledTextField(label: '店舗名', hint: '例）渋谷店', isAgency: false),
-                SizedBox(height: 10),
-                _LabeledTextField(
-                  label: '代理店コード（任意）',
-                  hint: '代理店の方からお聞きください',
-                  isAgency: true,
+              children: [
+                TextField(
+                  controller: nameCtrl,
+                  autofocus: true,
+                  style: const TextStyle(color: Colors.black87),
+                  decoration: const InputDecoration(
+                    labelText: '店舗名',
+                    hintText: '例）渋谷店',
+                    labelStyle: TextStyle(color: Colors.black87),
+                    hintStyle: TextStyle(color: Colors.black54),
+                    filled: true,
+                    fillColor: Colors.white,
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 12,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderSide: BorderSide(
+                        color: Colors.black26,
+                        width: 1.2,
+                      ), // ほんの少し太く
+                      borderRadius: BorderRadius.all(Radius.circular(12)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderSide: BorderSide(
+                        color: Colors.black87,
+                        width: 1.6,
+                      ), // フォーカス時も気持ち太く
+                      borderRadius: BorderRadius.all(Radius.circular(12)),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: agentCtrl,
+                  style: const TextStyle(color: Colors.black87),
+                  decoration: const InputDecoration(
+                    labelText: 'キャンペーンコード',
+                    hintText: '代理店の方からお聞きください',
+                    labelStyle: TextStyle(color: Colors.black87),
+                    hintStyle: TextStyle(color: Colors.black54),
+                    filled: true,
+                    fillColor: Colors.white,
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 12,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.black26, width: 1.2),
+                      borderRadius: BorderRadius.all(Radius.circular(12)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.black87, width: 1.6),
+                      borderRadius: BorderRadius.all(Radius.circular(12)),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -593,12 +665,22 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
                   'キャンセル',
                   style: TextStyle(fontFamily: 'LINEseed'),
                 ),
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.black87, // 黒系で統一
+                ),
               ),
               FilledButton(
                 onPressed: () => Navigator.pop(context, true),
                 child: const Text(
                   '作成',
                   style: TextStyle(fontFamily: 'LINEseed'),
+                ),
+                style: FilledButton.styleFrom(
+                  backgroundColor: Colors.black, // 主ボタンは黒地に白文字
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
               ),
             ],
@@ -610,12 +692,9 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
     if (ok != true) return;
 
     // TextField 実体を拾う
-    final name =
-        _LabeledTextField.of(context, isAgency: false)?.text.trim() ?? '';
-    final agentCode =
-        _LabeledTextField.of(context, isAgency: true)?.text.trim() ?? '';
+    final name = nameCtrl.text.trim();
+    final agentCode = agentCtrl.text.trim();
     if (name.isEmpty) return;
-
     // 代理店コードの事前確認
     bool shouldLinkAgency = false;
     if (agentCode.isEmpty) {
@@ -635,18 +714,23 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
           message: '入力されたコード「$agentCode」は有効ではない可能性があります。\n未連携のまま作成しますか？',
           proceedLabel: '未連携で作成',
         );
+        print("a");
         if (!proceed) return;
       } else {
         shouldLinkAgency = true;
       }
     }
+    print("a");
 
     final u = FirebaseAuth.instance.currentUser;
     if (u == null) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('ログインが必要です')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('ログインが必要です', style: TextStyle(fontFamily: 'LINEseed')),
+          backgroundColor: Color(0xFFFCC400),
+        ),
+      );
       return;
     }
 
@@ -664,8 +748,7 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
       'agency': {'code': agentCode, 'linked': false},
-      'subscription': {'status': 'inactive', 'plan': 'A'},
-      'members': u.uid,
+      'members': [u.uid],
       'createdBy': {'uid': u.uid, 'email': u.email},
     }, SetOptions(merge: true));
 
@@ -747,7 +830,13 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
           .get();
       if (qs.docs.isEmpty) {
         ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-          const SnackBar(content: Text('代理店コードが見つかりませんでした（未リンクのまま保存）')),
+          const SnackBar(
+            content: Text(
+              '代理店コードが見つかりませんでした',
+              style: TextStyle(fontFamily: 'LINEseed'),
+            ),
+            backgroundColor: Color(0xFFFCC400),
+          ),
         );
         return;
       }
@@ -780,9 +869,15 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
             'status': 'draft',
           }, SetOptions(merge: true));
     } catch (e) {
-      ScaffoldMessenger.of(
-        scaffoldContext,
-      ).showSnackBar(SnackBar(content: Text('代理店リンクに失敗しました: $e')));
+      ScaffoldMessenger.of(scaffoldContext).showSnackBar(
+        SnackBar(
+          content: Text(
+            '代理店リンクに失敗しました: $e',
+            style: TextStyle(fontFamily: 'LINEseed'),
+          ),
+          backgroundColor: Color(0xFFFCC400),
+        ),
+      );
     }
   }
 
@@ -896,7 +991,7 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
     try {
       final col = FirebaseFirestore.instance.collection(user.uid);
       final qs1 = await col
-          .where('memberUids', arrayContains: user.uid)
+          .where('members', arrayContains: user.uid)
           .limit(1)
           .get();
       if (qs1.docs.isNotEmpty) {
@@ -1006,9 +1101,6 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
         child: const Scaffold(body: Center(child: Text('ログインが必要です'))),
       );
     }
-    final size = MediaQuery.of(context).size;
-    final isNarrow = size.width < 480; // ← 幅判定（好みに応じて閾値調整）
-    final maxSwitcherW = (size.width * 0.7).clamp(280.0, 560.0);
 
     // まだ初期テナント未確定なら、一度だけ作った Future で描画
     if (!_tenantInitialized) {
@@ -1049,144 +1141,155 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
   Widget _buildScaffold(BuildContext context, User user) {
     final size = MediaQuery.of(context).size;
     final isNarrow = size.width < 480;
-    final maxSwitcherW = (size.width * 0.7).clamp(280.0, 560.0);
 
     final hasTenant = tenantId != null;
 
-    return Scaffold(
-      backgroundColor: Colors.white,
-      key: _scaffoldKey,
-      appBar: AppBar(
+    return SafeArea(
+      child: Scaffold(
         backgroundColor: Colors.white,
-        foregroundColor: Colors.black87,
-        automaticallyImplyLeading: false,
-        elevation: 0,
-        toolbarHeight: 53,
-        titleSpacing: 2,
-        surfaceTintColor: Colors.transparent,
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Image.asset("assets/posters/tipri.png", height: 22),
-            if (_isAdmin) const SizedBox(width: 8),
+        key: _scaffoldKey,
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.black87,
+          automaticallyImplyLeading: false,
+          elevation: 0,
+          toolbarHeight: 53,
+          titleSpacing: 2,
+          surfaceTintColor: Colors.transparent,
+          title: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(left: 14.0, top: 6),
+                child: Image.asset("assets/posters/tipri.png", height: 32),
+              ),
+              if (_isAdmin) const SizedBox(width: 8),
 
-            if (_isAdmin)
-              OutlinedButton.icon(
-                onPressed: () => Navigator.of(context).pushNamed('/admin'),
-                icon: const Icon(Icons.admin_panel_settings, size: 18),
-                label: const Text(
-                  '管理者ページへ',
-                  style: TextStyle(fontFamily: 'LINEseed'),
-                ),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.black,
-                  side: const BorderSide(color: Colors.black26),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
+              if (_isAdmin)
+                OutlinedButton.icon(
+                  onPressed: () => Navigator.of(context).pushNamed('/admin'),
+                  icon: const Icon(Icons.admin_panel_settings, size: 18),
+                  label: const Text(
+                    '管理者ページへ',
+                    style: TextStyle(fontFamily: 'LINEseed'),
                   ),
-                  shape: const StadiumBorder(),
-                  textStyle: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-              ),
-          ],
-        ),
-
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 5),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: (MediaQuery.of(context).size.width * 0.7)
-                    .clamp(280.0, 560.0)
-                    .toDouble(),
-              ),
-              child: MediaQuery.of(context).size.width < 480
-                  ? null
-                  : TenantSwitcherBar(
-                      currentTenantId: tenantId,
-                      currentTenantName: tenantName,
-                      compact: false,
-
-                      onChangedEx: (id, name, oUid, isInvited) {
-                        if (id == tenantId && oUid == ownerUid) return;
-                        setState(() {
-                          tenantId = id;
-                          tenantName = name;
-                          ownerUid = oUid;
-                          invited = isInvited;
-                        });
-                      },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.black,
+                    side: const BorderSide(color: Colors.black26),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
                     ),
-            ),
+                    shape: const StadiumBorder(),
+                    textStyle: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+            ],
           ),
-          if (MediaQuery.of(context).size.width < 480)
-            IconButton(
-              tooltip: '店舗を切り替え',
-              icon: const Icon(Icons.menu),
-              onPressed: () => _scaffoldKey.currentState?.openEndDrawer(),
-            )
-          else
-            _buildNotificationsAction(),
-        ],
 
-        bottom: const PreferredSize(
-          // ← 余白出にくくする保険
-          preferredSize: Size.zero,
-          child: SizedBox.shrink(),
+          actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: 5),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: (MediaQuery.of(context).size.width * 0.7)
+                      .clamp(280.0, 560.0)
+                      .toDouble(),
+                ),
+                child: MediaQuery.of(context).size.width < 480
+                    ? null
+                    : TenantSwitcherBar(
+                        currentTenantId: tenantId,
+                        currentTenantName: tenantName,
+                        compact: false,
+
+                        onChangedEx: (id, name, oUid, isInvited) {
+                          if (id == tenantId && oUid == ownerUid) return;
+                          setState(() {
+                            tenantId = id;
+                            tenantName = name;
+                            ownerUid = oUid;
+                            invited = isInvited;
+                          });
+                        },
+                      ),
+              ),
+            ),
+            if (MediaQuery.of(context).size.width < 480)
+              Padding(
+                padding: const EdgeInsets.only(right: 10.0),
+                child: IconButton(
+                  tooltip: '店舗を切り替え',
+                  icon: const Icon(Icons.menu, size: 32),
+                  onPressed: () => _scaffoldKey.currentState?.openEndDrawer(),
+                ),
+              )
+            else
+              _buildNotificationsAction(),
+          ],
+
+          bottom: const PreferredSize(
+            // ← 余白出にくくする保険
+            preferredSize: Size.zero,
+            child: SizedBox.shrink(),
+          ),
         ),
-      ),
-      endDrawer: isNarrow
-          ? TenantSwitchDrawer(
-              currentTenantId: tenantId,
-              currentTenantName: tenantName,
+        endDrawer: isNarrow
+            ? TenantSwitchDrawer(
+                currentTenantId: tenantId,
+                currentTenantName: tenantName,
 
-              onChangedEx: (id, name, oUid, isInvited) {
-                setState(() {
-                  tenantId = id;
-                  tenantName = name;
-                  ownerUid = oUid;
-                  invited = isInvited;
-                });
-              },
-              onCreateTenant: createTenantDialog, // 既存のやつ
-              onOpenOnboarding: (tid, name, owner) =>
-                  startOnboarding(tid, name ?? ''),
-            )
-          : null,
-      body: hasTenant
-          ? IndexedStack(
-              index: _currentIndex,
-              children: [
-                StoreHomeTab(
-                  tenantId: tenantId!,
-                  tenantName: tenantName,
-                  ownerId: ownerUid!,
-                ),
-                StoreQrTab(
-                  tenantId: tenantId!,
-                  tenantName: tenantName,
-                  ownerId: ownerUid!,
-                ),
-                StoreStaffTab(tenantId: tenantId!, ownerId: ownerUid!),
-                StoreSettingsTab(tenantId: tenantId!, ownerId: ownerUid!),
-              ],
-            )
-          : Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+                onChangedEx: (id, name, oUid, isInvited) {
+                  setState(() {
+                    tenantId = id;
+                    tenantName = name;
+                    ownerUid = oUid;
+                    invited = isInvited;
+                  });
+                },
+                onCreateTenant: createTenantDialog,
+                onOpenOnboarding: (tid, name, owner) =>
+                    startOnboarding(tid, name ?? ''),
+              )
+            : null,
+        body: hasTenant
+            ? IndexedStack(
+                index: _currentIndex,
                 children: [
-                  const Text('店舗が見つかりませんでした\n右上の「店舗を作成」から始めましょう'),
-                  const SizedBox(height: 12),
-
+                  StoreHomeTab(
+                    tenantId: tenantId!,
+                    tenantName: tenantName,
+                    ownerId: ownerUid!,
+                  ),
+                  StoreQrTab(
+                    tenantId: tenantId!,
+                    tenantName: tenantName,
+                    ownerId: ownerUid!,
+                  ),
+                  StoreStaffTab(tenantId: tenantId!, ownerId: ownerUid!),
+                  StoreSettingsTab(tenantId: tenantId!, ownerId: ownerUid!),
+                ],
+              )
+            : Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Center(
+                    child: const Text(
+                      '店舗が見つかりませんでした\n右上のメニュー内「店舗の作成」から始めよう',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.black),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                   Container(
+                    width: 250,
                     margin: const EdgeInsets.symmetric(
-                      vertical: 8,
-                      horizontal: 16,
+                      vertical: 6,
+                      horizontal: 12,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      border: Border.all(color: Colors.black26),
+                      color: Color(0xFFFCC400),
+                      border: Border.all(width: 3, color: Colors.black),
                       borderRadius: BorderRadius.circular(999),
                     ),
                     child: InkWell(
@@ -1194,8 +1297,8 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
                       onTap: logout,
                       child: const Padding(
                         padding: EdgeInsets.symmetric(
-                          vertical: 12,
-                          horizontal: 20,
+                          vertical: 6,
+                          horizontal: 10,
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -1217,21 +1320,21 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
                   ),
                 ],
               ),
-            ),
 
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: Colors.white,
-        selectedItemColor: Colors.black,
-        unselectedItemColor: Colors.black54,
-        currentIndex: _currentIndex,
-        onTap: (i) => setState(() => _currentIndex = i),
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'ホーム'),
-          BottomNavigationBarItem(icon: Icon(Icons.qr_code_2), label: '印刷'),
-          BottomNavigationBarItem(icon: Icon(Icons.group), label: 'スタッフ'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: '設定'),
-        ],
+        bottomNavigationBar: BottomNavigationBar(
+          type: BottomNavigationBarType.fixed,
+          backgroundColor: Colors.white,
+          selectedItemColor: Colors.black,
+          unselectedItemColor: Colors.black54,
+          currentIndex: _currentIndex,
+          onTap: (i) => setState(() => _currentIndex = i),
+          items: const [
+            BottomNavigationBarItem(icon: Icon(Icons.home), label: 'ホーム'),
+            BottomNavigationBarItem(icon: Icon(Icons.qr_code_2), label: '印刷'),
+            BottomNavigationBarItem(icon: Icon(Icons.group), label: 'スタッフ'),
+            BottomNavigationBarItem(icon: Icon(Icons.settings), label: '設定'),
+          ],
+        ),
       ),
     );
   }
@@ -1247,27 +1350,16 @@ class _LabeledTextField extends StatefulWidget {
   final String hint;
   final bool isAgency;
 
-  static TextEditingController? of(
-    BuildContext context, {
-    required bool isAgency,
-  }) {
-    final state = context.findRootAncestorStateOfType<_LabeledTextFieldState>();
-    if (state == null) return null;
-    return state._isAgency == isAgency ? state.ctrl : null;
-  }
-
   @override
   State<_LabeledTextField> createState() => _LabeledTextFieldState();
 }
 
 class _LabeledTextFieldState extends State<_LabeledTextField> {
   late final TextEditingController ctrl;
-  late final bool _isAgency;
   @override
   void initState() {
     super.initState();
     ctrl = TextEditingController();
-    _isAgency = widget.isAgency;
   }
 
   @override

@@ -13,26 +13,10 @@ class LoadingPage extends StatelessWidget {
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final w = constraints.maxWidth;
-            final imgW = (w / 4).clamp(64.0, 240.0); // ← width / 4
-
             return Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // ロゴ画像
-                  Image.asset(
-                    'assets/posters/ZOTMAN.png',
-                    width: imgW,
-                    fit: BoxFit.contain,
-                    filterQuality: FilterQuality.high,
-                    errorBuilder: (_, __, ___) => Icon(
-                      Icons.image_not_supported_outlined,
-                      size: imgW,
-                      color: Colors.black26,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
                   // ローディングインジケータ
                   const SizedBox(
                     width: 28,

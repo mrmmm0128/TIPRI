@@ -1,9 +1,12 @@
+// lib/qr_poster_builder_page.dart
 import 'dart:typed_data';
-import 'package:barcode/barcode.dart';
+import 'dart:ui' as ui;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart'; // ← RepaintBoundary の toImage に必要
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -13,6 +16,8 @@ import 'package:yourpay/firebase_options.dart';
 
 // ===== 用紙定義（縦基準の寸法・フォーマット） =====
 enum _Paper { a0, a1, a2, a3, a4, b0, b1, b2, b3, b4, b5 }
+
+enum _QrDesign { classic, roundEyes, dots }
 
 class _PaperDef {
   final String label;
@@ -94,7 +99,6 @@ const Map<_Paper, _PaperDef> _paperDefs = {
 
 class QrPosterBuilderPage extends StatefulWidget {
   const QrPosterBuilderPage({super.key});
-
   @override
   State<QrPosterBuilderPage> createState() => _QrPosterBuilderPageState();
 }
@@ -109,23 +113,26 @@ class _QrPosterBuilderPageState extends State<QrPosterBuilderPage> {
   String? _photoName;
 
   // ====== QR設定 ======
-  double _qrSizeMm = 50; // QRサイズ
-  double _marginMm = 12; // ページ外周余白 (PDF)
+  double _qrSizeMm = 58; // QR内側の一辺(mm)
+  double _marginMm = 12; // ページ外周余白 (視覚上)
   bool _putWhiteBg = true; // QRの白背景
+  static const double _qrWhiteMarginMm = 10; // 白背景のとき外側に足す(mm)
 
   // ★ 位置：内容領域(余白を除く)における[0,1]正規化座標（中心位置）
-  // 既定：Offset(0.199, 0.684)
-  Offset _qrPos = const Offset(0.199, 0.684);
+  Offset _qrPos = const Offset(0.274, 0.644);
 
   // 用紙と向き
   _Paper _paper = _Paper.a4;
   bool _landscape = false;
+  _QrDesign _qrDesign = _QrDesign.classic;
 
   // ★ Cプラン判定
   bool _isCPlan = false;
   bool _loadingPlan = true;
 
-  // ====== 初期化 ======
+  // ====== プレビューキャプチャ用 ======
+  final GlobalKey _previewKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
@@ -141,14 +148,12 @@ class _QrPosterBuilderPageState extends State<QrPosterBuilderPage> {
       tenantId ??= (args['tenantId'] ?? args['t'])?.toString();
       employeeId ??= (args['employeeId'] ?? args['e'])?.toString();
 
-      // ★ 初期座標を arguments から受け取って適用（省略時は既定値）
+      // 初期座標（任意）
       final ip = (args['initialQrPos'] as Map?)?.cast<String, dynamic>();
       if (ip != null) {
         final dx = (ip['dx'] is num) ? (ip['dx'] as num).toDouble() : null;
         final dy = (ip['dy'] is num) ? (ip['dy'] as num).toDouble() : null;
-        if (dx != null && dy != null) {
-          _qrPos = _clampOffset(Offset(dx, dy));
-        }
+        if (dx != null && dy != null) _qrPos = _clampOffset(Offset(dx, dy));
       }
       setState(() {});
       _ensureFirebaseThenFetchPlan();
@@ -160,18 +165,13 @@ class _QrPosterBuilderPageState extends State<QrPosterBuilderPage> {
     final frag = uri.fragment; // "#/qr-builder?t=...&e=...&dx=&dy="
     final qi = frag.indexOf('?');
     final qp = <String, String>{}..addAll(uri.queryParameters);
-    if (qi >= 0) {
-      qp.addAll(Uri.splitQueryString(frag.substring(qi + 1)));
-    }
+    if (qi >= 0) qp.addAll(Uri.splitQueryString(frag.substring(qi + 1)));
     tenantId = qp['t'] ?? qp['tenantId'];
     employeeId = qp['e'] ?? qp['employeeId'];
 
-    // ★ URLクエリで初期座標も受け取り可能に（任意）
     final qdx = double.tryParse(qp['dx'] ?? '');
     final qdy = double.tryParse(qp['dy'] ?? '');
-    if (qdx != null && qdy != null) {
-      _qrPos = _clampOffset(Offset(qdx, qdy));
-    }
+    if (qdx != null && qdy != null) _qrPos = _clampOffset(Offset(qdx, qdy));
   }
 
   Future<void> _ensureFirebaseThenFetchPlan() async {
@@ -227,27 +227,12 @@ class _QrPosterBuilderPageState extends State<QrPosterBuilderPage> {
     return raw.trim().toUpperCase();
   }
 
-  // ローカル/本番自動切替のベースURL
-  String get _publicBase {
-    final u = Uri.base;
-    final isHttp =
-        (u.scheme == 'http' || u.scheme == 'https') && u.host.isNotEmpty;
-    if (isHttp) {
-      return '${u.scheme}://${u.host}${u.hasPort ? ':${u.port}' : ''}';
-    }
-    const fb = String.fromEnvironment(
-      'PUBLIC_BASE',
-      defaultValue: 'https://tipri.jp',
-    );
-    return fb;
-  }
-
   String get _qrData {
     if (tenantId == null || employeeId == null) return '';
     final params = Uri(
       queryParameters: {'t': tenantId!, 'e': employeeId!},
     ).query;
-    return '$_publicBase/#/staff?$params';
+    return 'https://tip.tipri.jp/#/staff?$params';
   }
 
   // ====== 背景画像アップロード（Cのみ） ======
@@ -286,7 +271,7 @@ class _QrPosterBuilderPageState extends State<QrPosterBuilderPage> {
     });
   }
 
-  // ====== PDF生成 ======
+  // ====== PDF生成（プレビューをそのままキャプチャ） ======
   Future<void> _makePdfAndDownload() async {
     if (_qrData.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -298,75 +283,53 @@ class _QrPosterBuilderPageState extends State<QrPosterBuilderPage> {
       return;
     }
 
-    final pdf = pw.Document();
-    double mm(double v) => v * PdfPageFormat.mm;
-
-    final pdef = _paperDefs[_paper]!;
-    final pageFormat = _landscape ? pdef.format.landscape : pdef.format;
-
-    // 内容領域サイズ（余白を引いた中身）
-    final contentW = pageFormat.width - mm(_marginMm) * 2;
-    final contentH = pageFormat.height - mm(_marginMm) * 2;
-
-    // QRの外枠（白背景含めた一辺）
-    final qrOuterMm = _qrSizeMm + (_putWhiteBg ? 10 : 0);
-    final qrOuterPx = mm(qrOuterMm);
-
-    // 中心座標（内容領域基準）
-    final cx = (_qrPos.dx.clamp(0.0, 1.0)) * contentW;
-    final cy = (_qrPos.dy.clamp(0.0, 1.0)) * contentH;
-
-    // 左上座標（内容領域原点へ変換）
-    final left = cx - qrOuterPx / 2;
-    final top = cy - qrOuterPx / 2;
-
-    // 背景
-    pw.Widget background = pw.Container(color: PdfColors.white);
-    if (_photoBytes != null) {
-      final img = pw.MemoryImage(_photoBytes!);
-      background = pw.Positioned.fill(
-        child: pw.Image(img, fit: pw.BoxFit.cover),
+    final boundary =
+        _previewKey.currentContext?.findRenderObject()
+            as RenderRepaintBoundary?;
+    if (boundary == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'プレビューを準備中です',
+            style: TextStyle(fontFamily: 'LINEseed'),
+          ),
+          backgroundColor: Color(0xFFFCC400),
+        ),
       );
+      return;
     }
 
-    // QR本体
-    final barcode = Barcode.qrCode();
-    final qrWidget = pw.BarcodeWidget(
-      barcode: barcode,
-      data: _qrData,
-      width: mm(_qrSizeMm),
-      height: mm(_qrSizeMm),
-      drawText: false,
-      color: PdfColors.black,
-    );
+    // 用紙に応じたターゲット解像度（重すぎ防止のため 6〜10 px/mm 目安）
+    final pdef = _paperDefs[_paper]!;
+    final mmW = _landscape ? pdef.heightMm : pdef.widthMm;
+    final pxPerMmTarget = 8.0;
+    final targetWidth = (mmW * pxPerMmTarget).round();
+    final logicalW = boundary.size.width;
+    final pixelRatio = (logicalW > 0)
+        ? (targetWidth / logicalW)
+        : 3.0; // フォールバック
 
-    final qrBox = pw.Container(
-      width: qrOuterPx,
-      height: qrOuterPx,
-      decoration: _putWhiteBg
-          ? pw.BoxDecoration(
-              color: PdfColors.white,
-              borderRadius: pw.BorderRadius.circular(6),
-            )
-          : const pw.BoxDecoration(),
-      alignment: pw.Alignment.center,
-      child: qrWidget,
+    final ui.Image image = await boundary.toImage(
+      pixelRatio: pixelRatio.clamp(2.0, 8.0),
     );
+    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+    final pngBytes = byteData!.buffer.asUint8List();
+
+    final pdf = pw.Document();
+    final pageFormat = _landscape ? pdef.format.landscape : pdef.format;
+    final memImg = pw.MemoryImage(pngBytes);
 
     pdf.addPage(
       pw.Page(
         pageFormat: pageFormat,
-        margin: pw.EdgeInsets.all(mm(_marginMm)),
-        build: (_) => pw.Stack(
-          children: [
-            background,
-            // ★ 位置指定（内容領域内）
-            pw.Positioned(
-              left: left.clamp(0, contentW - qrOuterPx),
-              top: top.clamp(0, contentH - qrOuterPx),
-              child: qrBox,
-            ),
-          ],
+        margin: pw.EdgeInsets.zero,
+        build: (_) => pw.Container(
+          width: double.infinity,
+          height: double.infinity,
+          child: pw.FittedBox(
+            fit: pw.BoxFit.cover, // プレビューとページ比率は同じなのでそのまま全面
+            child: pw.Image(memImg),
+          ),
         ),
       ),
     );
@@ -379,7 +342,6 @@ class _QrPosterBuilderPageState extends State<QrPosterBuilderPage> {
   Offset _clampOffset(Offset o) =>
       Offset(o.dx.clamp(0.0, 1.0), o.dy.clamp(0.0, 1.0));
 
-  // ====== UI ======
   @override
   Widget build(BuildContext context) {
     final valid = tenantId != null && employeeId != null;
@@ -494,6 +456,55 @@ class _QrPosterBuilderPageState extends State<QrPosterBuilderPage> {
                 ],
               ),
               const SizedBox(height: 12),
+              // ==== QRデザイン選択 ====
+              Row(
+                children: [
+                  Expanded(
+                    child: InputDecorator(
+                      decoration: InputDecoration(
+                        labelText: 'QRデザイン',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<_QrDesign>(
+                          value: _qrDesign,
+                          items: const [
+                            DropdownMenuItem(
+                              value: _QrDesign.classic,
+                              child: Text(
+                                'クラシック（四角）',
+                                style: TextStyle(fontFamily: 'LINEseed'),
+                              ),
+                            ),
+                            DropdownMenuItem(
+                              value: _QrDesign.roundEyes,
+                              child: Text(
+                                '角丸アイ（目だけ丸）',
+                                style: TextStyle(fontFamily: 'LINEseed'),
+                              ),
+                            ),
+                            DropdownMenuItem(
+                              value: _QrDesign.dots,
+                              child: Text(
+                                'ドット（全体丸）',
+                                style: TextStyle(fontFamily: 'LINEseed'),
+                              ),
+                            ),
+                          ],
+                          onChanged: (v) => setState(() => _qrDesign = v!),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
 
               if (!valid)
                 const Text(
@@ -503,143 +514,21 @@ class _QrPosterBuilderPageState extends State<QrPosterBuilderPage> {
 
               if (valid) ...[
                 // ==== プレビュー（ドラッグでQR移動） ====
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x14000000),
-                        blurRadius: 10,
-                        offset: Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  padding: const EdgeInsets.all(12),
-                  child: AspectRatio(
-                    aspectRatio: previewAspect,
-                    child: LayoutBuilder(
-                      builder: (context, c) {
-                        // mm→px 変換
-                        final pageWmm = _landscape
-                            ? pdef.heightMm
-                            : pdef.widthMm;
-                        // //final pageHmm = _landscape
-                        //     ? pdef.widthMm
-                        //     : pdef.heightMm;
-                        final pxPerMm = c.maxWidth / pageWmm;
-
-                        final marginPx = _marginMm * pxPerMm;
-
-                        // 内容領域（余白を除く）
-                        final contentW = c.maxWidth - marginPx * 2;
-                        final contentH = c.maxHeight - marginPx * 2;
-
-                        // QR外枠ピクセル
-                        final qrOuterPx =
-                            (_qrSizeMm + (_putWhiteBg ? 10 : 0)) * pxPerMm;
-
-                        // ★ 正規化座標→内容領域座標（左上起点）
-                        double left =
-                            marginPx +
-                            (_qrPos.dx.clamp(0.0, 1.0)) * contentW -
-                            qrOuterPx / 2;
-                        double top =
-                            marginPx +
-                            (_qrPos.dy.clamp(0.0, 1.0)) * contentH -
-                            qrOuterPx / 2;
-
-                        // 可動範囲クランプ（内容領域内）
-                        final minLeft = marginPx;
-                        final minTop = marginPx;
-                        final maxLeft = marginPx + contentW - qrOuterPx;
-                        final maxTop = marginPx + contentH - qrOuterPx;
-                        left = left.clamp(minLeft, maxLeft);
-                        top = top.clamp(minTop, maxTop);
-
-                        // ドラッグ更新：px→正規化(中心)
-                        void _updateFromDrag(Offset delta) {
-                          final newLeft = (left + delta.dx).clamp(
-                            minLeft,
-                            maxLeft,
-                          );
-                          final newTop = (top + delta.dy).clamp(minTop, maxTop);
-                          final centerX = (newLeft + qrOuterPx / 2) - marginPx;
-                          final centerY = (newTop + qrOuterPx / 2) - marginPx;
-                          final ndx = (contentW <= 0)
-                              ? 0.5
-                              : (centerX / contentW);
-                          final ndy = (contentH <= 0)
-                              ? 0.5
-                              : (centerY / contentH);
-                          setState(
-                            () => _qrPos = _clampOffset(Offset(ndx, ndy)),
-                          );
-                        }
-
-                        return Stack(
-                          children: [
-                            // 背景
-                            Positioned.fill(
-                              child: _photoBytes == null
-                                  ? Image.asset(
-                                      "assets/posters/store_poster.jpg",
-                                      fit: BoxFit.cover,
-                                    )
-                                  : Image.memory(
-                                      _photoBytes!,
-                                      fit: BoxFit.cover,
-                                    ),
-                            ),
-
-                            // ドラッグハンドル+QR
-                            Positioned(
-                              left: left,
-                              top: top,
-                              width: qrOuterPx,
-                              height: qrOuterPx,
-                              child: GestureDetector(
-                                onPanUpdate: (d) => _updateFromDrag(d.delta),
-                                child: DecoratedBox(
-                                  decoration: BoxDecoration(
-                                    color: _putWhiteBg
-                                        ? Colors.white
-                                        : Colors.transparent,
-                                    borderRadius: BorderRadius.circular(6),
-                                    boxShadow: _putWhiteBg
-                                        ? const [
-                                            BoxShadow(
-                                              color: Color(0x22000000),
-                                              blurRadius: 6,
-                                              offset: Offset(0, 2),
-                                            ),
-                                          ]
-                                        : null,
-                                    border: Border.all(
-                                      color: Colors.black26,
-                                      width: 1,
-                                      style: BorderStyle.solid,
-                                    ),
-                                  ),
-                                  child: _qrData.isEmpty
-                                      ? const SizedBox()
-                                      : Center(
-                                          child: QrImageView(
-                                            data: _qrData,
-                                            version: QrVersions.auto,
-                                            gapless: true,
-                                            size:
-                                                qrOuterPx -
-                                                (_putWhiteBg ? 12 : 0),
-                                          ),
-                                        ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        );
-                      },
-                    ),
+                RepaintBoundary(
+                  key: _previewKey,
+                  child: _PosterPreview(
+                    paper: _paper,
+                    landscape: _landscape,
+                    marginMm: _marginMm,
+                    qrPos: _qrPos,
+                    qrSizeMm: _qrSizeMm,
+                    putWhiteBg: _putWhiteBg,
+                    qrWhiteMarginMm: _qrWhiteMarginMm,
+                    photoBytes: _photoBytes,
+                    qrData: _qrData,
+                    qrDesign: _qrDesign,
+                    onPosChanged: (o) =>
+                        setState(() => _qrPos = _clampOffset(o)),
                   ),
                 ),
 
@@ -735,7 +624,7 @@ class _QrPosterBuilderPageState extends State<QrPosterBuilderPage> {
                   onChanged: (v) => setState(() => _qrSizeMm = v),
                 ),
                 _SliderTile(
-                  label: '余白 (mm)',
+                  label: '外周余白 (mm)',
                   value: _marginMm,
                   min: 0,
                   max: 40,
@@ -754,7 +643,7 @@ class _QrPosterBuilderPageState extends State<QrPosterBuilderPage> {
                   contentPadding: EdgeInsets.zero,
                 ),
 
-                // 位置の数値表示＆微調整（お好みで）
+                // 位置の数値表示＆微調整
                 const SizedBox(height: 8),
                 _NudgePad(
                   pos: _qrPos,
@@ -771,7 +660,190 @@ class _QrPosterBuilderPageState extends State<QrPosterBuilderPage> {
   }
 }
 
-// ====== 位置微調整ウィジェット（任意） ======
+// ====== プレビュー本体（これをそのままキャプチャ→PDF） ======
+class _PosterPreview extends StatelessWidget {
+  final _Paper paper;
+  final bool landscape;
+  final double marginMm; // 視覚的外周余白
+  final Offset qrPos; // [0,1] での中心位置（内容領域基準）
+  final double qrSizeMm; // QR「内側」の一辺(mm)
+  final bool putWhiteBg;
+  final double qrWhiteMarginMm; // 白背景を付けるときの外枠分(mm)
+  final Uint8List? photoBytes;
+  final String qrData;
+  final ValueChanged<Offset> onPosChanged;
+  final _QrDesign qrDesign;
+
+  const _PosterPreview({
+    super.key,
+    required this.paper,
+    required this.landscape,
+    required this.marginMm,
+    required this.qrPos,
+    required this.qrSizeMm,
+    required this.putWhiteBg,
+    required this.qrWhiteMarginMm,
+    required this.photoBytes,
+    required this.qrData,
+    required this.onPosChanged,
+    required this.qrDesign,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final pdef = _paperDefs[paper]!;
+    final previewAspect = landscape
+        ? (pdef.heightMm / pdef.widthMm)
+        : (pdef.widthMm / pdef.heightMm);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x14000000),
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(12),
+      child: AspectRatio(
+        aspectRatio: previewAspect,
+        child: LayoutBuilder(
+          builder: (context, c) {
+            // mm→px を単一スカラーで統一
+            final pageWmm = landscape ? pdef.heightMm : pdef.widthMm;
+            final pageHmm = landscape ? pdef.widthMm : pdef.heightMm;
+            final pxPerMmX = c.maxWidth / pageWmm;
+            final pxPerMmY = c.maxHeight / pageHmm;
+            final pxPerMm = pxPerMmX < pxPerMmY ? pxPerMmX : pxPerMmY;
+            //final _QrDesign = _QrDesign.
+            final marginPx = marginMm * pxPerMm;
+
+            // 内容領域（余白を除く）
+            final contentW = c.maxWidth - marginPx * 2;
+            final contentH = c.maxHeight - marginPx * 2;
+
+            // QR外枠（白背景ありなら一回り大きく）
+            final qrOuterMm = qrSizeMm + (putWhiteBg ? qrWhiteMarginMm : 0);
+            final qrOuterPx = qrOuterMm * pxPerMm;
+
+            // 正規化座標→内容領域座標（左上起点）
+            double left =
+                marginPx +
+                (qrPos.dx.clamp(0.0, 1.0)) * contentW -
+                qrOuterPx / 2;
+            double top =
+                marginPx +
+                (qrPos.dy.clamp(0.0, 1.0)) * contentH -
+                qrOuterPx / 2;
+
+            // 可動範囲クランプ（内容領域内）
+            final minLeft = marginPx;
+            final minTop = marginPx;
+            final maxLeft = marginPx + contentW - qrOuterPx;
+            final maxTop = marginPx + contentH - qrOuterPx;
+            left = left.clamp(minLeft, maxLeft);
+            top = top.clamp(minTop, maxTop);
+
+            // ドラッグ時更新：px→正規化(中心)
+            void _updateFromDrag(Offset delta) {
+              final newLeft = (left + delta.dx).clamp(minLeft, maxLeft);
+              final newTop = (top + delta.dy).clamp(minTop, maxTop);
+              final centerX = (newLeft + qrOuterPx / 2) - marginPx;
+              final centerY = (newTop + qrOuterPx / 2) - marginPx;
+              final ndx = (contentW <= 0) ? 0.5 : (centerX / contentW);
+              final ndy = (contentH <= 0) ? 0.5 : (centerY / contentH);
+              onPosChanged(Offset(ndx, ndy));
+            }
+
+            // ページ背景（外周余白を白で見せる）
+            final pageBg = Container(color: Colors.white);
+
+            // 中身：背景画像 or デフォルト
+            final contentBg = Positioned.fill(
+              left: marginPx,
+              top: marginPx,
+              right: marginPx,
+              bottom: marginPx,
+              child: photoBytes == null
+                  ? Image.asset(
+                      "assets/posters/store_poster.jpg",
+                      fit: BoxFit.cover,
+                    )
+                  : Image.memory(photoBytes!, fit: BoxFit.cover),
+            );
+
+            // QR表示（外枠＋内側）
+            final qrBox = Positioned(
+              left: left,
+              top: top,
+              width: qrOuterPx,
+              height: qrOuterPx,
+              child: GestureDetector(
+                onPanUpdate: (d) => _updateFromDrag(d.delta),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: putWhiteBg ? Colors.white : Colors.transparent,
+                    borderRadius: BorderRadius.circular(6),
+                    boxShadow: putWhiteBg
+                        ? const [
+                            BoxShadow(
+                              color: Color(0x22000000),
+                              blurRadius: 6,
+                              offset: Offset(0, 2),
+                            ),
+                          ]
+                        : null,
+                    border: Border.all(
+                      color: Colors.black26,
+                      width: 1,
+                      style: BorderStyle.solid,
+                    ),
+                  ),
+                  child: qrData.isEmpty
+                      ? const SizedBox()
+                      : Center(
+                          child: QrImageView(
+                            data: qrData,
+                            version: QrVersions.auto,
+                            gapless: true,
+                            padding: EdgeInsets.zero,
+                            size: (qrOuterPx - (putWhiteBg ? 12 : 0)).clamp(
+                              0,
+                              double.infinity,
+                            ),
+                            eyeStyle: QrEyeStyle(
+                              color: Colors.black,
+                              eyeShape:
+                                  (qrDesign == _QrDesign.dots ||
+                                      qrDesign == _QrDesign.roundEyes)
+                                  ? QrEyeShape.circle
+                                  : QrEyeShape.square,
+                            ),
+                            dataModuleStyle: QrDataModuleStyle(
+                              color: Colors.black,
+                              dataModuleShape: (qrDesign == _QrDesign.dots)
+                                  ? QrDataModuleShape.circle
+                                  : QrDataModuleShape.square,
+                            ),
+                          ),
+                        ),
+                ),
+              ),
+            );
+
+            return Stack(children: [pageBg, contentBg, qrBox]);
+          },
+        ),
+      ),
+    );
+  }
+}
+
+// ====== 位置微調整ウィジェット ======
 class _NudgePad extends StatelessWidget {
   final Offset pos; // 正規化
   final ValueChanged<Offset> onChanged;
@@ -779,15 +851,15 @@ class _NudgePad extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final text = TextStyle(fontFamily: 'LINEseed', color: Colors.black87);
+    const text = TextStyle(fontFamily: 'LINEseed', color: Colors.black87);
     void nudge(double dx, double dy) =>
         onChanged(Offset(pos.dx + dx, pos.dy + dy));
     return Row(
       children: [
+        const SizedBox(width: 8),
         Expanded(
           child: Text(
-            '位置: x=${pos.dx.toStringAsFixed(3)}, '
-            'y=${pos.dy.toStringAsFixed(3)}',
+            '位置: x=${pos.dx.toStringAsFixed(3)}, y=${pos.dy.toStringAsFixed(3)}',
             style: text,
           ),
         ),

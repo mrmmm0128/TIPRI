@@ -55,7 +55,6 @@ flutter:
     - assets/posters/tipri.png
     - assets/fonts/NotoSansJP-VariableFont_wght.ttf
     - assets/fonts/LINESeedJP_A_TTF_Bd.ttf
-    - assets/translations/
     - assets/policies/terms_ja.md
     - assets/policies/privacy_ja.md
     - assets/policies/チップリ特定商取引法-1.png

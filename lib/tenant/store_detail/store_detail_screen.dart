@@ -36,6 +36,7 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
     'tiprilogin@gmail.com',
   };
   bool _isAdmin = false;
+  final functions = FirebaseFunctions.instanceFor(region: 'us-central1');
 
   String? tenantId;
   String? tenantName;
@@ -676,10 +677,11 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
                   style: TextStyle(fontFamily: 'LINEseed'),
                 ),
                 style: FilledButton.styleFrom(
-                  backgroundColor: Colors.black, // 主ボタンは黒地に白文字
-                  foregroundColor: Colors.white,
+                  backgroundColor: Color(0xFFFCC400), // 主ボタンは黒地に白文字
+                  foregroundColor: Colors.black,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(width: 3, color: Colors.black),
                   ),
                 ),
               ),
@@ -751,6 +753,12 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
       'members': [u.uid],
       'createdBy': {'uid': u.uid, 'email': u.email},
     }, SetOptions(merge: true));
+
+    final callable = functions.httpsCallable('createTenantAndNotify');
+    final resp = await callable.call({
+      'storeName': name,
+      if (agentCode.isNotEmpty) 'agentCode': agentCode,
+    });
 
     // 代理店リンク
     if (shouldLinkAgency) {
@@ -1143,6 +1151,7 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
     final isNarrow = size.width < 480;
 
     final hasTenant = tenantId != null;
+    const _downShift = 10.0; // ← 下にずらす量（お好みで）
 
     return SafeArea(
       child: Scaffold(
@@ -1153,43 +1162,49 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
           foregroundColor: Colors.black87,
           automaticallyImplyLeading: false,
           elevation: 0,
-          toolbarHeight: 53,
+          // ずらした分だけ高さを少し増やす（はみ出し防止）
+          toolbarHeight: 53 + _downShift,
           titleSpacing: 2,
           surfaceTintColor: Colors.transparent,
-          title: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(left: 14.0, top: 6),
-                child: Image.asset("assets/posters/tipri.png", height: 32),
-              ),
-              if (_isAdmin) const SizedBox(width: 8),
 
-              if (_isAdmin)
-                OutlinedButton.icon(
-                  onPressed: () => Navigator.of(context).pushNamed('/admin'),
-                  icon: const Icon(Icons.admin_panel_settings, size: 18),
-                  label: const Text(
-                    '管理者ページへ',
-                    style: TextStyle(fontFamily: 'LINEseed'),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.black,
-                    side: const BorderSide(color: Colors.black26),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    shape: const StadiumBorder(),
-                    textStyle: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
+          // ▼ title をまとめて下にずらす
+          title: Padding(
+            padding: const EdgeInsets.only(top: _downShift),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(left: 14.0, top: 6),
+                  child: Image.asset("assets/posters/tipri.png", height: 32),
                 ),
-            ],
+                if (_isAdmin) const SizedBox(width: 8),
+                if (_isAdmin)
+                  OutlinedButton.icon(
+                    onPressed: () => Navigator.of(context).pushNamed('/admin'),
+                    icon: const Icon(Icons.admin_panel_settings, size: 18),
+                    label: const Text(
+                      '管理者画面',
+                      style: TextStyle(fontFamily: 'LINEseed'),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.black,
+                      side: const BorderSide(color: Colors.black26),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      shape: const StadiumBorder(),
+                      textStyle: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+              ],
+            ),
           ),
 
+          // ▼ actions 側もまとめて下にずらす
           actions: [
             Padding(
-              padding: const EdgeInsets.only(right: 5),
+              padding: EdgeInsets.only(top: _downShift, right: 5),
               child: ConstrainedBox(
                 constraints: BoxConstraints(
                   maxWidth: (MediaQuery.of(context).size.width * 0.7)
@@ -1197,12 +1212,11 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
                       .toDouble(),
                 ),
                 child: MediaQuery.of(context).size.width < 480
-                    ? null
+                    ? const SizedBox.shrink()
                     : TenantSwitcherBar(
                         currentTenantId: tenantId,
                         currentTenantName: tenantName,
                         compact: false,
-
                         onChangedEx: (id, name, oUid, isInvited) {
                           if (id == tenantId && oUid == ownerUid) return;
                           setState(() {
@@ -1217,7 +1231,7 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
             ),
             if (MediaQuery.of(context).size.width < 480)
               Padding(
-                padding: const EdgeInsets.only(right: 10.0),
+                padding: EdgeInsets.only(top: _downShift, right: 10.0),
                 child: IconButton(
                   tooltip: '店舗を切り替え',
                   icon: const Icon(Icons.menu, size: 32),
@@ -1225,11 +1239,13 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
                 ),
               )
             else
-              _buildNotificationsAction(),
+              Padding(
+                padding: EdgeInsets.only(top: _downShift),
+                child: _buildNotificationsAction(),
+              ),
           ],
 
           bottom: const PreferredSize(
-            // ← 余白出にくくする保険
             preferredSize: Size.zero,
             child: SizedBox.shrink(),
           ),

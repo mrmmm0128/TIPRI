@@ -168,6 +168,7 @@ class _StoreQrTabState extends State<StoreQrTab> {
   String? _publicStoreUrl;
   String _selectedPosterId = 'asset';
   _PosterOption? _optimisticPoster;
+  bool _exporting = false;
 
   // 表示/出力カスタム
   bool _putWhiteBg = true;
@@ -186,7 +187,7 @@ class _StoreQrTabState extends State<StoreQrTab> {
   _Paper _paper = _Paper.a4;
   final ValueNotifier<_Paper> _paperVN = ValueNotifier<_Paper>(_Paper.a4);
 
-  Offset _qrPos = const Offset(0.199, 0.684);
+  Offset _qrPos = const Offset(0.287, 0.649);
   bool isC = false;
   _QrDesign _qrDesign = _QrDesign.classic;
   bool agency = false;
@@ -241,6 +242,12 @@ class _StoreQrTabState extends State<StoreQrTab> {
       _startWatchTenantStatus();
       _initialize();
     }
+  }
+
+  void _logQrPos([String tag = '']) {
+    debugPrint(
+      'QR pos$tag: x=${_qrPos.dx.toStringAsFixed(3)}, y=${_qrPos.dy.toStringAsFixed(3)}',
+    );
   }
 
   Future<void> logout() async {
@@ -535,7 +542,10 @@ class _StoreQrTabState extends State<StoreQrTab> {
 
   // ==== PDF 出力 ====
   Future<void> _exportPdf(List<_PosterOption> options) async {
-    if (_publicStoreUrl == null) return;
+    if (_publicStoreUrl == null || _exporting) return;
+    setState(() {
+      _exporting = true;
+    });
 
     final selected = options.firstWhere(
       (o) => o.id == _selectedPosterId,
@@ -661,6 +671,9 @@ class _StoreQrTabState extends State<StoreQrTab> {
 
     await postersCol.set({"download": "done"}, SetOptions(merge: true));
     await Col.set({"download": "done"}, SetOptions(merge: true));
+    setState(() {
+      _exporting = false;
+    });
   }
 
   // ---------- オンボーディング ----------
@@ -934,10 +947,20 @@ class _StoreQrTabState extends State<StoreQrTab> {
                     ),
                   ),
                 ),
-                onPressed: (_connected! && _publicStoreUrl != null)
+                onPressed:
+                    (!_exporting && _connected! && _publicStoreUrl != null)
                     ? () => _exportPdf(options)
                     : null,
-                icon: const Icon(Icons.file_download),
+                icon: _exporting
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 3,
+                          color: Colors.black, // 黄背景に合う
+                        ),
+                      )
+                    : const Icon(Icons.file_download),
                 label: const Text(
                   'ダウンロード',
                   style: TextStyle(fontFamily: 'LINEseed'),
@@ -1183,7 +1206,7 @@ class _StoreQrTabState extends State<StoreQrTab> {
                     ),
                     const SizedBox(height: 6),
                     const Text(
-                      'ヒント：プレビュー内のQRをドラッグで移動／ダブルタップで中央に戻せます。',
+                      'ヒント：プレビュー内のQRをドラッグで移動/ダブルタップで規定位置に移動',
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.black54,
@@ -1310,8 +1333,11 @@ class _StoreQrTabState extends State<StoreQrTab> {
                             ? Image.network(selected.url!, fit: BoxFit.cover)
                             : null;
 
-                        final left = _qrPos.dx * w - boxSidePx / 4;
-                        final top = _qrPos.dy * h - boxSidePx * 2 / 3;
+                        final cx = _qrPos.dx.clamp(halfX, 1 - halfX).toDouble();
+                        final cy = _qrPos.dy.clamp(halfY, 1 - halfY).toDouble();
+
+                        final left = cx * w - boxSidePx / 2;
+                        final top = cy * h - boxSidePx / 2;
 
                         final showQr =
                             (_connected == true) &&
@@ -1345,6 +1371,7 @@ class _StoreQrTabState extends State<StoreQrTab> {
                                               .toDouble();
                                       _qrPos = Offset(nx, ny);
                                     });
+                                    _logQrPos(' (drag)');
                                   },
                                   onDoubleTap: () => setState(
                                     () => _qrPos = const Offset(0.5, 0.5),
@@ -1491,10 +1518,11 @@ class _StoreQrTabState extends State<StoreQrTab> {
                       posterPicker(),
                       const SizedBox(height: 16),
                       previewPane(),
-                      const SizedBox(height: 12),
-                      if (_connected!) ...[urlButton(context)],
+
                       const SizedBox(height: 16),
                       qrControls(),
+                      const SizedBox(height: 12),
+                      if (_connected!) ...[urlButton(context)],
                     ],
                   ),
                 );

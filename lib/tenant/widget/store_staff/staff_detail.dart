@@ -565,49 +565,51 @@ class _StaffDetailScreenState extends State<StaffDetailScreen> {
                         const SizedBox(height: 8),
                         Center(child: QrImageView(data: tipUrl, size: 180)),
                         const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 8,
-                          children: [
-                            OutlinedButton.icon(
-                              style: outlineButton,
-                              onPressed: () => launchUrlString(
-                                tipUrl,
-                                mode: LaunchMode.externalApplication,
-                                webOnlyWindowName: '_self',
+                        Center(
+                          child: Wrap(
+                            spacing: 8,
+                            children: [
+                              OutlinedButton.icon(
+                                style: outlineButton,
+                                onPressed: () => launchUrlString(
+                                  tipUrl,
+                                  mode: LaunchMode.externalApplication,
+                                  webOnlyWindowName: '_self',
+                                ),
+                                icon: const Icon(Icons.open_in_new),
+                                label: const Text(
+                                  'リンクを開く',
+                                  style: TextStyle(color: Colors.black87),
+                                ),
                               ),
-                              icon: const Icon(Icons.open_in_new),
-                              label: const Text(
-                                'リンクを開く',
-                                style: TextStyle(color: Colors.black87),
-                              ),
-                            ),
-                            OutlinedButton.icon(
-                              style: outlineButton,
-                              onPressed: () async {
-                                await Clipboard.setData(
-                                  ClipboardData(text: tipUrl),
-                                );
-                                if (mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      backgroundColor: Color(0xFFFCC400),
-                                      content: Text(
-                                        'URLをコピーしました',
-                                        style: TextStyle(
-                                          fontFamily: 'LINEseed',
+                              OutlinedButton.icon(
+                                style: outlineButton,
+                                onPressed: () async {
+                                  await Clipboard.setData(
+                                    ClipboardData(text: tipUrl),
+                                  );
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        backgroundColor: Color(0xFFFCC400),
+                                        content: Text(
+                                          'URLをコピーしました',
+                                          style: TextStyle(
+                                            fontFamily: 'LINEseed',
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                  );
-                                }
-                              },
-                              icon: const Icon(Icons.copy),
-                              label: const Text(
-                                'URLをコピー',
-                                style: TextStyle(color: Colors.black87),
+                                    );
+                                  }
+                                },
+                                icon: const Icon(Icons.copy),
+                                label: const Text(
+                                  'URLをコピー',
+                                  style: TextStyle(color: Colors.black87),
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ],
                     ),

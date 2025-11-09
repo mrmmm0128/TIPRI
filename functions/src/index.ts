@@ -5271,3 +5271,229 @@ export const createAgencyConnectLink = onCall(
     return { url: link.url };
   }
 );
+
+export const createTenantAndNotify = onCall(
+  {
+    region: 'us-central1',
+    memory: '256MiB',
+    cors: ALLOWED_ORIGINS.length ? ALLOWED_ORIGINS : true,
+    secrets: [RESEND_API_KEY], // ← Resend のAPIキーを Secrets から
+  },
+  async (req) => {
+    const uid = req.auth?.uid;
+    if (!uid) {
+      throw new HttpsError('unauthenticated', 'Sign-in required');
+    }
+
+    const storeName = String(req.data?.storeName ?? '').trim();
+    const agentCode = String(req.data?.agentCode ?? '').trim(); // 任意
+    const explicitTo = String(req.data?.to ?? '').trim();       // 任意（宛先上書き）
+
+    if (!storeName) {
+      throw new HttpsError('invalid-argument', 'storeName is required');
+    }
+
+    // 宛先決定：指定がなければ認証ユーザーのメール
+    let to = explicitTo;
+    if (!to) {
+      const user = await admin.auth().getUser(uid);
+      if (!user.email) {
+        throw new HttpsError('failed-precondition', 'User email not found');
+      }
+      to = user.email.toLowerCase();
+    }
+
+    // 1) Firestore: 本体ドキュメントを draft で作成
+    const tenantsCol = db.collection(uid);
+    const newRef = tenantsCol.doc(); // 自動ID
+    const tenantId = newRef.id;
+
+    const now = admin.firestore.FieldValue.serverTimestamp();
+
+     
+
+    // 2) メール送信（Resend）
+    try {
+      const { Resend } = await import('resend');
+      const resend = new Resend(RESEND_API_KEY.value());
+
+      const subject = '【TIPRIチップリ】新しい店舗が追加されました。';
+      const text = [
+        'チップリをご利用いただきありがとうございます。',
+        '新しい店舗が追加されたのでお知らせ致します。',
+        '',
+        `【店舗名】${storeName}`,
+        '',
+        '▼ログインはコチラ',
+        'http://tipri.jp',
+        '',
+        '今後とも宜しくお願い致します。',
+        '',
+        '▼使い方はコチラ',
+        'https://www.zotman.jp/tipri',
+        '',
+        '▼お問い合わせはコチラ',
+        '56@zotman.jp',
+        '',
+        '-------------------------------',
+        '株式会社ZOTMAN',
+        '56@zotman.jp',
+      ].join('\n');
+
+      const esc = (s: string) => (typeof escapeHtml === 'function' ? escapeHtml(s) : s);
+
+      const html = `
+<div style="font-family: system-ui,-apple-system,Segoe UI,Roboto,'Hiragino Kaku Gothic ProN','Yu Gothic',Meiryo,Arial; line-height:1.7; color:#111;">
+  <p>チップリをご利用いただきありがとうございます。<br/>新しい店舗が追加されたのでお知らせ致します。</p>
+  <p><strong>【店舗名】${esc(storeName)}</strong></p>
+  <p>▼ログインはコチラ<br/>
+    <a href="http://tipri.jp" target="_blank" rel="noopener">http://tipri.jp</a>
+  </p>
+  <p>今後とも宜しくお願い致します。</p>
+  <p>▼使い方はコチラ<br/>
+    <a href="https://www.zotman.jp/tipri" target="_blank" rel="noopener">https://www.zotman.jp/tipri</a>
+  </p>
+  <p>▼お問い合わせはコチラ<br/>
+    <a href="mailto:56@zotman.jp">56@zotman.jp</a>
+  </p>
+  <hr style="border:none; border-top:1px solid #ddd; margin:16px 0;" />
+  <p>株式会社ZOTMAN<br/>
+    <a href="mailto:56@zotman.jp">56@zotman.jp</a>
+  </p>
+</div>`.trim();
+
+      await resend.emails.send({
+        from: 'TIPRI チップリ <noreply@appfromkomeda.jp>',
+        to: [to],                 // 配列OK
+        subject,
+        text,
+        html,
+        
+      });
+
+      return { ok: true, tenantId, emailSent: true };
+    } catch (mailErr) {
+      console.warn('[createTenantAndNotify] mail failed:', mailErr);
+      // 店舗作成は完了しているので、メール失敗は partial success として返す
+      return { ok: true, tenantId, emailSent: false };
+    }
+  },
+);
+
+export const sendSignupLoginInstruction = onCall(
+  {
+    region: 'us-central1',
+    memory: '256MiB',
+    cors: true,                 // 必要なら ALLOWED_ORIGINS に差し替え
+    secrets: [RESEND_API_KEY],
+  },
+  async (req) => {
+    // 1) 入力取得
+    const explicitTo = String(req.data?.to ?? '').trim().toLowerCase();
+    const loginUrl   = String(req.data?.loginUrl ?? '').trim(); // 例: "https://tipri.jp/#/login"
+    const displayName = String(req.data?.displayName ?? '').trim(); // 任意：本文用
+
+    // 2) 宛先の決定ロジック
+    //   - 認証があれば auth の email を優先的に使う（ただし Sign-up 直後は email 未検証でも良い）
+    //   - 認証が無い or email が取れない場合、明示指定された `to` を使用
+    let to = '';
+    const uid = req.auth?.uid || '';
+    if (uid) {
+      try {
+        const user = await admin.auth().getUser(uid);
+        if (user.email) to = user.email.toLowerCase();
+      } catch { /* ignore */ }
+    }
+    if (!to) to = explicitTo;
+
+    // 3) バリデーション
+    if (!to) {
+      throw new HttpsError('invalid-argument', '`to` is required when unauthenticated');
+    }
+    if (!loginUrl || !/^https?:\/\//i.test(loginUrl)) {
+      throw new HttpsError('invalid-argument', '`loginUrl` must be an absolute http(s) URL');
+    }
+
+    const subject = '【TIPRIチップリ】ログインについて';
+    const greet = displayName ? `${displayName} 様` : 'ご担当者様';
+
+    const text = [
+      `${greet}`,
+      'チップリにご登録いただきありがとうございます。',
+      '別件で【認証URL】が送信されていますので受信メールを確認し指示に従い認証を完了させてください。',
+      '※別件でメールが送信されています。',
+      '',
+      '【認証完了後】',
+      '▼ログインして店舗追加を行なってください',
+      loginUrl,
+      '',
+      '【チップ振込口座の登録】',
+      '口座登録がお済みでない方は口座の登録を行なってください。',
+      '',
+      '今後とも宜しくお願い致します。',
+      '',
+      '▼使い方はコチラ',
+      'https://www.zotman.jp/tipri',
+      '',
+      '▼お問い合わせはコチラ',
+      '56@zotman.jp',
+      '',
+      '-------------------------------',
+      '株式会社ZOTMAN',
+      '56@zotman.jp',
+    ].join('\n');
+
+    const esc = (s: string) =>
+      s.replace(/[&<>"']/g, (m) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]!));
+
+    const html = `
+<div style="font-family: system-ui,-apple-system,Segoe UI,Roboto,'Hiragino Kaku Gothic ProN','Yu Gothic',Meiryo,Arial; line-height:1.7; color:#111;">
+  <p>${esc(greet)}</p>
+  <p>チップリにご登録いただきありがとうございます。<br/>
+  別件で【認証URL】が送信されていますので受信メールを確認し指示に従い認証を完了させてください。<br/>
+  ※別件でメールが送信されています。</p>
+
+  <p><strong>【認証完了後】</strong><br/>
+  ▼ログインして店舗追加を行なってください<br/>
+  <a href="${esc(loginUrl)}" target="_blank" rel="noopener">${esc(loginUrl)}</a></p>
+
+  <p><strong>【チップ振込口座の登録】</strong><br/>
+  口座登録がお済みでない方は口座の登録を行なってください。</p>
+
+  <p>今後とも宜しくお願い致します。</p>
+
+  <p>▼使い方はコチラ<br/>
+    <a href="https://www.zotman.jp/tipri" target="_blank" rel="noopener">https://www.zotman.jp/tipri</a></p>
+
+  <p>▼お問い合わせはコチラ<br/>
+    <a href="mailto:56@zotman.jp">56@zotman.jp</a></p>
+
+  <hr style="border:none; border-top:1px solid #ddd; margin:16px 0;" />
+  <p>株式会社ZOTMAN<br/>
+    <a href="mailto:56@zotman.jp">56@zotman.jp</a></p>
+</div>`.trim();
+
+    try {
+      const { Resend } = await import('resend');
+      const resend = new Resend(RESEND_API_KEY.value());
+      await resend.emails.send({
+        from: 'TIPRI チップリ <noreply@appfromkomeda.jp>', // Resend 認証済みドメイン
+        to: [to],
+        subject,
+        text,
+        html,
+      });
+
+      // 任意：監査ログ（濫用監視用）
+      // await admin.firestore().collection('mailLogs').add({
+      //   kind: 'signupLoginInstruction',
+      //   to, uid: uid || null, loginUrl, ts: admin.firestore.FieldValue.serverTimestamp(),
+      // });
+
+      return { ok: true };
+    } catch (e) {
+      console.warn('[sendSignupLoginInstruction] Resend failed:', e);
+      throw new HttpsError('internal', 'Failed to send email');
+    }
+  }
+);

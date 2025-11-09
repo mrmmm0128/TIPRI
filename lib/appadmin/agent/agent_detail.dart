@@ -242,6 +242,7 @@ class _AgencyDetailPageState extends State<AgencyDetailPage> {
   }
 
   Future<void> _openConnectPortal(BuildContext context) async {
+    setState(() => _onboardingBusy = true);
     try {
       final fn = FirebaseFunctions.instanceFor(
         region: 'us-central1',
@@ -273,6 +274,8 @@ class _AgencyDetailPageState extends State<AgencyDetailPage> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('リンク作成に失敗：$e')));
+    } finally {
+      setState(() => _onboardingBusy = false);
     }
   }
 
@@ -527,19 +530,37 @@ class _AgencyDetailPageState extends State<AgencyDetailPage> {
         'email': email,
       });
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('パスワードを設定しました')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'パスワードを設定しました',
+            style: TextStyle(color: Colors.white, fontFamily: "LINEseed"),
+          ),
+          backgroundColor: brandYellow,
+        ),
+      );
     } on FirebaseFunctionsException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('設定に失敗：${e.message ?? e.code}')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'システムエラーにより、パスワード設定に失敗しました',
+            style: TextStyle(color: Colors.white, fontFamily: "LINEseed"),
+          ),
+          backgroundColor: brandYellow,
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('設定に失敗：$e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'システムエラーにより、パスワード設定に失敗しました',
+            style: TextStyle(color: Colors.white, fontFamily: "LINEseed"),
+          ),
+          backgroundColor: brandYellow,
+        ),
+      );
     }
   }
 
@@ -563,18 +584,6 @@ class _AgencyDetailPageState extends State<AgencyDetailPage> {
     String status = (current['status'] ?? 'active').toString();
 
     const brandYellow = Color(0xFFFCC400);
-
-    // 入力用: 統一スタイル
-    InputDecoration deco(String label) => InputDecoration(
-      labelText: label,
-      isDense: true,
-      enabledBorder: const OutlineInputBorder(
-        borderSide: BorderSide(color: Colors.black, width: 3),
-      ),
-      focusedBorder: const OutlineInputBorder(
-        borderSide: BorderSide(color: Colors.black, width: 3),
-      ),
-    );
 
     final ok = await showDialog<bool>(
       context: context,
@@ -786,6 +795,13 @@ class _AgencyDetailPageState extends State<AgencyDetailPage> {
       'status': status,
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('設定が完了しました', style: TextStyle(fontFamily: 'LINEseed')),
+        backgroundColor: Color(0xFFFCC400),
+      ),
+    );
   }
 
   @override
@@ -949,8 +965,10 @@ class _AgencyDetailPageState extends State<AgencyDetailPage> {
 
                   // CTAアクション
                   final VoidCallback? ctaAction = switch (cState) {
-                    _ConnectState.complete => () => _openConnectPortal(ctx),
-                    _ConnectState.processing => () => _openConnectPortal(ctx),
+                    _ConnectState.complete =>
+                      () => _onboardingBusy ? null : _openConnectPortal(ctx),
+                    _ConnectState.processing =>
+                      () => _onboardingBusy ? null : _openConnectPortal(ctx),
                     _ConnectState.needAction =>
                       _onboardingBusy
                           ? null

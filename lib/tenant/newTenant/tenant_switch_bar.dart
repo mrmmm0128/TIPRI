@@ -275,6 +275,10 @@ class _TenantSwitcherBarState extends State<TenantSwitcherBar> {
         child: WillPopScope(
           onWillPop: () async => false,
           child: AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: const BorderRadius.all(Radius.circular(16)),
+              side: const BorderSide(color: Colors.black, width: 3), // ← 太い黒枠
+            ),
             backgroundColor: const Color(0xFFF5F5F5),
             surfaceTintColor: Colors.transparent,
             titleTextStyle: const TextStyle(
@@ -362,10 +366,11 @@ class _TenantSwitcherBarState extends State<TenantSwitcherBar> {
               FilledButton(
                 onPressed: () => Navigator.pop(context, true),
                 style: FilledButton.styleFrom(
-                  backgroundColor: Colors.black,
-                  foregroundColor: Colors.white,
+                  backgroundColor: Color(0xFFFCC400), // 主ボタンは黒地に白文字
+                  foregroundColor: Colors.black,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(width: 3, color: Colors.black),
                   ),
                 ),
                 child: const Text(
@@ -436,6 +441,12 @@ class _TenantSwitcherBarState extends State<TenantSwitcherBar> {
       'updatedAt': FieldValue.serverTimestamp(),
       'agency': {'code': agentCode, 'linked': false},
     }, SetOptions(merge: true));
+
+    final callable = _functions.httpsCallable('createTenantAndNotify');
+    final resp = await callable.call({
+      'storeName': name,
+      if (agentCode.isNotEmpty) 'agentCode': agentCode,
+    });
 
     // ❸ 代理店リンク（見つかった場合のみ実施）
     if (shouldTryLinkAgency) {

@@ -224,24 +224,18 @@ class _StoreHomeTabState extends State<StoreHomeTab> {
     }
   }
 
+  // ==== 1) 既存の _pickCustomRange を “まるっと”置換 ====
+  //
+  // 使い方はそのまま：await _pickCustomRange();
+  // 選択結果は _mode = _RangeMode.custom / _customRange に反映されます。
+
   Future<void> _pickCustomRange() async {
-    final now = DateTime.now();
-    final picked = await showDateRangePicker(
-      context: context,
-      firstDate: DateTime(now.year - 5),
-      lastDate: DateTime(now.year + 1),
-      initialDateRange:
-          _customRange ??
-          DateTimeRange(start: DateTime(now.year, now.month, 1), end: now),
-      builder: (context, child) => Theme(
-        data: Theme.of(context).copyWith(
-          colorScheme: Theme.of(context).colorScheme.copyWith(
-            primary: Colors.black,
-            onPrimary: Colors.white,
-          ),
-        ),
-        child: child!,
-      ),
+    final picked = await _openCustomRangeSheet(
+      context,
+      initial: _customRange,
+      firstDate: DateTime(DateTime.now().year - 5),
+      lastDate: DateTime(DateTime.now().year + 1),
+      accent: const Color(0xFFFCC400),
     );
     if (picked != null) {
       setState(() {
@@ -251,7 +245,321 @@ class _StoreHomeTabState extends State<StoreHomeTab> {
     }
   }
 
-  // ===== PDF（現在の期間＆“除外されていない”スタッフのみ反映）=====
+  Future<DateTimeRange?> _openCustomRangeSheet(
+    BuildContext context, {
+    DateTimeRange? initial,
+    required DateTime firstDate,
+    required DateTime lastDate,
+    Color accent = const Color(0xFFFCC400), // ブランド黄
+  }) async {
+    DateTime? start = initial?.start;
+    DateTime? end = initial?.end;
+    DateTime displayed = (initial?.start ?? DateTime.now());
+
+    DateTime _at00(DateTime d) => DateTime(d.year, d.month, d.day);
+    bool _sameDay(DateTime a, DateTime b) =>
+        a.year == b.year && a.month == b.month && a.day == b.day;
+
+    DateTime _clampDate(DateTime d) {
+      final dd = _at00(d);
+      if (dd.isBefore(_at00(firstDate))) return _at00(firstDate);
+      if (dd.isAfter(_at00(lastDate))) return _at00(lastDate);
+      return dd;
+    }
+
+    return showModalBottomSheet<DateTimeRange>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setLocal) {
+            void setRange(DateTime? s, DateTime? e) => setLocal(() {
+              start = s;
+              end = e;
+            });
+
+            // 範囲選択ロジック（開始→終了）
+            void onSelect(DateTime day) {
+              final d = _clampDate(day);
+              if (start == null || (start != null && end != null)) {
+                setRange(d, null);
+              } else {
+                if (d.isBefore(start!)) {
+                  setRange(d, start);
+                } else if (_sameDay(d, start!)) {
+                  setRange(d, d); // 単日
+                } else {
+                  setRange(start, d);
+                }
+              }
+            }
+
+            void clearRange() => setRange(null, null);
+            bool canConfirm = (start != null && end != null);
+
+            Future<void> confirm() async {
+              if (!canConfirm) return;
+              await Future<void>.delayed(Duration.zero);
+              if (Navigator.canPop(ctx)) {
+                Navigator.pop(ctx, DateTimeRange(start: start!, end: end!));
+              }
+            }
+
+            String _ym(DateTime d) => '${d.year}年${d.month}月';
+            List<String> wk = const ['日', '月', '火', '水', '木', '金', '土'];
+
+            // 表示月の先頭（日曜始まり）を計算
+            DateTime firstOfMonth = DateTime(
+              displayed.year,
+              displayed.month,
+              1,
+            );
+            int offset = firstOfMonth.weekday % 7; // Mon=1..Sun=7 → Sun=0
+            DateTime gridStart = firstOfMonth.subtract(Duration(days: offset));
+
+            // ナビゲーション
+            void _prevMonth() {
+              final d = DateTime(displayed.year, displayed.month - 1, 1);
+              setLocal(() => displayed = _clampDate(d));
+            }
+
+            void _nextMonth() {
+              final d = DateTime(displayed.year, displayed.month + 1, 1);
+              setLocal(() => displayed = _clampDate(d));
+            }
+
+            // ボタン共通スタイル
+            final ButtonStyle primaryBtnStyle = FilledButton.styleFrom(
+              backgroundColor: accent,
+              foregroundColor: Colors.black,
+              minimumSize: const Size.fromHeight(44),
+              textStyle: const TextStyle(fontWeight: FontWeight.w700),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              side: const BorderSide(color: Colors.black, width: 3),
+            );
+
+            Widget buildDayCell(DateTime day) {
+              final d = _at00(day);
+              final isDisabled =
+                  d.isBefore(_at00(firstDate)) || d.isAfter(_at00(lastDate));
+              final inThisMonth = d.month == displayed.month;
+
+              final isStart = (start != null) && _sameDay(d, start!);
+              final isEnd = (end != null) && _sameDay(d, end!);
+              final selected = isStart || isEnd;
+
+              final inRange =
+                  (start != null &&
+                  end != null &&
+                  d.isAfter(_at00(start!)) &&
+                  d.isBefore(_at00(end!)));
+
+              // テキスト色
+              final baseTextColor = isDisabled
+                  ? Colors.black26
+                  : (inThisMonth ? Colors.black87 : Colors.black38);
+              final textColor = selected ? Colors.black : baseTextColor;
+
+              return GestureDetector(
+                onTap: isDisabled ? null : () => onSelect(d),
+                child: Container(
+                  // ★ 丸は使わず、背景だけで表現
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? accent
+                        : (inRange
+                              ? accent.withOpacity(0.25)
+                              : Colors.transparent),
+                    borderRadius: BorderRadius.circular(12),
+                    border: selected
+                        ? Border.all(color: Colors.black, width: 2)
+                        : null,
+                  ),
+                  alignment: Alignment.center,
+                  margin: const EdgeInsets.all(2),
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Text(
+                    '${d.day}',
+                    style: TextStyle(
+                      fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                      color: textColor,
+                    ),
+                  ),
+                ),
+              );
+            }
+
+            return SafeArea(
+              child: Padding(
+                padding: EdgeInsets.only(
+                  left: 16,
+                  right: 16,
+                  top: 12,
+                  bottom: MediaQuery.of(ctx).viewInsets.bottom + 12,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // ハンドル
+                    Container(
+                      height: 4,
+                      width: 40,
+                      margin: const EdgeInsets.only(bottom: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.black12,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    // ヘッダ（前月/次月/閉じる）
+                    Row(
+                      children: [
+                        IconButton(
+                          tooltip: '前の月',
+                          icon: const Icon(Icons.chevron_left),
+                          onPressed: _prevMonth,
+                        ),
+                        Expanded(
+                          child: Center(
+                            child: Text(
+                              _ym(displayed),
+                              style: const TextStyle(
+                                fontFamily: 'LINEseed',
+                                fontWeight: FontWeight.w700,
+                                fontSize: 16,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: '次の月',
+                          icon: const Icon(Icons.chevron_right),
+                          onPressed: _nextMonth,
+                        ),
+                        IconButton(
+                          tooltip: '閉じる',
+                          icon: const Icon(Icons.close),
+                          onPressed: () => Navigator.pop(ctx),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+
+                    // 選択中ラベル
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        () {
+                          if (start == null && end == null) return '期間が未選択';
+                          if (start != null && end == null) {
+                            final s = start!;
+                            return '開始: ${s.year}/${s.month.toString().padLeft(2, '0')}/${s.day.toString().padLeft(2, '0')}（終了を選択）';
+                          }
+                          final s = start!;
+                          final e = end!;
+                          return '${s.year}/${s.month.toString().padLeft(2, '0')}/${s.day.toString().padLeft(2, '0')} 〜 '
+                              '${e.year}/${e.month.toString().padLeft(2, '0')}/${e.day.toString().padLeft(2, '0')}';
+                        }(),
+                        style: const TextStyle(
+                          fontFamily: 'LINEseed',
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // 曜日見出し（Sun〜Sat）
+                    Row(
+                      children: List.generate(7, (i) {
+                        return Expanded(
+                          child: Center(
+                            child: Text(
+                              wk[i],
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: i == 0
+                                    ? Colors.redAccent
+                                    : (i == 6
+                                          ? Colors.blueAccent
+                                          : Colors.black87),
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+                    ),
+                    const SizedBox(height: 6),
+
+                    // 月グリッド（6行×7列）
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: List.generate(6, (row) {
+                        return Row(
+                          children: List.generate(7, (col) {
+                            final idx = row * 7 + col;
+                            final day = gridStart.add(Duration(days: idx));
+                            return Expanded(child: buildDayCell(day));
+                          }),
+                        );
+                      }),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    // アクション
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: clearRange,
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size.fromHeight(44),
+                              foregroundColor: Colors.black87,
+                              side: const BorderSide(
+                                color: Colors.black87,
+                                width: 1.6,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text('クリア'),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          flex: 2,
+                          child: FilledButton.icon(
+                            style: primaryBtnStyle,
+                            onPressed: canConfirm
+                                ? () async => confirm()
+                                : null,
+                            icon: const Icon(Icons.check),
+                            label: const Text(
+                              'この期間で確定',
+                              style: TextStyle(fontFamily: 'LINEseed'),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Future<void> _exportMonthlyReportPdf() async {
     try {
       setState(() => loading = true);
@@ -262,7 +570,7 @@ class _StoreHomeTabState extends State<StoreHomeTab> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              '期間を選択してください（今日/昨日/今月/先月/月選択/期間指定）',
+              '期間を選択してください',
               style: TextStyle(fontFamily: 'LINEseed'),
             ),
             backgroundColor: Color(0xFFFCC400),
@@ -322,7 +630,7 @@ class _StoreHomeTabState extends State<StoreHomeTab> {
       }
 
       // Stripe手数料の推定（保存が無い古いレコード用）
-      int _estimateStripeFee(int v) => (v * 34) ~/ 1000;
+      int estimateStripeFee(int v) => (v * 34) ~/ 1000;
 
       // 集計
       int totalGross = 0; // 全体の実額合計
@@ -358,7 +666,7 @@ class _StoreHomeTabState extends State<StoreHomeTab> {
         // Stripe手数料（保存があればそれを使用／無ければ推定2.4%）
         final stripeFeeStored =
             ((feesMap?['stripe'] as Map?)?['amount'] as num?)?.toInt();
-        final stripeFee = stripeFeeStored ?? _estimateStripeFee(amount);
+        final stripeFee = stripeFeeStored ?? estimateStripeFee(amount);
         if (stripeFeeStored == null) anyStripeEstimated = true;
 
         // 店舗控除（split.storeAmount -> applied値 -> 現行設定）
@@ -485,10 +793,6 @@ class _StoreHomeTabState extends State<StoreHomeTab> {
                 '店舗: $tenant    対象期間: $periodLabel',
                 style: const pw.TextStyle(fontSize: 10),
               ),
-              // pw.Text(
-              //   '支払予定日: $payoutDatesLabel（翌月１日）',
-              //   style: const pw.TextStyle(fontSize: 10),
-              // ),
               if (anyStripeEstimated)
                 pw.Padding(
                   padding: const pw.EdgeInsets.only(top: 4),
@@ -784,21 +1088,29 @@ class _StoreHomeTabState extends State<StoreHomeTab> {
               child: FittedBox(
                 fit: BoxFit.scaleDown,
                 child: FilledButton.icon(
-                  onPressed: _onTapExportMonthlyReport,
-                  icon: const Icon(Icons.receipt_long, size: 25),
-                  // ラベルは少しだけ短くして横幅を節約（処理は同じ）
+                  onPressed: _exporting ? null : _onTapExportMonthlyReport,
+                  icon: _exporting
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 3,
+                            color: Colors.black, // 黄背景に合う
+                          ),
+                        )
+                      : const Icon(Icons.receipt_long, size: 25),
                   label: const Text('明細'),
                   style: FilledButton.styleFrom(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
                       vertical: 12,
                     ),
-                    backgroundColor: Color(0xFFFCC400),
+                    backgroundColor: const Color(0xFFFCC400),
                     foregroundColor: Colors.black,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    side: BorderSide(color: Colors.black, width: 3),
+                    side: const BorderSide(color: Colors.black, width: 3),
                   ),
                 ),
               ),

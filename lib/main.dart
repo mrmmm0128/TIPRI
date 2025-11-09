@@ -4,7 +4,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_web_plugins/flutter_web_plugins.dart';
-import 'package:easy_localization/easy_localization.dart';
 import 'package:yourpay/appadmin/admin_dashboard_screen.dart';
 import 'package:yourpay/appadmin/agent/agent_login.dart';
 import 'package:yourpay/tenant/bootGate.dart';
@@ -79,9 +78,8 @@ final ThemeData _monochromeLightTheme = ThemeData(
 Future<void> main() async {
   setUrlStrategy(const HashUrlStrategy());
   WidgetsFlutterBinding.ensureInitialized();
-  await EasyLocalization.ensureInitialized();
+
   await Firebase.initializeApp(options: web);
-  // await _connectToEmulatorsIfDebug();
 
   // 画面が真っ白になっても原因が見えるように
   ErrorWidget.builder = (FlutterErrorDetails details) {
@@ -105,29 +103,7 @@ Future<void> main() async {
     );
   };
 
-  runZonedGuarded(
-    () {
-      runApp(
-        EasyLocalization(
-          supportedLocales: const [
-            Locale('en'),
-            Locale('ja'),
-            Locale('ko'),
-            Locale('zh'),
-          ],
-          path: 'assets/translations',
-          fallbackLocale: const Locale('en'),
-          useOnlyLangCode: true,
-          child: const MyApp(),
-        ),
-      );
-    },
-    (error, stack) {
-      // Webのコンソールにも確実に出す
-      // ignore: avoid_print
-      print('Uncaught zone error: $error\n$stack');
-    },
-  );
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
@@ -164,13 +140,8 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
 
-      localizationsDelegates: context.localizationDelegates,
-      supportedLocales: context.supportedLocales,
-      locale: context.locale,
-
-      // ★ 白黒固定テーマを適用（機能は無変更）
       theme: _monochromeLightTheme,
-      themeMode: ThemeMode.light, // ブラウザのダーク設定に影響されない
+      themeMode: ThemeMode.light,
 
       onGenerateRoute: _onGenerateRoute,
     );

@@ -9,8 +9,8 @@ import 'package:url_launcher/url_launcher_string.dart';
 import 'package:flutter/services.dart';
 
 class OnboardingSheet extends StatefulWidget {
-  final String tenantId; // tempTenantId（createTenantDialogで採番した予約ID）
-  final String tenantName; // 入力済みの店舗名
+  final String tenantId;
+  final String tenantName;
   final FirebaseFunctions functions;
   const OnboardingSheet({
     super.key,
@@ -302,19 +302,19 @@ class OnboardingSheetState extends State<OnboardingSheet> {
                     ),
                   ),
                 ),
-                Expanded(
-                  flex: 2,
-                  child: Center(
-                    child: Text(
-                      'B',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        fontFamily: 'LINEseed',
-                      ),
-                    ),
-                  ),
-                ),
+                // Expanded(
+                //   flex: 2,
+                //   child: Center(
+                //     child: Text(
+                //       'B',
+                //       style: TextStyle(
+                //         fontWeight: FontWeight.w800,
+                //         color: Colors.white,
+                //         fontFamily: 'LINEseed',
+                //       ),
+                //     ),
+                //   ),
+                // ),
                 Expanded(
                   flex: 2,
                   child: Center(
@@ -350,13 +350,13 @@ class OnboardingSheetState extends State<OnboardingSheet> {
                       align: TextAlign.center,
                     ),
                   ),
-                  Expanded(
-                    flex: 2,
-                    child: cellBody(
-                      mark(r.included['B'] == true),
-                      align: TextAlign.center,
-                    ),
-                  ),
+                  // Expanded(
+                  //   flex: 2,
+                  //   child: cellBody(
+                  //     mark(r.included['B'] == true),
+                  //     align: TextAlign.center,
+                  //   ),
+                  // ),
                   Expanded(
                     flex: 2,
                     child: cellBody(
@@ -1087,9 +1087,10 @@ class OnboardingSheetState extends State<OnboardingSheet> {
   }) {
     // 画像の表記に寄せたラインナップ（数は自由でOK）
     const plans = <_Plan>[
-      _Plan(code: 'A', title: 'Aプラン', monthly: 0, feePct: 35),
-      _Plan(code: 'B', title: 'Bプラン', monthly: 3980, feePct: 25),
-      _Plan(code: 'C', title: 'Cプラン', monthly: 9800, feePct: 15),
+      // 11/29モリタ変更　プラン改定に伴いチップ手数料の変更＆プランBのコメントアウト
+      _Plan(code: 'A', title: 'Aプラン', monthly: 0, feePct: 50),
+      // _Plan(code: 'B', title: 'Bプラン', monthly: 3980, feePct: 25),
+      _Plan(code: 'C', title: 'Cプラン', monthly: 9800, feePct: 30),
     ];
     final bool trialOnlyC = trialStatus != "none"; // ← トライアル有効なら true
 

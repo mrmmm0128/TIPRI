@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:yourpay/tenant/method/logout.dart';
 import 'package:yourpay/tenant/newTenant/tenant_switch_bar_drawer.dart';
 import 'package:yourpay/tenant/store_detail/tabs/srore_home_tab.dart';
 import 'package:yourpay/tenant/store_detail/tabs/store_qr_tab.dart';
@@ -12,6 +13,8 @@ import 'package:yourpay/tenant/store_detail/tabs/store_setting_tab.dart';
 import 'package:yourpay/tenant/store_detail/tabs/store_staff_tab.dart';
 import 'package:yourpay/tenant/newTenant/tenant_switch_bar.dart';
 import 'package:yourpay/tenant/newTenant/onboardingSheet.dart';
+import 'package:yourpay/tenant/widget/store_detail/alert_dialog.dart';
+import 'package:yourpay/tenant/widget/store_detail/initialfee_cashback.dart';
 
 class StoreDetailScreen extends StatefulWidget {
   const StoreDetailScreen({super.key});
@@ -40,7 +43,6 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
 
   String? tenantId;
   String? tenantName;
-  bool _loggingOut = false;
   String? ownerUid;
   bool invited = false;
 
@@ -58,9 +60,26 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
   String? _pendingStripeEvt;
   String? _pendingStripeTenant;
   late User user;
+  bool _initialFeePopupChecked = false; // このテナントで一度チェック済みか
+  bool _showInitialFeePopup = false; // 実際に表示するかどうか
+
+  bool _accountSetting = false;
 
   // 初期テナント解決用 Future（※毎buildで新規作成しない）
   Future<Map<String, String?>?>? _initialTenantFuture;
+
+  Future<void> initialize() async {
+    final doc = await FirebaseFirestore.instance
+        .collection(ownerUid!) // ← コレクション名は合わせて
+        .doc(tenantId)
+        .get();
+
+    final data = doc.data();
+    print(tenantId);
+
+    _accountSetting = data != null && data.containsKey('account_cashback');
+    print(_accountSetting);
+  }
 
   // ====== 追加：未読数ストリーム ======
   Stream<int>? _unreadCountStream(String ownerUid, String tenantId) {
@@ -78,341 +97,27 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
     }
   }
 
-  Future<void> _openAlertsPanel() async {
-    final tid = tenantId;
-    if (tid == null) return;
+  Future<void> _loadAndMaybeShowInitialFeePopup() async {
+    if (tenantId == null || ownerUid == null) return;
 
-    // 1) ownerUid を tenantIndex から取得（招待テナント対応）
-    String? ownerUidResolved;
     try {
-      final idx = await FirebaseFirestore.instance
-          .collection('tenantIndex')
-          .doc(tid)
+      final doc = await FirebaseFirestore.instance
+          .collection(ownerUid!) // オーナーごとのコレクション
+          .doc(tenantId!)
           .get();
-      ownerUidResolved = idx.data()?['uid'] as String?;
-    } catch (_) {}
-    // 自分オーナーのケースのフォールバック
-    ownerUidResolved ??= FirebaseAuth.instance.currentUser?.uid;
 
-    if (ownerUidResolved == null) {
+      final data = doc.data();
+      final initialFee = data?['initial_fee'] == true;
+
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            '通知の取得に失敗しました',
-            style: TextStyle(fontFamily: 'LINEseed'),
-          ),
-          backgroundColor: Color(0xFFFCC400),
-        ),
-      );
-      return;
-    }
-
-    final col = FirebaseFirestore.instance
-        .collection(ownerUidResolved)
-        .doc(tid)
-        .collection('alerts');
-
-    // 2) 一覧（未読は強調表示）。開いただけでは既読にしない。
-    if (!mounted) return;
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) {
-        return SafeArea(
-          right: true,
-          left: true,
-          minimum: EdgeInsets.all(6),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  height: 4,
-                  width: 40,
-                  margin: const EdgeInsets.only(bottom: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.black12,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                Row(
-                  children: [
-                    const Text(
-                      'お知らせ',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        fontFamily: 'LINEseed',
-                      ),
-                    ),
-                    const Spacer(),
-                    TextButton.icon(
-                      onPressed: () async {
-                        // すべて既読
-                        final qs = await col
-                            .where('read', isEqualTo: false)
-                            .get();
-                        final batch = FirebaseFirestore.instance.batch();
-                        for (final d in qs.docs) {
-                          batch.set(d.reference, {
-                            'read': true,
-                            'readAt': FieldValue.serverTimestamp(),
-                            'updatedAt': FieldValue.serverTimestamp(),
-                          }, SetOptions(merge: true));
-                        }
-                        await batch.commit();
-                        if (ctx.mounted) Navigator.pop(ctx);
-                      },
-                      icon: const Icon(Icons.done_all),
-                      label: const Text('すべて既読'),
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.black87,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Flexible(
-                  child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                    stream: col
-                        .orderBy('createdAt', descending: true)
-                        .limit(100)
-                        .snapshots(),
-                    builder: (ctx, snap) {
-                      if (snap.connectionState == ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-                      if (snap.hasError) {
-                        return Center(child: Text('読み込みエラー: ${snap.error}'));
-                      }
-                      final docs = snap.data?.docs ?? const [];
-                      if (docs.isEmpty) {
-                        return const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 24),
-                          child: Text('新しいお知らせはありません'),
-                        );
-                      }
-
-                      return ListView.separated(
-                        shrinkWrap: true,
-                        itemCount: docs.length,
-                        separatorBuilder: (_, __) => const Divider(height: 1),
-                        itemBuilder: (ctx, i) {
-                          final d = docs[i];
-                          final m = d.data();
-                          final msg =
-                              (m['message'] as String?)?.trim() ?? 'お知らせ';
-                          final read = (m['read'] as bool?) ?? false;
-                          final createdAt = m['createdAt'];
-                          String when = '';
-                          if (createdAt is Timestamp) {
-                            final dt = createdAt.toDate().toLocal();
-                            when =
-                                '${dt.year}/${dt.month.toString().padLeft(2, '0')}/${dt.day.toString().padLeft(2, '0')} '
-                                '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-                          }
-
-                          return ListTile(
-                            leading: Icon(
-                              read
-                                  ? Icons.notifications_none
-                                  : Icons.notifications_active,
-                              color: read ? Colors.black45 : Colors.orange,
-                            ),
-                            title: Text(
-                              msg,
-                              style: TextStyle(
-                                fontFamily: 'LINEseed',
-                                fontWeight: read
-                                    ? FontWeight.w500
-                                    : FontWeight.w700,
-                                color: Colors.black87,
-                              ),
-                            ),
-                            subtitle: when.isEmpty ? null : Text(when),
-                            dense: true,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 0,
-                              vertical: 6,
-                            ),
-                            onTap: () => _openAlertDetailAndMarkRead(
-                              docRef: d.reference,
-                              data: m,
-                            ),
-                          );
-                        },
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  // ====== 追加：通知詳細シート + 個別既読化 ======
-  Future<void> _openAlertDetailAndMarkRead({
-    required DocumentReference<Map<String, dynamic>> docRef,
-    required Map<String, dynamic> data,
-  }) async {
-    // 個別既読化
-    try {
-      await docRef.set({
-        'read': true,
-        'readAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-    } catch (_) {}
-
-    if (!mounted) return;
-
-    final msg = (data['message'] as String?)?.trim() ?? 'お知らせ';
-    final title = (data['title'] as String?)?.trim() ?? 'タイトル';
-    final details = (data['details'] as String?)?.trim(); // 任意の詳細が入る想定
-    final payload = (data['payload'] as Map?)
-        ?.cast<String, dynamic>(); // 追加情報がある場合
-    final createdAt = data['createdAt'];
-    String when = '';
-    if (createdAt is Timestamp) {
-      final dt = createdAt.toDate().toLocal();
-      when =
-          '${dt.year}/${dt.month.toString().padLeft(2, '0')}/${dt.day.toString().padLeft(2, '0')} '
-          '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-    }
-
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) {
-        final size = MediaQuery.of(ctx).size;
-        final maxW = size.width < 480 ? size.width : 560.0;
-        final maxH = size.height * 0.8;
-
-        return SafeArea(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: maxW, maxHeight: maxH),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.notifications, color: Colors.black87),
-                        const SizedBox(width: 8),
-                        Text(
-                          title,
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            fontFamily: 'LINEseed',
-                          ),
-                        ),
-                        const Spacer(),
-                        IconButton(
-                          onPressed: () => Navigator.pop(ctx),
-                          icon: const Icon(Icons.close),
-                        ),
-                      ],
-                    ),
-                    const Divider(height: 16),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        msg,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          fontFamily: 'LINEseed',
-                        ),
-                      ),
-                    ),
-                    if (when.isNotEmpty) ...[
-                      const SizedBox(height: 6),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          when,
-                          style: const TextStyle(color: Colors.black54),
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 12),
-                    Flexible(
-                      child: SingleChildScrollView(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (details != null && details.isNotEmpty) ...[
-                              Text(
-                                details,
-                                style: const TextStyle(
-                                  color: Colors.black87,
-                                  height: 1.4,
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                            ],
-                            if (payload != null && payload.isNotEmpty) ...[
-                              const Text(
-                                '詳細情報',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.black87,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withOpacity(0.03),
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: Colors.black12),
-                                ),
-                                child: SelectableText(
-                                  _prettyJson(payload),
-                                  style: const TextStyle(
-                                    fontFamily: 'monospace',
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  String _prettyJson(Map<String, dynamic> m) {
-    try {
-      // 簡易フォーマット（依存追加なしで可読性を確保）
-      final entries = m.entries.map((e) => '• ${e.key}: ${e.value}').join('\n');
-      return entries.isEmpty ? '(なし)' : entries;
-    } catch (_) {
-      return m.toString();
+      if (initialFee) {
+        setState(() {
+          _showInitialFeePopup = true;
+        });
+      }
+    } catch (e) {
+      // 失敗しても致命的ではないのでログだけにするなど
+      debugPrint('initial_fee popup check failed: $e');
     }
   }
 
@@ -484,27 +189,23 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
     super.initState();
     // 初回だけ Future を生成（以降は使い回す）
     user = FirebaseAuth.instance.currentUser!;
+    // if (!_tenantInitialized) {
+    //   _initialTenantFuture = _resolveInitialTenant(user);
+    // }
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
+    user = FirebaseAuth.instance.currentUser!;
     if (!_tenantInitialized) {
       _initialTenantFuture = _resolveInitialTenant(user);
     }
+    setState(() {
+      tenantId;
+    });
     ownerUid = user.uid;
-    _checkAdmin();
-  }
-
-  Future<List<Map<String, dynamic>>> checkAlerts({
-    required String ownerUid,
-    required String tenantId,
-    int limit = 50,
-  }) async {
-    final snap = await FirebaseFirestore.instance
-        .collection(ownerUid)
-        .doc(tenantId)
-        .collection('alerts')
-        .orderBy('createdAt', descending: true)
-        .limit(limit)
-        .get();
-
-    return snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
+    await _checkAdmin();
+    await initialize();
   }
 
   // ★ 初期化完了前は setState しないで代入のみ。完了後に変化があれば setState。
@@ -521,37 +222,6 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
     }
     if (mounted && _isAdmin != newIsAdmin) {
       setState(() => _isAdmin = newIsAdmin);
-    }
-  }
-
-  Future<void> logout() async {
-    if (_loggingOut) return;
-    setState(() => _loggingOut = true);
-    try {
-      await FirebaseAuth.instance.signOut();
-
-      if (!mounted) return;
-
-      // Drawerが開いていれば閉じる（任意）
-      if (_scaffoldKey.currentState?.isDrawerOpen ?? false) {
-        _scaffoldKey.currentState!.closeDrawer();
-      }
-
-      // 画面スタックを全消しして /login (BootGate) へ
-      Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'ログアウトに失敗: $e',
-            style: TextStyle(fontFamily: 'LINEseed'),
-          ),
-          backgroundColor: Color(0xFFFCC400),
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => _loggingOut = false);
     }
   }
 
@@ -754,12 +424,6 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
       'createdBy': {'uid': u.uid, 'email': u.email},
     }, SetOptions(merge: true));
 
-    final callable = functions.httpsCallable('createTenantAndNotify');
-    final resp = await callable.call({
-      'storeName': name,
-      if (agentCode.isNotEmpty) 'agentCode': agentCode,
-    });
-
     // 代理店リンク
     if (shouldLinkAgency) {
       await _tryLinkAgencyByCode(
@@ -928,7 +592,6 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
     }
   }
 
-  // ---- ルート引数適用 & Stripe戻りURL処理（初期化前は“代入のみ”で setState しない）----
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -992,7 +655,12 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
               .doc(idFromClaims)
               .get();
           if (doc.exists) name = (doc.data()?['name'] as String?);
+          final data = doc.data();
+
+          _accountSetting =
+              data != null && data.containsKey('account_cashback');
         } catch (_) {}
+
         return {'id': idFromClaims, 'name': name};
       }
     } catch (_) {}
@@ -1004,6 +672,9 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
           .get();
       if (qs1.docs.isNotEmpty) {
         final d = qs1.docs.first;
+        final data = d.data();
+
+        _accountSetting = data.containsKey('account_cashback');
         return {'id': d.id, 'name': (d.data()['name'] as String?)};
       }
       final qs2 = await col
@@ -1012,6 +683,9 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
           .get();
       if (qs2.docs.isNotEmpty) {
         final d = qs2.docs.first;
+        final data = d.data();
+
+        _accountSetting = data.containsKey('account_cashback');
         return {'id': d.id, 'name': (d.data()['name'] as String?)};
       }
     } catch (_) {}
@@ -1060,11 +734,7 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
         return Stack(
           clipBehavior: Clip.none,
           children: [
-            IconButton(
-              onPressed: _openAlertsPanel,
-              icon: const Icon(Icons.notifications_outlined),
-              tooltip: 'お知らせ',
-            ),
+            TenantAlertsButton(tenantId: tenantId!),
             if (unread > 0)
               Positioned(
                 right: 6,
@@ -1151,7 +821,12 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
     final isNarrow = size.width < 480;
 
     final hasTenant = tenantId != null;
-    const _downShift = 10.0; // ← 下にずらす量（お好みで）
+    const _downShift = 10.0;
+    if (hasTenant && !_initialFeePopupChecked) {
+      _initialFeePopupChecked = true;
+      // build 中に setState しないよう、microtask で後回し
+      Future.microtask(_loadAndMaybeShowInitialFeePopup);
+    }
 
     return SafeArea(
       child: Scaffold(
@@ -1224,6 +899,8 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
                             tenantName = name;
                             ownerUid = oUid;
                             invited = isInvited;
+                            _initialFeePopupChecked = false;
+                            _showInitialFeePopup = false;
                           });
                         },
                       ),
@@ -1261,6 +938,8 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
                     tenantName = name;
                     ownerUid = oUid;
                     invited = isInvited;
+                    _initialFeePopupChecked = false;
+                    _showInitialFeePopup = false;
                   });
                 },
                 onCreateTenant: createTenantDialog,
@@ -1268,74 +947,64 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
                     startOnboarding(tid, name ?? ''),
               )
             : null,
-        body: hasTenant
-            ? IndexedStack(
-                index: _currentIndex,
-                children: [
-                  StoreHomeTab(
-                    tenantId: tenantId!,
-                    tenantName: tenantName,
-                    ownerId: ownerUid!,
-                  ),
-                  StoreQrTab(
-                    tenantId: tenantId!,
-                    tenantName: tenantName,
-                    ownerId: ownerUid!,
-                  ),
-                  StoreStaffTab(tenantId: tenantId!, ownerId: ownerUid!),
-                  StoreSettingsTab(tenantId: tenantId!, ownerId: ownerUid!),
-                ],
-              )
-            : Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Center(
-                    child: const Text(
-                      '店舗が見つかりませんでした\n右上のメニュー内「店舗の作成」から始めよう',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.black),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    width: 250,
-                    margin: const EdgeInsets.symmetric(
-                      vertical: 6,
-                      horizontal: 12,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Color(0xFFFCC400),
-                      border: Border.all(width: 3, color: Colors.black),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(999),
-                      onTap: logout,
-                      child: const Padding(
-                        padding: EdgeInsets.symmetric(
-                          vertical: 6,
-                          horizontal: 10,
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.logout, color: Colors.black87, size: 18),
-                            SizedBox(width: 8),
-                            Text(
-                              'ログアウト',
-                              style: TextStyle(
-                                color: Colors.black87,
-                                fontWeight: FontWeight.w700,
-                                fontFamily: "LINEseed",
-                              ),
-                            ),
-                          ],
+        body: Stack(
+          children: [
+            hasTenant
+                ? IndexedStack(
+                    index: _currentIndex,
+                    children: [
+                      StoreHomeTab(
+                        tenantId: tenantId!,
+                        tenantName: tenantName,
+                        ownerId: ownerUid!,
+                      ),
+                      StoreQrTab(
+                        tenantId: tenantId!,
+                        tenantName: tenantName,
+                        ownerId: ownerUid!,
+                      ),
+                      StoreStaffTab(tenantId: tenantId!, ownerId: ownerUid!),
+                      StoreSettingsTab(tenantId: tenantId!, ownerId: ownerUid!),
+                    ],
+                  )
+                : Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Center(
+                        child: Text(
+                          '店舗が見つかりませんでした\n右上のメニュー内「店舗の作成」から始めよう',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.black),
                         ),
                       ),
-                    ),
+                      const SizedBox(height: 16),
+                      LogoutButton(),
+                    ],
                   ),
-                ],
+
+            // ★ 初期費用ポップアップ（初回 & initial_fee=true のときだけ）
+            if (hasTenant && _showInitialFeePopup && !_accountSetting)
+              Positioned(
+                left: 16,
+                right: 16,
+                bottom: 88, // BottomNavigationBar の少し上あたり
+                child: InitialFeeCashbackPopup(
+                  onTap: () {
+                    // 例: 設定タブへ飛ばして閉じる
+                    setState(() {
+                      _currentIndex = 3; // 「設定」タブ
+                      _showInitialFeePopup = false;
+                    });
+                  },
+                  onClose: () {
+                    setState(() {
+                      _showInitialFeePopup = false;
+                    });
+                  },
+                ),
               ),
+          ],
+        ),
 
         bottomNavigationBar: BottomNavigationBar(
           type: BottomNavigationBarType.fixed,
@@ -1350,60 +1019,6 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
             BottomNavigationBarItem(icon: Icon(Icons.group), label: 'スタッフ'),
             BottomNavigationBarItem(icon: Icon(Icons.settings), label: '設定'),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _LabeledTextField extends StatefulWidget {
-  const _LabeledTextField({
-    required this.label,
-    required this.hint,
-    required this.isAgency,
-  });
-  final String label;
-  final String hint;
-  final bool isAgency;
-
-  @override
-  State<_LabeledTextField> createState() => _LabeledTextFieldState();
-}
-
-class _LabeledTextFieldState extends State<_LabeledTextField> {
-  late final TextEditingController ctrl;
-  @override
-  void initState() {
-    super.initState();
-    ctrl = TextEditingController();
-  }
-
-  @override
-  void dispose() {
-    ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return TextField(
-      controller: ctrl,
-      decoration: InputDecoration(
-        labelText: widget.label,
-        hintText: widget.hint,
-        filled: true,
-        fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 12,
-          vertical: 12,
-        ),
-        enabledBorder: const OutlineInputBorder(
-          borderSide: BorderSide(color: Colors.black26),
-          borderRadius: BorderRadius.all(Radius.circular(12)),
-        ),
-        focusedBorder: const OutlineInputBorder(
-          borderSide: BorderSide(color: Colors.black87, width: 1.2),
-          borderRadius: BorderRadius.all(Radius.circular(12)),
         ),
       ),
     );

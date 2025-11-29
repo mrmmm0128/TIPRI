@@ -309,7 +309,7 @@ class _StoreHomeTabState extends State<StoreHomeTab> {
               }
             }
 
-            String _ym(DateTime d) => '${d.year}年${d.month}月';
+            String ym(DateTime d) => '${d.year}年${d.month}月';
             List<String> wk = const ['日', '月', '火', '水', '木', '金', '土'];
 
             // 表示月の先頭（日曜始まり）を計算
@@ -322,12 +322,12 @@ class _StoreHomeTabState extends State<StoreHomeTab> {
             DateTime gridStart = firstOfMonth.subtract(Duration(days: offset));
 
             // ナビゲーション
-            void _prevMonth() {
+            void prevMonth() {
               final d = DateTime(displayed.year, displayed.month - 1, 1);
               setLocal(() => displayed = _clampDate(d));
             }
 
-            void _nextMonth() {
+            void nextMonth() {
               final d = DateTime(displayed.year, displayed.month + 1, 1);
               setLocal(() => displayed = _clampDate(d));
             }
@@ -374,6 +374,7 @@ class _StoreHomeTabState extends State<StoreHomeTab> {
                     color: selected
                         ? accent
                         : (inRange
+                              // ignore: deprecated_member_use
                               ? accent.withOpacity(0.25)
                               : Colors.transparent),
                     borderRadius: BorderRadius.circular(12),
@@ -422,12 +423,12 @@ class _StoreHomeTabState extends State<StoreHomeTab> {
                         IconButton(
                           tooltip: '前の月',
                           icon: const Icon(Icons.chevron_left),
-                          onPressed: _prevMonth,
+                          onPressed: prevMonth,
                         ),
                         Expanded(
                           child: Center(
                             child: Text(
-                              _ym(displayed),
+                              ym(displayed),
                               style: const TextStyle(
                                 fontFamily: 'LINEseed',
                                 fontWeight: FontWeight.w700,
@@ -440,7 +441,7 @@ class _StoreHomeTabState extends State<StoreHomeTab> {
                         IconButton(
                           tooltip: '次の月',
                           icon: const Icon(Icons.chevron_right),
-                          onPressed: _nextMonth,
+                          onPressed: nextMonth,
                         ),
                         IconButton(
                           tooltip: '閉じる',

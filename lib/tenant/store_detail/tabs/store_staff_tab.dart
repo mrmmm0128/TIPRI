@@ -470,27 +470,15 @@ class _StoreStaffTabState extends State<StoreStaffTab> {
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   const Text(
-                                    'まだ社員がいません',
+                                    'スタッフを追加しよう',
                                     style: TextStyle(color: Colors.black87),
                                   ),
                                   const SizedBox(height: 12),
                                   OutlinedButton.icon(
                                     onPressed: _openAddEmployeeDialog,
                                     icon: const Icon(Icons.person_add),
-                                    label: const Text('最初の社員を追加'),
-                                    style: OutlinedButton.styleFrom(
-                                      foregroundColor: Colors.black87,
-                                      side: const BorderSide(
-                                        color: Colors.black87,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 16,
-                                        vertical: 12,
-                                      ),
-                                    ),
+                                    label: const Text('最初のスタッフを追加'),
+                                    style: primaryBtnStyle,
                                   ),
                                 ],
                               ),

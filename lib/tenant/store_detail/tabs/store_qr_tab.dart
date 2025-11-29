@@ -822,7 +822,7 @@ class _StoreQrTabState extends State<StoreQrTab> {
 
               final remoteDocs = (postersSnap.data?.docs ?? []);
               final options = <_PosterOption>[
-                _PosterOption.asset(widget.posterAssetPath, label: 'テンプレ'),
+                _PosterOption.asset(widget.posterAssetPath, label: 'デフォルト'),
                 ...remoteDocs.map((d) {
                   final m = d.data();
                   return _PosterOption.remote(
@@ -1019,13 +1019,6 @@ class _StoreQrTabState extends State<StoreQrTab> {
               Widget posterPicker() => Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Text(
-                  //   'ポスターを選択',
-                  //   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  //     color: black78,
-                  //     fontFamily: "LINEseed",
-                  //   ),
-                  // ),
                   const SizedBox(height: 8),
                   SizedBox(
                     height: 108,
@@ -1248,7 +1241,7 @@ class _StoreQrTabState extends State<StoreQrTab> {
                           child: Icon(Icons.info_outline),
                         ),
                         title: const Text(
-                          'コネクトアカウント作成未完了',
+                          'Stripeアカウント未作成',
                           style: TextStyle(
                             fontFamily: 'LINEseed',
                             fontWeight: FontWeight.w600,
@@ -1258,7 +1251,7 @@ class _StoreQrTabState extends State<StoreQrTab> {
                         subtitle: const Padding(
                           padding: EdgeInsets.only(top: 4),
                           child: Text(
-                            'チップの受け取りには Stripe Connect アカウントの設定が必要です。',
+                            'チップの受取にはStripeアカウントの作成が必要です。',
                             style: TextStyle(color: Colors.black87),
                           ),
                         ),
@@ -1461,7 +1454,11 @@ class _StoreQrTabState extends State<StoreQrTab> {
                               ],
                               posterPicker(),
                               const SizedBox(height: 16),
-                              qrControls(),
+                              if (!_exporting &&
+                                  _connected! &&
+                                  _publicStoreUrl != null) ...[
+                                qrControls(),
+                              ],
                               const SizedBox(height: 12),
                               if (_connected!) ...[urlButton(context)],
                             ],
@@ -1520,7 +1517,11 @@ class _StoreQrTabState extends State<StoreQrTab> {
                       previewPane(),
 
                       const SizedBox(height: 16),
-                      qrControls(),
+                      if (!_exporting &&
+                          _connected! &&
+                          _publicStoreUrl != null) ...[
+                        qrControls(),
+                      ],
                       const SizedBox(height: 12),
                       if (_connected!) ...[urlButton(context)],
                     ],

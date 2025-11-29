@@ -96,7 +96,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
     );
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F7F7),
+      backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,

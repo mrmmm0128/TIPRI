@@ -2,17 +2,16 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 
-class tenantDetailScreen extends StatefulWidget {
-  const tenantDetailScreen({super.key});
+class TenantDetailScreen extends StatefulWidget {
+  const TenantDetailScreen({super.key});
   @override
-  State<tenantDetailScreen> createState() => _AccountDetailScreenState();
+  State<TenantDetailScreen> createState() => _AccountDetailScreenState();
 }
 
-class _AccountDetailScreenState extends State<tenantDetailScreen> {
+class _AccountDetailScreenState extends State<TenantDetailScreen> {
   final _tenantName = TextEditingController();
 
   bool _saving = false;
@@ -22,8 +21,10 @@ class _AccountDetailScreenState extends State<tenantDetailScreen> {
 
   // テナント解決/ポータル起動用
   String? _tenantId; // ルート引数 or 自動推定
+  final user = FirebaseAuth.instance.currentUser;
   bool _openingCustomerPortal = false;
   bool _openingConnectPortal = false;
+  bool _initial_fee = false;
   bool _loadingUpcoming = false; // ← 追加：請求予定（upcoming）読み込み中
   Map<String, dynamic>? _upcomingInvoice;
 
@@ -452,6 +453,89 @@ class _AccountDetailScreenState extends State<tenantDetailScreen> {
   String _fmtYMD(DateTime d) =>
       '${d.year}/${d.month.toString().padLeft(2, '0')}/${d.day.toString().padLeft(2, '0')}';
 
+  // ===================== State =====================
+  // 既存の State に追加する想定
+  Map<String, dynamic>? _cashbackAccount;
+  final _bankCtrl = TextEditingController();
+  final _branchCtrl = TextEditingController();
+  final _accountNumberCtrl = TextEditingController();
+  bool _savingCashback = false;
+
+  bool _isCashbackRegistered(Map<String, dynamic>? acc) {
+    if (acc == null) return false;
+    final bank = (acc['bank'] ?? '').toString();
+    final branch = (acc['branch'] ?? '').toString();
+    final number = (acc['number'] ?? '').toString();
+    return bank.isNotEmpty && branch.isNotEmpty && number.isNotEmpty;
+  }
+
+  Future<void> _saveCashbackAccount() async {
+    if (_tenantId == null) return;
+    final bank = _bankCtrl.text.trim();
+    final branch = _branchCtrl.text.trim();
+    final number = _accountNumberCtrl.text.trim();
+
+    final user = FirebaseAuth.instance.currentUser;
+    final ownerUid = user?.uid;
+    final tenantName = _tenantName.text; // 画面側で保持している前提
+    if (bank.isEmpty || branch.isEmpty || number.isEmpty) {
+      // ここで SnackBar や Dialog などでバリデーションエラーを出してもOK
+      return;
+    }
+
+    setState(() => _savingCashback = true);
+    try {
+      // ① テナントドキュメントに口座情報を保存
+
+      await FirebaseFirestore.instance
+          .collection(ownerUid!)
+          .doc(_tenantId)
+          .update({
+            'account_cashback': {
+              'bank': bank,
+              'branch': branch,
+              'number': number,
+            },
+          });
+
+      setState(() {
+        _cashbackAccount = {'bank': bank, 'branch': branch, 'number': number};
+      });
+
+      // ② cashbackリストの apply ドキュメントに
+      //    ownerUid / 店舗名 / 店舗ID を保存
+
+      if (_tenantId != null) {
+        await FirebaseFirestore.instance
+            .collection('cashbackList')
+            .doc(_tenantId) // テナントごとに1ドキュメント
+            .set({
+              'ownerUid': ownerUid,
+              'tenantId': _tenantId,
+              'tenantName': tenantName,
+              'status': 'apply', // 必要なら状態も入れる
+              'updatedAt': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true));
+      }
+
+      // ★ 登録完了メッセージ（下からニュッと出る）
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('口座登録が完了しました。\nキャッシュバック完了までお待ちください。'),
+            behavior: SnackBarBehavior.floating, // 浮いた感じに
+            margin: EdgeInsets.all(16), // 画面下から少し浮かせる
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _savingCashback = false);
+      }
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -464,7 +548,8 @@ class _AccountDetailScreenState extends State<tenantDetailScreen> {
         setState(() {
           _tenantId = args['tenantId'] as String;
         });
-        _loadTenantName();
+        _loadTenantNameAndInitialCashback();
+
         _loadAgencyLink(); // 代理店情報も読む
       } else {
         _resolveFirstTenant(); // 自動推定 → 読み込み
@@ -596,46 +681,26 @@ class _AccountDetailScreenState extends State<tenantDetailScreen> {
       return DateTime.now();
     }
 
-    String _fmtYMD(DateTime d) =>
-        '${d.year}/${d.month.toString().padLeft(2, '0')}/${d.day.toString().padLeft(2, '0')}';
+    // String _fmtYMD(DateTime d) =>
+    //     '${d.year}/${d.month.toString().padLeft(2, '0')}/${d.day.toString().padLeft(2, '0')}';
 
-    // 0小数の通貨（Stripe基準）
-    const zeroDecimal = {
-      'BIF',
-      'CLP',
-      'DJF',
-      'GNF',
-      'JPY',
-      'KMF',
-      'KRW',
-      'MGA',
-      'PYG',
-      'RWF',
-      'UGX',
-      'VND',
-      'VUV',
-      'XAF',
-      'XOF',
-      'XPF',
-    };
+    // // 金額フォーマッタ（minor→表示文字列）
+    // String _money(num minor, String currency) {
+    //   final cur = currency.toUpperCase();
+    //   final isZero = zeroDecimal.contains(cur);
+    //   final major = isZero ? minor.toDouble() : minor.toDouble() / 100.0;
+    //   final decimals = isZero ? 0 : 2;
 
-    // 金額フォーマッタ（minor→表示文字列）
-    String _money(num minor, String currency) {
-      final cur = currency.toUpperCase();
-      final isZero = zeroDecimal.contains(cur);
-      final major = isZero ? minor.toDouble() : minor.toDouble() / 100.0;
-      final decimals = isZero ? 0 : 2;
+    //   // 記号は JPY のみ「¥」に、他は通貨コードを後置
+    //   final symbol = (cur == 'JPY') ? '¥' : '';
+    //   final formatted = NumberFormat.currency(
+    //     locale: 'ja_JP',
+    //     symbol: symbol,
+    //     decimalDigits: decimals,
+    //   ).format(major);
 
-      // 記号は JPY のみ「¥」に、他は通貨コードを後置
-      final symbol = (cur == 'JPY') ? '¥' : '';
-      final formatted = NumberFormat.currency(
-        locale: 'ja_JP',
-        symbol: symbol,
-        decimalDigits: decimals,
-      ).format(major);
-
-      return (symbol.isNotEmpty) ? formatted : '$formatted $cur';
-    }
+    //   return (symbol.isNotEmpty) ? formatted : '$formatted $cur';
+    // }
 
     // 単価・小計などの通貨
     final currency = (up['currency'] ?? 'JPY').toString().toUpperCase();
@@ -796,13 +861,12 @@ class _AccountDetailScreenState extends State<tenantDetailScreen> {
       if (qs.docs.isNotEmpty) {
         _tenantId = qs.docs.first.id;
         if (mounted) setState(() {});
-        await _loadTenantName();
-        await _loadAgencyLink();
+        await _loadTenantNameAndInitialCashback();
       }
     } catch (_) {}
   }
 
-  Future<void> _loadTenantName() async {
+  Future<void> _loadTenantNameAndInitialCashback() async {
     final user = FirebaseAuth.instance.currentUser;
     final tid = _tenantId;
     if (user == null || tid == null) return;
@@ -817,6 +881,13 @@ class _AccountDetailScreenState extends State<tenantDetailScreen> {
           (d['name'] as String?) ??
           (d['displayName'] as String?) ??
           _tenantName.text;
+      _initial_fee = d["initial_fee"];
+      _cashbackAccount = (d['account_cashback'] as Map?)
+          ?.cast<String, dynamic>();
+
+      _bankCtrl.text = (_cashbackAccount?['bank'] ?? '').toString();
+      _branchCtrl.text = (_cashbackAccount?['branch'] ?? '').toString();
+      _accountNumberCtrl.text = (_cashbackAccount?['number'] ?? '').toString();
     } catch (_) {
       // 読み込み失敗時は何もしない
     }
@@ -1663,6 +1734,124 @@ class _AccountDetailScreenState extends State<tenantDetailScreen> {
                   ],
                 ),
               ),
+              const SizedBox(height: 24),
+              if (_initial_fee) ...[
+                _FieldCard(
+                  title: 'キャッシュバック用口座',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (_isCashbackRegistered(_cashbackAccount)) ...[
+                        // 登録済み表示
+                        Row(
+                          children: [
+                            const Icon(Icons.verified, color: Colors.green),
+                            const SizedBox(width: 8),
+                            const Expanded(
+                              child: Text(
+                                'キャッシュバック用口座は登録済みです',
+                                style: TextStyle(color: Colors.black87),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _bankCtrl,
+                          readOnly: true,
+                          decoration: const InputDecoration(labelText: '銀行名'),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _branchCtrl,
+                          readOnly: true,
+                          decoration: const InputDecoration(labelText: '店番'),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _accountNumberCtrl,
+                          readOnly: true,
+                          decoration: const InputDecoration(labelText: '口座番号'),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          '※ 変更する場合はサポートまでご連絡ください。',
+                          style: TextStyle(fontSize: 12, color: Colors.black54),
+                        ),
+                      ] else ...[
+                        // 未登録：入力欄 + 登録ボタン
+                        TextField(
+                          controller: _bankCtrl,
+                          decoration: const InputDecoration(
+                            labelText: '銀行名',
+                            hintText: '例: りそな銀行',
+                          ),
+                          textInputAction: TextInputAction.next,
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _branchCtrl,
+                          decoration: const InputDecoration(
+                            labelText: '店番',
+                            hintText: '例: 123',
+                          ),
+                          keyboardType: TextInputType.number,
+                          textInputAction: TextInputAction.next,
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _accountNumberCtrl,
+                          decoration: const InputDecoration(
+                            labelText: '口座番号',
+                            hintText: '例: 1234567',
+                          ),
+                          keyboardType: TextInputType.number,
+                          textInputAction: TextInputAction.done,
+                          onSubmitted: (_) =>
+                              (_tenantId == null || _savingCashback)
+                              ? null
+                              : _saveCashbackAccount(),
+                        ),
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: FilledButton.icon(
+                            onPressed: (_tenantId == null || _savingCashback)
+                                ? null
+                                : _saveCashbackAccount,
+                            icon: _savingCashback
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Icon(Icons.account_balance),
+                            label: const Text('登録する'),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: Colors.black,
+                              foregroundColor: Colors.white,
+                            ),
+                          ),
+                        ),
+                        if (_tenantId == null)
+                          const Padding(
+                            padding: EdgeInsets.only(top: 8),
+                            child: Text(
+                              '※ 店舗が未選択のため登録できません。',
+                              style: TextStyle(
+                                color: Colors.black54,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 24),
               // ==== 代理店 ここまで ==========================================
 

@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:yourpay/appadmin/admin_announsment.dart';
+import 'package:yourpay/appadmin/cashback_list.dart';
 import 'package:yourpay/appadmin/tenant/tenant_list_view.dart';
 import 'package:yourpay/appadmin/util.dart';
 
@@ -554,13 +555,11 @@ class _AdminDashboardHomeState extends State<AdminDashboardHome> {
       data: pageTheme,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('運営ダッシュボード'),
+          title: const Text(
+            '運営ダッシュボード',
+            style: TextStyle(fontFamily: "LINEseed", fontSize: 16),
+          ),
           actions: [
-            // IconButton(
-            //   tooltip: '再読込',
-            //   onPressed: () => setState(() => _revCache.clear()),
-            //   icon: const Icon(Icons.refresh),
-            // ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 10),
               child: IconButton(
@@ -573,6 +572,18 @@ class _AdminDashboardHomeState extends State<AdminDashboardHome> {
                   );
                 },
                 icon: const Icon(Icons.campaign_outlined),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: IconButton(
+                tooltip: 'キャッシュバック確認',
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const CashbackListPage()),
+                  );
+                },
+                icon: const Icon(Icons.payments_outlined),
               ),
             ),
           ],

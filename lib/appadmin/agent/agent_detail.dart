@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:yourpay/appadmin/agent/contracts_list_for_agent.dart';
 import 'package:yourpay/appadmin/agent/share/QR.dart';
+import 'package:yourpay/appadmin/agent/agency_member_manage.dart';
 
 enum _ConnectState { complete, processing, needAction, none }
 
@@ -903,20 +904,53 @@ class _AgencyDetailPageState extends State<AgencyDetailPage> {
                 padding: EdgeInsets.symmetric(horizontal: hp),
                 child: Align(
                   alignment: Alignment.centerRight,
-                  child: OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Colors.black, width: 3),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                  child: Wrap(
+                    spacing: 8,
+                    children: [
+                      // ① 既存の「編集」ボタン
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Colors.black, width: 3),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          foregroundColor: Colors.black,
+                          backgroundColor: brandYellow,
+                        ),
+                        onPressed: () => !widget.agent
+                            ? _editAgent(context, ref, m)
+                            : _setAgentPassword(
+                                context,
+                                codeC.text,
+                                emailC.text,
+                              ),
+                        icon: const Icon(Icons.edit),
+                        label: const Text('編集'),
                       ),
-                      foregroundColor: Colors.black,
-                      backgroundColor: brandYellow,
-                    ),
-                    onPressed: () => !widget.agent
-                        ? _editAgent(context, ref, m)
-                        : _setAgentPassword(context, codeC.text, emailC.text),
-                    icon: const Icon(Icons.edit),
-                    label: const Text('編集'),
+
+                      // ② 新規追加：メンバー管理ボタン
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Colors.black, width: 3),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          foregroundColor: Colors.black,
+                          backgroundColor: Colors.white,
+                        ),
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => AgencyMemberManagePage(
+                                agentId: widget.agentId,
+                              ),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.group),
+                        label: const Text('メンバー管理'),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -1101,7 +1135,7 @@ class _AgencyDetailPageState extends State<AgencyDetailPage> {
                           const SizedBox(width: gap),
                           Expanded(
                             child: _triFilterChip(
-                              label: 'Connect',
+                              label: 'Stripe',
                               value: _fConnect,
                               onChanged: (v) => setState(() => _fConnect = v),
                             ),

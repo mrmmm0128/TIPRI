@@ -87,28 +87,29 @@ class _PlanPickerState extends State<PlanPicker> {
     // 画面高さを基準に、カードの最小/最大高さをブレークポイント別に調整
     final h = MediaQuery.of(context).size.height;
 
+    // 11/29モリタ変更　プラン改定に伴いチップ手数料の変更＆プランBのコメントアウト
     final plans = <PlanDef>[
       PlanDef(
         code: 'A',
         title: 'Aプラン',
         monthly: 0,
-        feePct: 35,
-        features: const ['決済手数料35%'],
+        feePct: 50,
+        features: const ['決済手数料50%'],
       ),
-      PlanDef(
-        code: 'B',
-        title: 'Bプラン',
-        monthly: 3980,
-        feePct: 25,
-        features: const ['決済手数料25%', '公式LINEリンクの掲載', 'チップとともにコメントの送信'],
-      ),
+      // PlanDef(
+      //   code: 'B',
+      //   title: 'Bプラン',
+      //   monthly: 3980,
+      //   feePct: 25,
+      //   features: const ['決済手数料25%', '公式LINEリンクの掲載', 'チップとともにコメントの送信'],
+      // ),
       PlanDef(
         code: 'C',
         title: 'Cプラン',
         monthly: 9800,
-        feePct: 15,
+        feePct: 30,
         features: const [
-          '決済手数料15%',
+          '決済手数料30%',
           '公式LINEリンクの掲載',
           'チップとともにコメントの送信',
           'Googleレビュー導線の設置',
@@ -126,7 +127,7 @@ class _PlanPickerState extends State<PlanPicker> {
         // <600: 1カラム（スマホ）
         // 600-899: 2カラム（タブレット縦/小さめ）
         // >=900: 3カラム（タブレット横/デスクトップ）
-        final int crossAxisCount = w < 600 ? 1 : (w < 900 ? 2 : 3);
+        final int crossAxisCount = w < 600 ? 1 : (w < 900 ? 2 : 2);
 
         // 高さはブレークポイントごとに少し変える
         final double tileHeight = () {
@@ -140,12 +141,19 @@ class _PlanPickerState extends State<PlanPicker> {
           }
         }();
 
+        // // childAspectRatio は「幅/高さ」
+        // // 横に並ぶほど 1.0 付近、縦並びはやや縦長に
+        // final double childAspectRatio = () {
+        //   if (crossAxisCount == 1) return 16 / 12; // 少し横長に
+        //   if (crossAxisCount == 2) return 16 / 12;
+        //   return 16 / 12;
+        // }();
         // childAspectRatio は「幅/高さ」
-        // 横に並ぶほど 1.0 付近、縦並びはやや縦長に
+        // 値を大きくすると縦が低くなる
         final double childAspectRatio = () {
-          if (crossAxisCount == 1) return 16 / 10; // 少し横長に
-          if (crossAxisCount == 2) return 16 / 11;
-          return 16 / 12;
+          if (crossAxisCount == 1) return 1.5; // スマホ：少し縦長
+          if (crossAxisCount == 2) return 2.1; // タブレット/PC：かなり横長にして高さ↓
+          return 2.4; // 3列になったときはさらに平たく
         }();
 
         return GridView.builder(

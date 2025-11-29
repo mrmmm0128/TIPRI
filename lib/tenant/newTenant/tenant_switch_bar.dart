@@ -854,10 +854,16 @@ class _TenantSwitcherBarState extends State<TenantSwitcherBar> {
                                 ),
                               ),
                               FilledButton(
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: const Color(0xFFFCC400),
+                                ),
                                 onPressed: () => Navigator.pop(ctx, true),
                                 child: const Text(
                                   '再開する',
-                                  style: TextStyle(fontFamily: 'LINEseed'),
+                                  style: TextStyle(
+                                    fontFamily: 'LINEseed',
+                                    color: Colors.black,
+                                  ),
                                 ),
                               ),
                             ],

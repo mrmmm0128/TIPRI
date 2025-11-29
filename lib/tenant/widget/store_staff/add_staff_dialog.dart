@@ -1029,7 +1029,6 @@ class _AddStaffDialogState extends State<addStaffDialog>
               children: [
                 const SizedBox(height: 16),
                 Expanded(
-                  // 👇 ここで全体を1つの SingleChildScrollView に包む
                   child: SingleChildScrollView(
                     child: SizedBox(
                       height: 520, // ← 任意：見た目の高さの目安（固定でなくてもOK）
@@ -1057,7 +1056,7 @@ class _AddStaffDialogState extends State<addStaffDialog>
                               const SizedBox(height: 12),
                               TextField(
                                 controller: _nameCtrl,
-                                decoration: _inputDeco('名前（必須）'),
+                                decoration: _inputDeco('名前'),
                               ),
                               const SizedBox(height: 8),
                               TextField(
@@ -1066,7 +1065,7 @@ class _AddStaffDialogState extends State<addStaffDialog>
                                 decoration: _inputDeco(
                                   'メールアドレス（任意・検索可）',
                                   suffix: IconButton(
-                                    tooltip: 'メールで検索（グローバル）',
+                                    tooltip: 'メールで検索',
                                     icon: const Icon(Icons.search),
                                     onPressed: widget.addingEmp
                                         ? null
@@ -1079,7 +1078,7 @@ class _AddStaffDialogState extends State<addStaffDialog>
                                 controller: _commentCtrl,
                                 maxLines: 2,
                                 decoration: _inputDeco(
-                                  'コメント（任意）',
+                                  'コメント',
                                   hint: '得意分野や一言メモなど',
                                 ),
                               ),

@@ -135,7 +135,7 @@ Widget buildBPerksSection({
       }
 
       // ---- BottomSheet（モバイル/タブレット）----
-      Future<void> _openSheet() async {
+      Future<void> openSheet() async {
         bool saving = false;
         bool checking = false;
 
@@ -149,12 +149,6 @@ Widget buildBPerksSection({
           builder: (ctx) {
             final mq = MediaQuery.of(ctx);
             final viewInsets = mq.viewInsets;
-            // final usableHeight =
-            //       (mq.size.height -
-            //               mq.padding.top -
-            //               mq.padding.bottom -
-            //               viewInsets.bottom)
-            //           .clamp(280.0, 800.0);
             final usableHeight =
                 (mq.size.height -
                         mq.padding.top -
@@ -351,7 +345,7 @@ Widget buildBPerksSection({
               alignment: Alignment.centerRight,
               child: FilledButton.icon(
                 style: primaryBtnStyle,
-                onPressed: _openSheet,
+                onPressed: openSheet,
                 icon: const Icon(Icons.tune),
                 label: const Text('設定を開く'),
               ),

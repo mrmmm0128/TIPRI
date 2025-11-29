@@ -2,13 +2,13 @@
 import 'package:flutter/material.dart';
 
 class SctaImageViewer extends StatelessWidget {
-  // const ctaImageViewer({super.key});
+  const SctaImageViewer({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('特定商取引法に基づく表記')),
-      backgroundColor: Colors.black, // 画像を見やすく
+      backgroundColor: Colors.black,
       body: Center(
         child: InteractiveViewer(
           minScale: 0.5,

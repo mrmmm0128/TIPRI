@@ -119,7 +119,7 @@ class MyApp extends StatelessWidget {
       '/login': (_) => const BootGate(),
       '/store': (_) => const StoreDetailScreen(),
       '/admin': (_) => const AdminDashboardHome(),
-      '/tenant': (_) => const tenantDetailScreen(),
+      '/tenant': (_) => const TenantDetailScreen(),
       '/account': (_) => const AccountDetailScreen(),
       '/admin-invite': (_) => const AcceptInviteScreen(),
       '/qr-all': (_) => const PublicStaffQrListPage(),

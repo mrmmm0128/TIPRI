@@ -830,7 +830,9 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
 
     return SafeArea(
       child: Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: _currentIndex == 3
+            ? const Color.fromARGB(255, 236, 236, 236) // 設定タブのとき：今のグレー
+            : Colors.white,
         key: _scaffoldKey,
         appBar: AppBar(
           backgroundColor: Colors.white,
@@ -844,9 +846,10 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
 
           // ▼ title をまとめて下にずらす
           title: Padding(
-            padding: const EdgeInsets.only(top: _downShift),
+            padding: const EdgeInsets.only(top: _downShift, bottom: _downShift),
             child: Row(
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Padding(
                   padding: const EdgeInsets.only(left: 14.0, top: 6),

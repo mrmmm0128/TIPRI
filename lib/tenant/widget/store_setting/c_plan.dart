@@ -432,27 +432,30 @@ Widget buildCPerksSection({
                             ),
 
                             const SizedBox(height: 12),
-                            Center(
-                              child: FilledButton.icon(
-                                onPressed: checking ? null : openCheck,
-                                icon: checking
-                                    ? const SizedBox(
-                                        width: 16,
-                                        height: 16,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                        ),
-                                      )
-                                    : const Icon(Icons.open_in_new),
-                                label: const Text(
-                                  '正しく設定できたか確認する',
-                                  style: TextStyle(
-                                    fontFamily: "LINEseed",
-                                    fontSize: 14,
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                FilledButton.icon(
+                                  onPressed: checking ? null : openCheck,
+                                  icon: checking
+                                      ? const SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                      : const Icon(Icons.open_in_new),
+                                  label: const Text(
+                                    '正しく設定できたか確認する',
+                                    style: TextStyle(
+                                      fontFamily: "LINEseed",
+                                      fontSize: 14,
+                                    ),
                                   ),
+                                  style: primaryBtnStyle,
                                 ),
-                                style: primaryBtnStyle,
-                              ),
+                              ],
                             ),
                           ],
                         ),
@@ -615,58 +618,60 @@ Widget buildCPerksSection({
                   }
                 }
 
-                return Center(
-                  child: FilledButton.icon(
-                    onPressed: checkingPc ? null : doOpen,
-                    icon: checkingPc
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.open_in_new),
-                    label: const Text('正しく設定できたか確認する'),
-                    style: primaryBtnStyle,
-                  ),
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    FilledButton.icon(
+                      onPressed: checkingPc ? null : doOpen,
+                      icon: checkingPc
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.open_in_new),
+                      label: const Text('正しく設定できたか確認する'),
+                      style: primaryBtnStyle,
+                    ),
+                  ],
                 );
               },
             ),
           ],
 
-          const SizedBox(height: 16),
-          const Divider(height: 1, color: Colors.black87),
-          const SizedBox(height: 16),
-          const Text('感謝の動画', style: TextStyle(fontWeight: FontWeight.w600)),
-          const SizedBox(height: 16),
+          // const Divider(height: 1, color: Colors.black87),
+          // const SizedBox(height: 16),
+          // const Text('感謝の動画', style: TextStyle(fontWeight: FontWeight.w600)),
+          // const SizedBox(height: 16),
 
-          // 動画（表示のみ）
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 96,
-                height: 96,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade200,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0x11000000)),
-                ),
-                child: uploadingVideo
-                    ? const SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : ((displayVideoUrl ?? '').isNotEmpty
-                          ? const Icon(Icons.play_circle_fill, size: 24)
-                          : const Icon(Icons.movie, size: 20)),
-              ),
-              const SizedBox(width: 12),
-              const Expanded(child: Text('スタッフ詳細画面から動画を登録してください。')),
-            ],
-          ),
+          // // 動画（表示のみ）
+          // Row(
+          //   crossAxisAlignment: CrossAxisAlignment.center,
+          //   mainAxisAlignment: MainAxisAlignment.center,
+          //   children: [
+          //     Container(
+          //       width: 96,
+          //       height: 96,
+          //       alignment: Alignment.center,
+          //       decoration: BoxDecoration(
+          //         color: Colors.grey.shade200,
+          //         borderRadius: BorderRadius.circular(12),
+          //         border: Border.all(color: const Color(0x11000000)),
+          //       ),
+          //       child: uploadingVideo
+          //           ? const SizedBox(
+          //               width: 24,
+          //               height: 24,
+          //               child: CircularProgressIndicator(strokeWidth: 2),
+          //             )
+          //           : ((displayVideoUrl ?? '').isNotEmpty
+          //                 ? const Icon(Icons.play_circle_fill, size: 24)
+          //                 : const Icon(Icons.movie, size: 20)),
+          //     ),
+          //     const SizedBox(width: 12),
+          //     const Expanded(child: Text('スタッフ詳細画面から動画を登録してください。')),
+          //   ],
+          // ),
         ],
       );
     },

@@ -124,6 +124,9 @@ class _SubscriptionPlanCardState extends State<SubscriptionPlanCard> {
   @override
   Widget build(BuildContext context) {
     final currentPlan = widget.currentPlan;
+    final effectivePlan = (widget.currentPlan == "C")
+        ? "B"
+        : widget.currentPlan;
     final periodEnd = widget.periodEnd;
     final periodEndBool = widget.periodEndBool;
     final trialStatus = widget.trialStatus;
@@ -134,8 +137,8 @@ class _SubscriptionPlanCardState extends State<SubscriptionPlanCard> {
     final isOwner = widget.ownerId != null && widget.ownerId == uid;
 
     final effectivePickerValue = _changingPlan
-        ? (_pendingPlan ?? currentPlan)
-        : currentPlan;
+        ? (_pendingPlan ?? effectivePlan)
+        : effectivePlan;
 
     return CardShell(
       child: Padding(
@@ -144,41 +147,90 @@ class _SubscriptionPlanCardState extends State<SubscriptionPlanCard> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // ===== 上部ヘッダ =====
-            Wrap(
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 8,
-              runSpacing: 6,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                const PlanChip(label: '現在', dark: true),
-                Text(
-                  'プラン $currentPlan',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
+                // 左側：現在プラン＋日付（幅に応じて折り返しOK）
+                Expanded(
+                  child: Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: [
+                      const PlanChip(label: '現在', dark: true),
+                      Text(
+                        'プラン $effectivePlan',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      if (periodEnd != null)
+                        Text(
+                          '${periodEndBool ? '終了予定' : '次回の請求'}: '
+                          '${periodEnd.year}/${periodEnd.month.toString().padLeft(2, '0')}/${periodEnd.day.toString().padLeft(2, '0')}',
+                          style: const TextStyle(color: Colors.black54),
+                        ),
+                    ],
                   ),
                 ),
 
-                // // 説明ボタン
-                // FittedBox(
-                //   fit: BoxFit.scaleDown,
-                //   child: TextButton.icon(
-                //     onPressed: widget.onShowTipriInfo,
-                //     icon: const Icon(Icons.info_outline),
-                //     label: const Text(
-                //       'チップリについて',
-                //       style: TextStyle(color: Color(0xFFFCC400)),
-                //     ),
-                //     style: TextButton.styleFrom(
-                //       foregroundColor: Colors.black87,
-                //     ),
-                //   ),
-                // ),
-                if (periodEnd != null)
-                  Text(
-                    '${periodEndBool ? '終了予定' : '次回の請求'}: '
-                    '${periodEnd.year}/${periodEnd.month.toString().padLeft(2, '0')}/${periodEnd.day.toString().padLeft(2, '0')}',
-                    style: const TextStyle(color: Colors.black54),
+                const SizedBox(width: 8),
+
+                if (!_changingPlan) ...[
+                  // 右端：変更ボタン
+                  FilledButton.icon(
+                    style: widget.primaryBtnStyle,
+                    onPressed: !isOwner
+                        ? () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'オーナーのみ変更可能です',
+                                  style: TextStyle(fontFamily: 'LINEseed'),
+                                ),
+                                backgroundColor: Color(0xFFFCC400),
+                              ),
+                            );
+                          }
+                        : _updatingPlan
+                        ? null
+                        : _enterChangeMode,
+                    icon: const Icon(Icons.tune),
+                    label: currentPlan.isEmpty
+                        ? const Text('サブスクのプランを追加')
+                        : periodEndBool
+                        ? const Text('サブスクのプランを更新')
+                        : const Text('サブスクのプランを変更'),
                   ),
+                ] else ...[
+                  FilledButton.icon(
+                    style: widget.primaryBtnStyle,
+                    onPressed:
+                        (_updatingPlan ||
+                            _pendingPlan == null ||
+                            _pendingPlan == currentPlan)
+                        ? null
+                        : _submitChange,
+                    icon: _updatingPlan
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.check_circle),
+                    label: Text(
+                      (_pendingPlan == currentPlan) ? '変更なし' : 'このプランに変更',
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: _updatingPlan ? null : _cancelChangeMode,
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
               ],
             ),
 
@@ -250,75 +302,75 @@ class _SubscriptionPlanCardState extends State<SubscriptionPlanCard> {
 
             const SizedBox(height: 16),
 
-            // ===== 下部ボタン（モードによって分岐） =====
-            if (!_changingPlan) ...[
-              Row(
-                children: [
-                  Expanded(
-                    child: FilledButton.icon(
-                      style: widget.primaryBtnStyle,
-                      onPressed: !isOwner
-                          ? () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'オーナーのみ変更可能です',
-                                    style: TextStyle(fontFamily: 'LINEseed'),
-                                  ),
-                                  backgroundColor: Color(0xFFFCC400),
-                                ),
-                              );
-                            }
-                          : _updatingPlan
-                          ? null
-                          : _enterChangeMode,
-                      icon: const Icon(Icons.tune),
-                      label: currentPlan.isEmpty
-                          ? const Text('サブスクのプランを追加')
-                          : periodEndBool
-                          ? const Text('サブスクのプランを更新')
-                          : const Text('サブスクのプランを変更'),
-                    ),
-                  ),
-                ],
-              ),
-            ] else ...[
-              Row(
-                children: [
-                  Expanded(
-                    child: FilledButton.icon(
-                      style: widget.primaryBtnStyle,
-                      onPressed:
-                          (_updatingPlan ||
-                              _pendingPlan == null ||
-                              _pendingPlan == currentPlan)
-                          ? null
-                          : _submitChange,
-                      icon: _updatingPlan
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Icon(Icons.check_circle),
-                      label: Text(
-                        (_pendingPlan == currentPlan) ? '変更なし' : 'このプランに変更',
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  OutlinedButton.icon(
-                    style: widget.outlinedBtnStyle,
-                    onPressed: _updatingPlan ? null : _cancelChangeMode,
-                    icon: const Icon(Icons.close),
-                    label: const Text('やめる'),
-                  ),
-                ],
-              ),
-            ],
+            // // ===== 下部ボタン（モードによって分岐） =====
+            // if (!_changingPlan) ...[
+            //   Row(
+            //     children: [
+            //       Expanded(
+            //         child: FilledButton.icon(
+            //           style: widget.primaryBtnStyle,
+            //           onPressed: !isOwner
+            //               ? () {
+            //                   ScaffoldMessenger.of(context).showSnackBar(
+            //                     const SnackBar(
+            //                       content: Text(
+            //                         'オーナーのみ変更可能です',
+            //                         style: TextStyle(fontFamily: 'LINEseed'),
+            //                       ),
+            //                       backgroundColor: Color(0xFFFCC400),
+            //                     ),
+            //                   );
+            //                 }
+            //               : _updatingPlan
+            //               ? null
+            //               : _enterChangeMode,
+            //           icon: const Icon(Icons.tune),
+            //           label: currentPlan.isEmpty
+            //               ? const Text('サブスクのプランを追加')
+            //               : periodEndBool
+            //               ? const Text('サブスクのプランを更新')
+            //               : const Text('サブスクのプランを変更'),
+            //         ),
+            //       ),
+            //     ],
+            //   ),
+            // ] else ...[
+            //   Row(
+            //     children: [
+            //       Expanded(
+            //         child: FilledButton.icon(
+            //           style: widget.primaryBtnStyle,
+            //           onPressed:
+            //               (_updatingPlan ||
+            //                   _pendingPlan == null ||
+            //                   _pendingPlan == currentPlan)
+            //               ? null
+            //               : _submitChange,
+            //           icon: _updatingPlan
+            //               ? const SizedBox(
+            //                   width: 16,
+            //                   height: 16,
+            //                   child: CircularProgressIndicator(
+            //                     strokeWidth: 2,
+            //                     color: Colors.white,
+            //                   ),
+            //                 )
+            //               : const Icon(Icons.check_circle),
+            //           label: Text(
+            //             (_pendingPlan == currentPlan) ? '変更なし' : 'このプランに変更',
+            //           ),
+            //         ),
+            //       ),
+            //       const SizedBox(width: 12),
+            //       OutlinedButton.icon(
+            //         style: widget.outlinedBtnStyle,
+            //         onPressed: _updatingPlan ? null : _cancelChangeMode,
+            //         icon: const Icon(Icons.close),
+            //         label: const Text('やめる'),
+            //       ),
+            //     ],
+            //   ),
+            // ],
           ],
         ),
       ),

@@ -7,6 +7,45 @@ class AgentsList extends StatelessWidget {
   final String query;
   const AgentsList({required this.query});
 
+  Future<bool> _confirmDelete(BuildContext context, String name) async {
+    return await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: const BorderSide(color: Colors.black, width: 2), // ★黒枠
+              ),
+              title: const Text(
+                '削除確認',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              content: Text('$name を削除しますか？\nこの操作は元に戻せません。'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('キャンセル'),
+                ),
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      side: const BorderSide(color: Colors.black, width: 2),
+                    ),
+                  ),
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('削除する'),
+                ),
+              ],
+            );
+          },
+        ) ??
+        false;
+  }
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
@@ -68,6 +107,20 @@ class AgentsList extends StatelessWidget {
                   ),
                 );
               },
+              // ★ 削除アクションを渡す
+              onDelete: () async {
+                final ok = await _confirmDelete(context, name);
+                if (!ok) return;
+
+                await FirebaseFirestore.instance
+                    .collection('agencies')
+                    .doc(d.id)
+                    .delete();
+
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(SnackBar(content: Text('代理店 $name を削除しました')));
+              },
             );
           },
         );
@@ -93,6 +146,7 @@ class _AgencyTile extends StatelessWidget {
   final String status;
   final String commissionPercent;
   final VoidCallback onTap;
+  final VoidCallback? onDelete; // ★追加
 
   const _AgencyTile({
     required this.agentId,
@@ -102,6 +156,7 @@ class _AgencyTile extends StatelessWidget {
     required this.status,
     required this.commissionPercent,
     required this.onTap,
+    this.onDelete,
   });
 
   static const _brandYellow = Color(0xFFFCC400);
@@ -262,6 +317,11 @@ class _AgencyTile extends StatelessWidget {
             ],
           ),
         ),
+        IconButton(
+          icon: const Icon(Icons.delete_outline, color: Colors.red),
+          onPressed: onDelete,
+        ),
+
         const SizedBox(width: 12),
         const Icon(Icons.chevron_right),
       ],
@@ -317,6 +377,19 @@ class _AgencyTile extends StatelessWidget {
         Align(
           alignment: Alignment.centerRight,
           child: const Icon(Icons.chevron_right),
+        ),
+        Align(
+          alignment: Alignment.centerRight,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.delete_outline, color: Colors.red),
+                onPressed: onDelete,
+              ),
+              const Icon(Icons.chevron_right),
+            ],
+          ),
         ),
       ],
     );

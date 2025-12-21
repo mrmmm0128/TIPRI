@@ -294,10 +294,24 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   final acs = ActionCodeSettings(
-    url: 'https://tipri.jp', // 許可済みURLに
-    handleCodeInApp: false, // Webは通常 false
-    // dynamicLinkDomain: 'yourapp.page.link', // 使っていれば指定
+    url: 'https://tipri.jp',
+    handleCodeInApp: false,
   );
+
+  Future<void> _applyInitialFeeFlagIfNeeded(String uid) async {
+    // このフラグは「特定のクエリでアクセスしたときだけ」付けたいので URL を見る
+    if (!kIsWeb) return; // Web以外なら何もしない想定（必要なら削除）
+
+    final params = Uri.base.queryParameters;
+    final flag = params['initialfee_free_qr_tipri'];
+
+    if (flag == 'true_free') {
+      // uid / initial_fee ドキュメントにフラグを保存
+      await FirebaseFirestore.instance.collection(uid).doc('initial_fee').set({
+        'initial_fee_free': true,
+      }, SetOptions(merge: true));
+    }
+  }
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
@@ -326,12 +340,16 @@ class _LoginScreenState extends State<LoginScreen> {
         final displayName = _nameCtrl.text.trim();
 
         // 1) まずユーザ作成＋検証メール送信を“隔離実行”
-        await signupAndSendVerifyIsolated(
+        final createdUid = await signupAndSendVerifyIsolated(
           email: email,
           password: password,
           displayName: displayName.isEmpty ? null : displayName,
           acs: acs, // 上で定義した ActionCodeSettings
         );
+        // 1.5) クエリに応じて initial_fee フラグを保存
+        if (createdUid != null) {
+          await _applyInitialFeeFlagIfNeeded(createdUid);
+        }
 
         // 2) Firestore のユーザDoc作成（規約同意の記録）
         //    ※ ここは Admin SDK でやるのが理想ですが、
@@ -860,9 +878,6 @@ class _LoginScreenState extends State<LoginScreen> {
                                                   ),
                                                 ),
                                                 children: [
-                                                  // const TextSpan(
-                                                  //   text: '利用規約に同意します\n',
-                                                  // ),
                                                   TextSpan(
                                                     text: '利用規約に同意する',
                                                     style: lineSeedBold.merge(
@@ -1033,7 +1048,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                         backgroundColor: const Color(
                                           0xFFFCC400,
                                         ),
-                                        foregroundColor: Colors.white,
+                                        foregroundColor: Colors.black,
                                         shape: RoundedRectangleBorder(
                                           borderRadius: BorderRadius.circular(
                                             12,
@@ -1063,7 +1078,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                                 valueColor:
                                                     AlwaysStoppedAnimation<
                                                       Color
-                                                    >(Colors.white), // ★ 白
+                                                    >(Colors.black), // ★ 白
                                               ),
                                             )
                                           : Text(
@@ -1187,7 +1202,7 @@ class _ModeChip extends StatelessWidget {
           child: Text(
             label,
             style: TextStyle(
-              color: active ? Colors.white : Colors.black87,
+              color: active ? Colors.black87 : Colors.black87,
               fontWeight: active ? FontWeight.w600 : FontWeight.w500,
             ),
           ),
@@ -1215,7 +1230,7 @@ class _LegalOutlinedButton extends StatelessWidget {
       onPressed: onPressed,
       style: OutlinedButton.styleFrom(
         foregroundColor: Colors.black,
-        side: const BorderSide(color: Colors.black54),
+        side: const BorderSide(color: Colors.black, width: 3),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         // 余白をややタイトに（FittedBoxと併用で収まりやすく）
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),

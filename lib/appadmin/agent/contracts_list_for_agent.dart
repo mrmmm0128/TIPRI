@@ -13,6 +13,7 @@ class ContractsListForAgent extends StatelessWidget {
   final Tri initialPaid; // 初期費用 paid
   final Tri subActive; // subscription: active/trialing を yes
   final Tri connectCreated; // connect.charges_enabled を yes
+  final String? agentPerson; // ★ 追加：担当者名
 
   const ContractsListForAgent({
     super.key,
@@ -21,6 +22,7 @@ class ContractsListForAgent extends StatelessWidget {
     this.initialPaid = Tri.any,
     this.subActive = Tri.any,
     this.connectCreated = Tri.any,
+    this.agentPerson, // ★ 追加
   });
 
   // String _ymdhm(DateTime d) =>
@@ -60,10 +62,18 @@ class ContractsListForAgent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final stream = FirebaseFirestore.instance
+    Query<Map<String, dynamic>> q = FirebaseFirestore.instance
         .collection('agencies')
         .doc(agentId)
-        .collection('contracts')
+        .collection('contracts');
+
+    // ▼ 担当者フィルタ（document に agentPersonName が入っている想定）
+    if (agentPerson != null && agentPerson!.isNotEmpty) {
+      q = q.where('agentPersonName', isEqualTo: agentPerson);
+      // ↑ フィールド名は実データに合わせてください
+    }
+    // ▼ この q を使って stream を作ること！
+    final stream = q
         .orderBy('contractedAt', descending: true)
         .limit(200)
         .snapshots();
@@ -100,6 +110,13 @@ class ContractsListForAgent extends StatelessWidget {
           itemBuilder: (context, index) {
             final d = docs[index];
             final m = d.data();
+
+            final people =
+                (m['agent_people'] as List?)?.cast<String>() ?? const [];
+            if (agentPerson != null && agentPerson!.isNotEmpty) {
+              if (!people.contains(agentPerson)) return const SizedBox.shrink();
+            }
+
             final tenantId = (m['tenantId'] ?? '').toString();
 
             //final whenTs = m['contractedAt'];
@@ -239,6 +256,7 @@ class ContractsListForAgent extends StatelessWidget {
                           ownerUid: ownerUid,
                           tenantId: tenantId,
                           tenantName: tenantName,
+                          agentId: agentId ?? "",
                         ),
                       ),
                     );

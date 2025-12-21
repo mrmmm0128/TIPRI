@@ -13,7 +13,7 @@ class TipriQrButton extends StatelessWidget {
   const TipriQrButton({
     super.key,
     this.normalUrl = 'https://tipri.jp',
-    this.freeUrl = 'https://tipri.jp/free',
+    this.freeUrl = 'https://tipri.jp/free?initialfee_free_qr_tipri=true',
   });
 
   static const _brandYellow = Color(0xFFFCC400);

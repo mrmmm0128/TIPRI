@@ -226,6 +226,7 @@ class OnboardingSheetState extends State<OnboardingSheet> {
       _FeatureRow('Googleレビュー案内', {'A': false, 'B': false, 'C': true}),
       _FeatureRow('オリジナルポスター作成', {'A': false, 'B': false, 'C': true}),
       _FeatureRow('お客様への感謝動画', {'A': false, 'B': false, 'C': true}),
+      _FeatureRow('サブスクリプションチップ対応', {'A': false, 'B': false, 'C': true}),
     ];
 
     Widget cellBody(Widget child, {TextAlign align = TextAlign.left}) =>
@@ -319,7 +320,7 @@ class OnboardingSheetState extends State<OnboardingSheet> {
                   flex: 2,
                   child: Center(
                     child: Text(
-                      'C',
+                      'B',
                       style: TextStyle(
                         fontWeight: FontWeight.w800,
                         color: Colors.white,
@@ -1090,7 +1091,7 @@ class OnboardingSheetState extends State<OnboardingSheet> {
       // 11/29モリタ変更　プラン改定に伴いチップ手数料の変更＆プランBのコメントアウト
       _Plan(code: 'A', title: 'Aプラン', monthly: 0, feePct: 50),
       // _Plan(code: 'B', title: 'Bプラン', monthly: 3980, feePct: 25),
-      _Plan(code: 'C', title: 'Cプラン', monthly: 9800, feePct: 30),
+      _Plan(code: 'B', title: 'Bプラン', monthly: 9800, feePct: 30),
     ];
     final bool trialOnlyC = trialStatus != "none"; // ← トライアル有効なら true
 
@@ -1103,7 +1104,7 @@ class OnboardingSheetState extends State<OnboardingSheet> {
           title: const Text('無料トライアルについて'),
           content: const Text(
             '無料トライアルは全ての機能が使えるCプランのみとなります。\n'
-            '契約後トライアル中にA、Bプランに変更が可能です。',
+            '契約後トライアル中にAプランに変更が可能です。',
           ),
           actions: [
             TextButton(
@@ -1166,7 +1167,7 @@ class OnboardingSheetState extends State<OnboardingSheet> {
                       activeColor: Colors.orange,
                       visualDensity: VisualDensity.compact,
                     ),
-                    if (p.title == 'Cプラン')
+                    if (p.title == 'Bプラン')
                       const Positioned(
                         top: 14,
                         child: Text(
@@ -1191,7 +1192,7 @@ class OnboardingSheetState extends State<OnboardingSheet> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (p.title == "Cプラン")
+                    if (p.title == "Bプラン")
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 8,
@@ -1268,7 +1269,7 @@ class OnboardingSheetState extends State<OnboardingSheet> {
                             text: p.title == "Aプラン"
                                 ? "1,980"
                                 : p.title == "Bプラン"
-                                ? "7,960"
+                                ? "19,600"
                                 : "19,600",
                             style: const TextStyle(
                               fontFamily: 'LINEseed',
@@ -1598,15 +1599,15 @@ class OnboardingSheetState extends State<OnboardingSheet> {
                           textAlign: TextAlign.right,
                         ),
                       ),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: Text(
-                          "※振込手数料＋決済手数料（3.6~3.98%）は店舗側の負担となります",
-                          style: const TextStyle(fontSize: 10),
-                          textAlign: TextAlign.right,
-                        ),
-                      ),
 
+                      // Align(
+                      //   alignment: Alignment.centerRight,
+                      //   child: Text(
+                      //     "※振込手数料＋決済手数料（3.6~3.98%）は店舗側の負担となります",
+                      //     style: const TextStyle(fontSize: 10),
+                      //     textAlign: TextAlign.right,
+                      //   ),
+                      // ),
                       const SizedBox(height: 16),
 
                       // ▼▼ 新：プラン比較表（下段）

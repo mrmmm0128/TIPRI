@@ -39,34 +39,15 @@ class _LogoutButtonState extends State<LogoutButton> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 250,
-      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFCC400),
-        border: Border.all(width: 3, color: Colors.black),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(999),
-        onTap: _loggingOut ? null : _logout,
-        child: const Padding(
-          padding: EdgeInsets.symmetric(vertical: 12, horizontal: 20),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.logout, color: Colors.black87, size: 18),
-              SizedBox(width: 8),
-              Text(
-                'ログアウト',
-                style: TextStyle(
-                  color: Colors.black87,
-                  fontWeight: FontWeight.w700,
-                  fontFamily: "LINEseed",
-                ),
-              ),
-            ],
-          ),
+    return TextButton(
+      onPressed: _loggingOut ? null : _logout,
+      child: const Text(
+        'ログアウト',
+        style: TextStyle(
+          fontFamily: 'LINEseed',
+          fontWeight: FontWeight.w700,
+          // 必要なら色をつける（テーマに任せたいならこの行を消してOK）
+          color: Colors.black87,
         ),
       ),
     );

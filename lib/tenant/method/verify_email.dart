@@ -1,7 +1,7 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-Future<void> signupAndSendVerifyIsolated({
+Future<String?> signupAndSendVerifyIsolated({
   required String email,
   required String password,
   String? displayName,
@@ -18,6 +18,8 @@ Future<void> signupAndSendVerifyIsolated({
   );
   final auth = FirebaseAuth.instanceFor(app: shadow);
 
+  String? createdUid;
+
   try {
     // Webのみ：セッションを残さない
     try {
@@ -29,6 +31,9 @@ Future<void> signupAndSendVerifyIsolated({
       email: email,
       password: password,
     );
+
+    createdUid = cred.user?.uid;
+
     if ((displayName ?? '').isNotEmpty) {
       await cred.user?.updateDisplayName(displayName);
     }
@@ -40,6 +45,8 @@ Future<void> signupAndSendVerifyIsolated({
     } catch (_) {}
     await shadow.delete();
   }
+
+  return createdUid;
 }
 
 /// 既存ユーザー向け：パスワードで“影響なしログイン”して検証メールだけ再送

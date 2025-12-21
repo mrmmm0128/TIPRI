@@ -1251,7 +1251,7 @@ class _StoreQrTabState extends State<StoreQrTab> {
                         subtitle: const Padding(
                           padding: EdgeInsets.only(top: 4),
                           child: Text(
-                            'チップの受取にはStripeアカウントの作成が必要です。',
+                            'チップ受取のために\nStripeアカウントを作成しよう',
                             style: TextStyle(color: Colors.black87),
                           ),
                         ),
@@ -1454,11 +1454,12 @@ class _StoreQrTabState extends State<StoreQrTab> {
                               ],
                               posterPicker(),
                               const SizedBox(height: 16),
-                              if (!_exporting &&
-                                  _connected! &&
-                                  _publicStoreUrl != null) ...[
-                                qrControls(),
-                              ],
+                              // if (!_exporting &&
+                              //     _connected! &&
+                              //     _publicStoreUrl != null) ...[
+                              //   qrControls(),
+                              // ],
+                              qrControls(),
                               const SizedBox(height: 12),
                               if (_connected!) ...[urlButton(context)],
                             ],
@@ -1466,27 +1467,13 @@ class _StoreQrTabState extends State<StoreQrTab> {
                         ),
                       ),
                       const SizedBox(width: 16),
-                      _connected!
-                          ? Expanded(
-                              child: Align(
-                                alignment: Alignment.topCenter,
-                                child: previewPane(),
-                              ),
-                            )
-                          : Expanded(
-                              child: Center(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Center(
-                                      child: Text(
-                                        "コネクトアカウントを作成すると、\n QRコードを含んだポスターを作成することができます",
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
+                      // !_connected!
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.topCenter,
+                          child: previewPane(),
+                        ),
+                      ),
                     ],
                   ),
                 );
@@ -1517,11 +1504,12 @@ class _StoreQrTabState extends State<StoreQrTab> {
                       previewPane(),
 
                       const SizedBox(height: 16),
-                      if (!_exporting &&
-                          _connected! &&
-                          _publicStoreUrl != null) ...[
-                        qrControls(),
-                      ],
+                      // if (!_exporting &&
+                      //     _connected! &&
+                      //     _publicStoreUrl != null) ...[
+                      //   qrControls(),
+                      // ],
+                      qrControls(),
                       const SizedBox(height: 12),
                       if (_connected!) ...[urlButton(context)],
                     ],

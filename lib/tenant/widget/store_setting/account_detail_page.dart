@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:yourpay/tenant/widget/store_setting/tenant_tile.dart';
 
 class AccountDetailScreen extends StatefulWidget {
   const AccountDetailScreen({super.key});
@@ -113,6 +114,7 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
+              // --- 基本情報 ---
               _FieldCard(
                 title: '基本情報',
                 child: Column(
@@ -123,23 +125,20 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
                       textInputAction: TextInputAction.next,
                     ),
                     const SizedBox(height: 8),
-
                     TextField(
                       controller: _email,
                       readOnly: true,
                       decoration: const InputDecoration(labelText: 'メールアドレス'),
                       keyboardType: TextInputType.emailAddress,
-                      textInputAction: TextInputAction.next,
                     ),
                     const SizedBox(height: 8),
-                    // TextField(
-                    //   controller: _company,
-                    //   decoration: const InputDecoration(labelText: '会社名'),
-                    // ),
                   ],
                 ),
               ),
-              const SizedBox(height: 16),
+
+              const SizedBox(height: 12),
+
+              // 基本情報の保存ボタン（ここは "users" プロファイルだけ保存）
               Align(
                 alignment: Alignment.centerRight,
                 child: FilledButton.icon(
@@ -158,6 +157,17 @@ class _AccountDetailScreenState extends State<AccountDetailScreen> {
                   label: const Text('保存する'),
                 ),
               ),
+
+              const SizedBox(height: 24),
+
+              // --- あなたの店舗（削除はこのカード内で完結・保存不要） ---
+              _FieldCard(
+                title: 'あなたの店舗',
+                child: TenantListSection(
+                  uid: FirebaseAuth.instance.currentUser!.uid,
+                ),
+              ),
+
               const SizedBox(height: 8),
             ],
           ),

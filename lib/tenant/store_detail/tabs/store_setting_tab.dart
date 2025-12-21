@@ -118,16 +118,6 @@ class _StoreSettingsTabState extends State<StoreSettingsTab>
     super.dispose();
   }
 
-  // Stream<int> _buildUnreadCountStream(String ownerUid, String tenantId) {
-  //   final q = FirebaseFirestore.instance
-  //       .collection(ownerUid)
-  //       .doc(tenantId)
-  //       .collection('alerts')
-  //       .where('read', isEqualTo: false);
-
-  //   return q.snapshots().map((snap) => snap.docs.length);
-  // }
-
   void _startWatchTenantStatus() {
     _tenantStatusSub?.cancel();
     final ownerId = widget.ownerId;
@@ -517,6 +507,10 @@ class _StoreSettingsTabState extends State<StoreSettingsTab>
         onPrimary: Colors.white,
         onSecondary: Colors.white,
         surfaceTint: Colors.transparent,
+
+        // ★ Material背景系も揃えるならここも
+        background: const Color(0xFFF7F7F7),
+        surface: Colors.white,
       ),
       textSelectionTheme: const TextSelectionThemeData(
         cursorColor: Colors.black87,
@@ -926,6 +920,7 @@ class _StoreSettingsTabState extends State<StoreSettingsTab>
 
                         const SizedBox(height: 16),
                         LogoutButton(),
+                        const SizedBox(height: 16),
                       ],
                     );
                   },

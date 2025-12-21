@@ -1,6 +1,5 @@
 // boot_gate.dart
 import 'dart:async';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -15,7 +14,7 @@ class BootGate extends StatefulWidget {
 }
 
 class _BootGateState extends State<BootGate> {
-  static const Duration _minSplash = Duration(seconds: 2);
+  static const Duration _minSplash = Duration(milliseconds: 500);
 
   bool _navigated = false;
   late final DateTime _splashUntil;

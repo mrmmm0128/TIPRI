@@ -6,6 +6,13 @@ import 'package:yourpay/tenant/store_detail/tabs/store_qr_tab.dart';
 
 enum _ChipKind { good, warn, bad }
 
+class AgentMember {
+  AgentMember({required this.name, required this.ref});
+
+  final String name;
+  final DocumentReference<Map<String, dynamic>> ref;
+}
+
 /// --------------------
 /// 統合済みの課金情報モデル
 /// --------------------
@@ -35,12 +42,14 @@ class AdminTenantDetailPage extends StatelessWidget {
   final String ownerUid;
   final String tenantId;
   final String tenantName;
+  final String? agentId;
 
   const AdminTenantDetailPage({
     super.key,
     required this.ownerUid,
     required this.tenantId,
     required this.tenantName,
+    this.agentId,
   });
 
   // ========== brand / helpers ==========
@@ -421,10 +430,240 @@ class AdminTenantDetailPage extends StatelessWidget {
     );
   }
 
+  Future<void> _openEditAgentPeopleSheet(
+    BuildContext context, {
+    required DocumentReference<Map<String, dynamic>> tenantIndexRef,
+    required String tenantId,
+    required List<AgentMember> allMembers,
+    required List<String> initialSelectedNames,
+  }) async {
+    final selected = initialSelectedNames.toSet();
+    final initialSelected = initialSelectedNames.toSet();
+    bool saving = false;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setLocal) {
+            Future<void> save() async {
+              if (saving) return;
+              setLocal(() => saving = true);
+
+              try {
+                // ---------- ① tenantIndex.agent_people に保存 ----------
+                await tenantIndexRef.set({
+                  'agent_people': selected.toList(),
+                  'agentPeopleUpdatedAt': FieldValue.serverTimestamp(),
+                }, SetOptions(merge: true));
+
+                // ---------- ② agents/{agentId}/members 更新 ----------
+                // 追加された名前 / 外された名前を差分で計算
+                final added = selected.difference(initialSelected);
+                final removed = initialSelected.difference(selected);
+
+                // name -> AgentMember のインデックス
+                final byName = {for (final m in allMembers) m.name: m};
+
+                final writes = <Future<void>>[];
+
+                // 追加された人には tenants に tenantId を Union
+                for (final name in added) {
+                  final m = byName[name];
+                  if (m == null) continue;
+                  writes.add(
+                    m.ref.set({
+                      'tenants': FieldValue.arrayUnion([tenantId]),
+                    }, SetOptions(merge: true)),
+                  );
+                }
+
+                // 外された人には tenants から tenantId を Remove
+                for (final name in removed) {
+                  final m = byName[name];
+                  if (m == null) continue;
+                  writes.add(
+                    m.ref.set({
+                      'tenants': FieldValue.arrayRemove([tenantId]),
+                    }, SetOptions(merge: true)),
+                  );
+                }
+
+                // ---------- ③ agencies/{agentId}/contracts 側にも同じ情報を反映 ----------
+                // この代理店の contracts コレクションから、該当 tenantId の契約を取得
+                final contractsSnap = await FirebaseFirestore.instance
+                    .collection('agencies')
+                    .doc(agentId) // ★ 外側 or 引数で受け取っている agentId
+                    .collection('contracts')
+                    .where('tenantId', isEqualTo: tenantId) // ★ このテナントの契約だけ
+                    .get();
+
+                for (final doc in contractsSnap.docs) {
+                  writes.add(
+                    doc.reference.set({
+                      'agent_people': selected.toList(),
+                      'agentPeopleUpdatedAt': FieldValue.serverTimestamp(),
+                    }, SetOptions(merge: true)),
+                  );
+                }
+
+                // ---------- batched 実行 ----------
+                await Future.wait(writes);
+
+                if (Navigator.canPop(ctx)) Navigator.pop(ctx);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('代理店メンバーを保存しました')),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text('保存に失敗しました: $e')));
+                }
+              } finally {
+                setLocal(() => saving = false);
+              }
+            }
+
+            return SafeArea(
+              child: Padding(
+                padding: EdgeInsets.only(
+                  left: 16,
+                  right: 16,
+                  top: 12,
+                  bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // ハンドル
+                    Container(
+                      height: 4,
+                      width: 40,
+                      margin: const EdgeInsets.only(bottom: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.black12,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    Row(
+                      children: [
+                        const Text(
+                          '代理店メンバーを紐づけ',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        const Spacer(),
+                        IconButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          icon: const Icon(Icons.close),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+
+                    if (allMembers.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 8),
+                        child: Text('候補メンバーが登録されていません'),
+                      )
+                    else
+                      Flexible(
+                        child: ListView.builder(
+                          shrinkWrap: true,
+                          itemCount: allMembers.length,
+                          itemBuilder: (ctx, i) {
+                            final m = allMembers[i];
+                            final checked = selected.contains(m.name);
+                            return CheckboxListTile(
+                              title: Text(m.name),
+                              value: checked,
+                              onChanged: (v) {
+                                setLocal(() {
+                                  if (v == true) {
+                                    selected.add(m.name);
+                                  } else {
+                                    selected.remove(m.name);
+                                  }
+                                });
+                              },
+                            );
+                          },
+                        ),
+                      ),
+
+                    const SizedBox(height: 12),
+
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: saving ? null : save,
+                        icon: saving
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.black,
+                                ),
+                              )
+                            : const Icon(Icons.save),
+                        label: Text(saving ? '保存中…' : '保存する'),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFFFCC400),
+                          foregroundColor: Colors.black,
+                          side: const BorderSide(color: Colors.black, width: 3),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<List<AgentMember>> _fetchAgentMembersByCode({
+    required String agentId,
+  }) async {
+    try {
+      // agencies/{agentId}/members から取得
+      final agentDocRef = FirebaseFirestore.instance
+          .collection('agencies')
+          .doc(agentId);
+
+      final memSnap = await agentDocRef.collection('members').get();
+
+      return memSnap.docs.map((d) {
+        final data = d.data();
+        final name = (data['name'] ?? d.id).toString(); // フィールド名は要調整
+        return AgentMember(name: name, ref: d.reference);
+      }).toList();
+    } catch (e) {
+      debugPrint('Failed to fetch agent members: $e');
+      return <AgentMember>[];
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final tenantRef = FirebaseFirestore.instance
         .collection(ownerUid)
+        .doc(tenantId);
+    final tenantIndexRef = FirebaseFirestore.instance
+        .collection('tenantIndex')
         .doc(tenantId);
 
     final hp = _hpad(context); // 先に算出
@@ -705,6 +944,70 @@ class AdminTenantDetailPage extends StatelessWidget {
                       _kv(context, '電話番号', phone.isEmpty ? '' : phone),
                       _kv(context, 'メモ', memo.isEmpty ? '' : memo),
                     ],
+                  );
+                },
+              ),
+
+              const SizedBox(height: 12),
+              const Divider(height: 1, color: Colors.black12),
+              // ===== 代理店担当（tenantIndex.agent_people） =====
+              _sectionTitle(
+                context,
+                '担当者',
+                trailing: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Colors.black, width: 3),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    foregroundColor: Colors.black,
+                    backgroundColor: brandYellow,
+                  ),
+                  onPressed: () async {
+                    // 1) 現在の agent_people を取得
+                    // tenantIndex の参照
+                    final tenantIndexRef = FirebaseFirestore.instance
+                        .collection('tenantIndex')
+                        .doc(tenantId);
+
+                    // 1) 現在の agent_people を取得
+                    final idxSnap = await tenantIndexRef.get();
+                    final data = idxSnap.data() ?? <String, dynamic>{};
+                    final rawList = (data['agent_people'] as List?) ?? const [];
+                    final currentNames = rawList
+                        .map((e) => e.toString())
+                        .toList();
+
+                    // 2) 代理店メンバー候補（agents/{code==agentId}/members）
+                    final members = await _fetchAgentMembersByCode(
+                      agentId: agentId ?? "",
+                    );
+
+                    // ignore: use_build_context_synchronously
+                    await _openEditAgentPeopleSheet(
+                      context,
+                      tenantIndexRef: tenantIndexRef,
+                      tenantId: tenantId,
+                      allMembers: members,
+                      initialSelectedNames: currentNames,
+                    );
+                  },
+                  icon: const Icon(Icons.edit),
+                  label: const Text('編集'),
+                ),
+              ),
+              StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                stream: tenantIndexRef.snapshots(),
+                builder: (context, idxSnap) {
+                  final data = idxSnap.data?.data() ?? <String, dynamic>{};
+                  final rawList = (data['agent_people'] as List?) ?? const [];
+                  final names = rawList.map((e) => e.toString()).toList();
+
+                  final display = names.isEmpty ? '—' : names.join('、');
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [_kv(context, '担当者', display)],
                   );
                 },
               ),

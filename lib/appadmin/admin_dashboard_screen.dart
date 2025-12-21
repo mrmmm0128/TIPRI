@@ -4,6 +4,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:yourpay/appadmin/admin_announsment.dart';
 import 'package:yourpay/appadmin/cashback_list.dart';
+import 'package:yourpay/appadmin/sunscription_delete_apply.dart';
 import 'package:yourpay/appadmin/tenant/tenant_list_view.dart';
 import 'package:yourpay/appadmin/util.dart';
 
@@ -584,6 +585,20 @@ class _AdminDashboardHomeState extends State<AdminDashboardHome> {
                   );
                 },
                 icon: const Icon(Icons.payments_outlined),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: IconButton(
+                tooltip: '解約申請一覧',
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const SubscriptionCancelListPage(),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.cancel_schedule_send_outlined),
               ),
             ),
           ],

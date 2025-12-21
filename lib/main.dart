@@ -87,7 +87,7 @@ Future<void> main() async {
       return const Material(
         color: Colors.white,
         child: Center(
-          child: Text('Unexpected error', style: TextStyle(color: Colors.red)),
+          child: Text('予期せぬエラーが発生しました', style: TextStyle(color: Colors.red)),
         ),
       );
     }
@@ -112,6 +112,35 @@ class MyApp extends StatelessWidget {
   Route<dynamic> _onGenerateRoute(RouteSettings settings) {
     final name = settings.name ?? '/';
     final uri = Uri.parse(name);
+
+    // ① admin だけ特別扱い
+    if (uri.path == '/admin') {
+      final user = FirebaseAuth.instance.currentUser;
+
+      const allowedUids = {
+        'KjbZAA5vvueofEuk7mREclRux0a2',
+        'sy4g1tML5rO8pwc30htUfIF1meF3',
+      };
+
+      // 未ログイン or 許可UID以外 → ルート相当へ返す
+      if (user == null || !allowedUids.contains(user.uid)) {
+        return MaterialPageRoute(
+          // 未ログインなら BootGate、ログイン済みなら Root に返すなど
+          builder: (_) => user == null ? const BootGate() : const Root(),
+          // URLも「/」として扱いたければ name を上書きしておく
+          settings: RouteSettings(
+            name: '/', // URL的にはルート扱いにしたい場合
+            arguments: settings.arguments, // 必要なら元の arguments を引き継ぐ
+          ),
+        );
+      }
+
+      // 許可された UID のみ admin 画面へ
+      return MaterialPageRoute(
+        builder: (_) => const AdminDashboardHome(),
+        settings: settings,
+      );
+    }
 
     // それ以外の静的ルート
     final staticRoutes = <String, WidgetBuilder>{

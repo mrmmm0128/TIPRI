@@ -30,11 +30,43 @@ class _AgencyDetailPageState extends State<AgencyDetailPage> {
   Tri _fInitial = Tri.any;
   Tri _fSub = Tri.any;
   Tri _fConnect = Tri.any;
+  List<String> _agentMembers = [];
+  String _selectedAgentMember = ''; // '' = すべて
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAgentMembers();
+  }
 
   @override
   void dispose() {
     _searchCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadAgentMembers() async {
+    try {
+      // agencies/{agentId}/members からメンバー一覧を取得
+      final agentRef = FirebaseFirestore.instance
+          .collection('agencies')
+          .doc(widget.agentId);
+
+      final memSnap = await agentRef.collection('members').get();
+      final names = <String>[];
+
+      for (final d in memSnap.docs) {
+        final data = d.data();
+        // 実際のフィールド名に合わせて調整（name / displayName など）
+        final name = (data['name'] ?? d.id).toString();
+        if (name.isNotEmpty) names.add(name);
+      }
+
+      setState(() => _agentMembers = names);
+    } catch (e) {
+      // 失敗しても致命的ではないのでログだけでもOK
+      debugPrint('Failed to load agent members: $e');
+    }
   }
 
   // ===== レスポンシブ共通 =====
@@ -1112,38 +1144,99 @@ class _AgencyDetailPageState extends State<AgencyDetailPage> {
                       onChanged: (_) => setState(() {}),
                     );
 
+                    // ▼ 担当者プルダウン（共通ウィジェット）
+                    Widget _buildMemberDropdown() {
+                      if (_agentMembers.isEmpty) {
+                        return const SizedBox.shrink();
+                      }
+                      return DropdownButtonFormField<String>(
+                        value: _selectedAgentMember.isEmpty
+                            ? null
+                            : _selectedAgentMember,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          isDense: true,
+                          labelText: '担当者',
+                          filled: true,
+                          fillColor: Colors.white,
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderSide: BorderSide(
+                              color: Colors.black,
+                              width: 3,
+                            ),
+                            borderRadius: BorderRadius.all(Radius.circular(12)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderSide: BorderSide(
+                              color: Colors.black,
+                              width: 3,
+                            ),
+                            borderRadius: BorderRadius.all(Radius.circular(12)),
+                          ),
+                        ),
+                        items: [
+                          const DropdownMenuItem(
+                            value: '',
+                            child: Text('担当者：すべて'),
+                          ),
+                          ..._agentMembers.map(
+                            (n) => DropdownMenuItem(value: n, child: Text(n)),
+                          ),
+                        ],
+                        onChanged: (v) {
+                          setState(() {
+                            _selectedAgentMember = (v ?? '');
+                          });
+                        },
+                      );
+                    }
+
                     if (isWide) {
-                      return Row(
+                      // PC幅: 検索＋3フィルタの横に担当者も並べる or 下に1行追加
+                      return Column(
                         children: [
-                          Expanded(flex: 3, child: searchField),
-                          const SizedBox(width: gap),
-                          Expanded(
-                            child: _triFilterChip(
-                              label: '初期費用',
-                              value: _fInitial,
-                              onChanged: (v) => setState(() => _fInitial = v),
-                            ),
+                          Row(
+                            children: [
+                              Expanded(flex: 3, child: searchField),
+                              const SizedBox(width: gap),
+                              Expanded(
+                                child: _triFilterChip(
+                                  label: '初期費用',
+                                  value: _fInitial,
+                                  onChanged: (v) =>
+                                      setState(() => _fInitial = v),
+                                ),
+                              ),
+                              const SizedBox(width: gap),
+                              Expanded(
+                                child: _triFilterChip(
+                                  label: 'サブスク',
+                                  value: _fSub,
+                                  onChanged: (v) => setState(() => _fSub = v),
+                                ),
+                              ),
+                              const SizedBox(width: gap),
+                              Expanded(
+                                child: _triFilterChip(
+                                  label: 'Connect',
+                                  value: _fConnect,
+                                  onChanged: (v) =>
+                                      setState(() => _fConnect = v),
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: gap),
-                          Expanded(
-                            child: _triFilterChip(
-                              label: 'サブスク',
-                              value: _fSub,
-                              onChanged: (v) => setState(() => _fSub = v),
-                            ),
-                          ),
-                          const SizedBox(width: gap),
-                          Expanded(
-                            child: _triFilterChip(
-                              label: 'Stripe',
-                              value: _fConnect,
-                              onChanged: (v) => setState(() => _fConnect = v),
-                            ),
-                          ),
+                          const SizedBox(height: 8),
+                          _buildMemberDropdown(),
                         ],
                       );
                     }
 
+                    // モバイル幅
                     return Column(
                       children: [
                         searchField,
@@ -1175,6 +1268,8 @@ class _AgencyDetailPageState extends State<AgencyDetailPage> {
                             ),
                           ],
                         ),
+                        const SizedBox(height: 8),
+                        _buildMemberDropdown(),
                       ],
                     );
                   },
@@ -1188,6 +1283,10 @@ class _AgencyDetailPageState extends State<AgencyDetailPage> {
                 initialPaid: _fInitial,
                 subActive: _fSub,
                 connectCreated: _fConnect,
+                // ▼ 追加: 担当者フィルタを渡す（'' はフィルタなし）
+                agentPerson: _selectedAgentMember.isEmpty
+                    ? null
+                    : _selectedAgentMember,
               ),
 
               const SizedBox(height: 24),

@@ -104,8 +104,8 @@ class _PlanPickerState extends State<PlanPicker> {
       //   features: const ['決済手数料25%', '公式LINEリンクの掲載', 'チップとともにコメントの送信'],
       // ),
       PlanDef(
-        code: 'C',
-        title: 'Cプラン',
+        code: 'B',
+        title: 'Bプラン',
         monthly: 9800,
         feePct: 30,
         features: const [
@@ -115,6 +115,7 @@ class _PlanPickerState extends State<PlanPicker> {
           'Googleレビュー導線の設置',
           'オリジナルポスター作成',
           'お客様への感謝動画',
+          'サブスクリプションチップ対応',
         ],
       ),
     ];

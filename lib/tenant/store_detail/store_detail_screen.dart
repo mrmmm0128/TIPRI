@@ -960,6 +960,12 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
                         tenantId: tenantId!,
                         tenantName: tenantName,
                         ownerId: ownerUid!,
+                        // ★ 追加：印刷タブ(index 1)へ移動するコールバック
+                        onGoToPrintTab: () {
+                          setState(() {
+                            _currentIndex = 1; // BottomNavigationBar の「印刷」
+                          });
+                        },
                       ),
                       StoreQrTab(
                         tenantId: tenantId!,

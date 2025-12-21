@@ -8,6 +8,7 @@ import 'package:yourpay/tenant/method/logout.dart';
 import 'package:yourpay/tenant/widget/store_detail/alert_dialog.dart';
 import 'package:yourpay/tenant/widget/store_setting/store_admin.dart';
 import 'package:yourpay/tenant/widget/store_setting/store_dedution.dart';
+import 'package:yourpay/tenant/widget/store_setting/subscription_card.dart';
 import 'package:yourpay/tenant/widget/store_setting/subscription_change.dart';
 import 'dart:async';
 
@@ -681,156 +682,156 @@ class _StoreSettingsTabState extends State<StoreSettingsTab>
                       key: const PageStorageKey('store_settings_list'), // ★ 追加
                       controller: _scrollCtrl, // ★ 追加
                       children: [
-                        ownerIsMe
-                            ? Column(
-                                children: [
-                                  const SizedBox(height: 20),
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 25,
-                                    ),
-                                    child: SizedBox(
-                                      width: double.infinity,
-                                      child: FilledButton.icon(
-                                        style: FilledButton.styleFrom(
-                                          backgroundColor: Color(0xFFFCC400),
-                                          foregroundColor: Colors.black,
-                                          side: BorderSide(
-                                            color: Colors.black,
-                                            width: 3,
-                                          ),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              12,
-                                            ),
-                                          ),
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 16,
-                                            vertical: 7,
-                                          ),
-                                        ),
-                                        onPressed: () => Navigator.pushNamed(
-                                          context,
-                                          '/account',
-                                          arguments: {
-                                            "tenantId": widget.tenantId,
-                                          },
-                                        ),
-                                        icon: const Icon(Icons.manage_accounts),
-                                        label: const Text('アカウント情報を確認'),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 3),
-                                  isNarrow
-                                      ? Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 25,
-                                          ),
-                                          child: Row(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.end,
-                                            children: [
-                                              if (widget.ownerId! == uid) ...[
-                                                Expanded(
-                                                  child: FilledButton.icon(
-                                                    style: FilledButton.styleFrom(
-                                                      backgroundColor: Color(
-                                                        0xFFFCC400,
-                                                      ),
-                                                      foregroundColor:
-                                                          Colors.black,
-                                                      shape: RoundedRectangleBorder(
-                                                        borderRadius:
-                                                            BorderRadius.circular(
-                                                              12,
-                                                            ),
-                                                      ),
-                                                      side: BorderSide(
-                                                        color: Colors.black,
-                                                        width: 3,
-                                                      ),
-                                                      padding:
-                                                          const EdgeInsets.symmetric(
-                                                            horizontal: 16,
-                                                            vertical: 10,
-                                                          ),
-                                                    ),
-                                                    onPressed: () =>
-                                                        Navigator.pushNamed(
-                                                          context,
-                                                          '/tenant',
-                                                          arguments: {
-                                                            "tenantId":
-                                                                widget.tenantId,
-                                                          },
-                                                        ),
-                                                    icon: const Icon(
-                                                      Icons
-                                                          .store_mall_directory_outlined,
-                                                    ),
-                                                    label: const Text(
-                                                      'テナント情報を確認',
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
+                        // ownerIsMe
+                        //     ? Column(
+                        //         children: [
+                        //           const SizedBox(height: 20),
+                        //           Padding(
+                        //             padding: const EdgeInsets.symmetric(
+                        //               horizontal: 25,
+                        //             ),
+                        //             child: SizedBox(
+                        //               width: double.infinity,
+                        //               child: FilledButton.icon(
+                        //                 style: FilledButton.styleFrom(
+                        //                   backgroundColor: Color(0xFFFCC400),
+                        //                   foregroundColor: Colors.black,
+                        //                   side: BorderSide(
+                        //                     color: Colors.black,
+                        //                     width: 3,
+                        //                   ),
+                        //                   shape: RoundedRectangleBorder(
+                        //                     borderRadius: BorderRadius.circular(
+                        //                       12,
+                        //                     ),
+                        //                   ),
+                        //                   padding: const EdgeInsets.symmetric(
+                        //                     horizontal: 16,
+                        //                     vertical: 7,
+                        //                   ),
+                        //                 ),
+                        //                 onPressed: () => Navigator.pushNamed(
+                        //                   context,
+                        //                   '/account',
+                        //                   arguments: {
+                        //                     "tenantId": widget.tenantId,
+                        //                   },
+                        //                 ),
+                        //                 icon: const Icon(Icons.manage_accounts),
+                        //                 label: const Text('アカウント情報を確認'),
+                        //               ),
+                        //             ),
+                        //           ),
+                        //           const SizedBox(height: 3),
+                        //           isNarrow
+                        //               ? Padding(
+                        //                   padding: const EdgeInsets.symmetric(
+                        //                     horizontal: 25,
+                        //                   ),
+                        //                   child: Row(
+                        //                     mainAxisAlignment:
+                        //                         MainAxisAlignment.end,
+                        //                     children: [
+                        //                       if (widget.ownerId! == uid) ...[
+                        //                         Expanded(
+                        //                           child: FilledButton.icon(
+                        //                             style: FilledButton.styleFrom(
+                        //                               backgroundColor: Color(
+                        //                                 0xFFFCC400,
+                        //                               ),
+                        //                               foregroundColor:
+                        //                                   Colors.black,
+                        //                               shape: RoundedRectangleBorder(
+                        //                                 borderRadius:
+                        //                                     BorderRadius.circular(
+                        //                                       12,
+                        //                                     ),
+                        //                               ),
+                        //                               side: BorderSide(
+                        //                                 color: Colors.black,
+                        //                                 width: 3,
+                        //                               ),
+                        //                               padding:
+                        //                                   const EdgeInsets.symmetric(
+                        //                                     horizontal: 16,
+                        //                                     vertical: 10,
+                        //                                   ),
+                        //                             ),
+                        //                             onPressed: () =>
+                        //                                 Navigator.pushNamed(
+                        //                                   context,
+                        //                                   '/tenant',
+                        //                                   arguments: {
+                        //                                     "tenantId":
+                        //                                         widget.tenantId,
+                        //                                   },
+                        //                                 ),
+                        //                             icon: const Icon(
+                        //                               Icons
+                        //                                   .store_mall_directory_outlined,
+                        //                             ),
+                        //                             label: const Text(
+                        //                               'テナント情報を確認',
+                        //                             ),
+                        //                           ),
+                        //                         ),
+                        //                       ],
 
-                                              const SizedBox(width: 5),
-                                              TenantAlertsButton(
-                                                tenantId: widget.tenantId,
-                                              ),
-                                            ],
-                                          ),
-                                        )
-                                      : widget.ownerId! == uid
-                                      ? Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 25,
-                                          ),
-                                          child: SizedBox(
-                                            width: double.infinity,
-                                            child: FilledButton.icon(
-                                              style: FilledButton.styleFrom(
-                                                backgroundColor: Color(
-                                                  0xFFFCC400,
-                                                ),
-                                                foregroundColor: Colors.black,
-                                                shape: RoundedRectangleBorder(
-                                                  borderRadius:
-                                                      BorderRadius.circular(12),
-                                                ),
-                                                side: BorderSide(
-                                                  color: Colors.black,
-                                                  width: 3,
-                                                ),
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 16,
-                                                      vertical: 10,
-                                                    ),
-                                              ),
-                                              onPressed: () =>
-                                                  Navigator.pushNamed(
-                                                    context,
-                                                    '/tenant',
-                                                    arguments: {
-                                                      "tenantId":
-                                                          widget.tenantId,
-                                                    },
-                                                  ),
-                                              icon: const Icon(
-                                                Icons
-                                                    .store_mall_directory_outlined,
-                                              ),
-                                              label: const Text('テナント情報を確認'),
-                                            ),
-                                          ),
-                                        )
-                                      : const SizedBox(height: 1),
-                                ],
-                              )
-                            : const SizedBox(height: 0),
+                        //                       const SizedBox(width: 5),
+                        //                       TenantAlertsButton(
+                        //                         tenantId: widget.tenantId,
+                        //                       ),
+                        //                     ],
+                        //                   ),
+                        //                 )
+                        //               : widget.ownerId! == uid
+                        //               ? Padding(
+                        //                   padding: const EdgeInsets.symmetric(
+                        //                     horizontal: 25,
+                        //                   ),
+                        //                   child: SizedBox(
+                        //                     width: double.infinity,
+                        //                     child: FilledButton.icon(
+                        //                       style: FilledButton.styleFrom(
+                        //                         backgroundColor: Color(
+                        //                           0xFFFCC400,
+                        //                         ),
+                        //                         foregroundColor: Colors.black,
+                        //                         shape: RoundedRectangleBorder(
+                        //                           borderRadius:
+                        //                               BorderRadius.circular(12),
+                        //                         ),
+                        //                         side: BorderSide(
+                        //                           color: Colors.black,
+                        //                           width: 3,
+                        //                         ),
+                        //                         padding:
+                        //                             const EdgeInsets.symmetric(
+                        //                               horizontal: 16,
+                        //                               vertical: 10,
+                        //                             ),
+                        //                       ),
+                        //                       onPressed: () =>
+                        //                           Navigator.pushNamed(
+                        //                             context,
+                        //                             '/tenant',
+                        //                             arguments: {
+                        //                               "tenantId":
+                        //                                   widget.tenantId,
+                        //                             },
+                        //                           ),
+                        //                       icon: const Icon(
+                        //                         Icons
+                        //                             .store_mall_directory_outlined,
+                        //                       ),
+                        //                       label: const Text('テナント情報を確認'),
+                        //                     ),
+                        //                   ),
+                        //                 )
+                        //               : const SizedBox(height: 1),
+                        //         ],
+                        //       )
+                        //     : const SizedBox(height: 0),
                         const SizedBox(height: 16),
 
                         Padding(
@@ -917,6 +918,205 @@ class _StoreSettingsTabState extends State<StoreSettingsTab>
                           onRemoveAdmin: (uidToRemove) =>
                               _removeAdmin(tenantRef, uidToRemove),
                         ),
+
+                        const SizedBox(height: 10),
+
+                        ownerIsMe
+                            ? CardShell(
+                                child: LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    final narrow =
+                                        isNarrow || constraints.maxWidth < 520;
+
+                                    final btnStyle = FilledButton.styleFrom(
+                                      backgroundColor: const Color(0xFFFCC400),
+                                      foregroundColor: Colors.black,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(
+                                          999,
+                                        ),
+                                      ),
+                                      side: const BorderSide(
+                                        color: Colors.black,
+                                        width: 3,
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 18,
+                                        vertical: 10,
+                                      ),
+                                      textStyle: const TextStyle(
+                                        fontFamily: 'LINEseed',
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    );
+
+                                    if (narrow) {
+                                      // ===== スマホ向け：縦並び＋ベルは下に =====
+                                      return Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          const Text(
+                                            'アカウント・店舗設定',
+                                            style: TextStyle(
+                                              fontFamily: 'LINEseed',
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 16,
+                                              color: Colors.black87,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          const Text(
+                                            '請求情報や店舗情報の確認・変更はこちらから行えます。',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.black54,
+                                              height: 1.4,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 12),
+                                          SizedBox(
+                                            width: double.infinity,
+                                            child: FilledButton.icon(
+                                              style: btnStyle,
+                                              onPressed: () =>
+                                                  Navigator.pushNamed(
+                                                    context,
+                                                    '/account',
+                                                    arguments: {
+                                                      "tenantId":
+                                                          widget.tenantId,
+                                                    },
+                                                  ),
+                                              icon: const Icon(
+                                                Icons.manage_accounts,
+                                              ),
+                                              label: const Text('アカウント情報を確認'),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          SizedBox(
+                                            width: double.infinity,
+                                            child: FilledButton.icon(
+                                              style: btnStyle,
+                                              onPressed: () =>
+                                                  Navigator.pushNamed(
+                                                    context,
+                                                    '/tenant',
+                                                    arguments: {
+                                                      "tenantId":
+                                                          widget.tenantId,
+                                                    },
+                                                  ),
+                                              icon: const Icon(
+                                                Icons
+                                                    .store_mall_directory_outlined,
+                                              ),
+                                              label: const Text('テナント情報を確認'),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          // ★ ベルはスマホのときだけ
+                                          Align(
+                                            alignment: Alignment.centerRight,
+                                            child: TenantAlertsButton(
+                                              tenantId: widget.tenantId,
+                                            ),
+                                          ),
+                                        ],
+                                      );
+                                    } else {
+                                      // ===== PC / タブレット：HPっぽい横レイアウト =====
+                                      return Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.center,
+                                        children: [
+                                          // 左：見出し＋説明
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: const [
+                                                Text(
+                                                  'アカウント・店舗設定',
+                                                  style: TextStyle(
+                                                    fontFamily: 'LINEseed',
+                                                    fontWeight: FontWeight.w700,
+                                                    fontSize: 16,
+                                                    color: Colors.black87,
+                                                  ),
+                                                ),
+                                                SizedBox(height: 4),
+                                                Text(
+                                                  'オーナー用の設定メニューです。請求情報と店舗情報をまとめて管理できます。',
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    color: Colors.black54,
+                                                    height: 1.4,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(width: 16),
+                                          // 右：ボタン2つを縦にそろえる
+                                          Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.end,
+                                            children: [
+                                              SizedBox(
+                                                width: 260,
+                                                child: FilledButton.icon(
+                                                  style: btnStyle,
+                                                  onPressed: () =>
+                                                      Navigator.pushNamed(
+                                                        context,
+                                                        '/account',
+                                                        arguments: {
+                                                          "tenantId":
+                                                              widget.tenantId,
+                                                        },
+                                                      ),
+                                                  icon: const Icon(
+                                                    Icons.manage_accounts,
+                                                  ),
+                                                  label: const Text(
+                                                    'アカウント情報を確認',
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 8),
+                                              SizedBox(
+                                                width: 260,
+                                                child: FilledButton.icon(
+                                                  style: btnStyle,
+                                                  onPressed: () =>
+                                                      Navigator.pushNamed(
+                                                        context,
+                                                        '/tenant',
+                                                        arguments: {
+                                                          "tenantId":
+                                                              widget.tenantId,
+                                                        },
+                                                      ),
+                                                  icon: const Icon(
+                                                    Icons
+                                                        .store_mall_directory_outlined,
+                                                  ),
+                                                  label: const Text(
+                                                    'テナント情報を確認',
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      );
+                                    }
+                                  },
+                                ),
+                              )
+                            : const SizedBox.shrink(),
 
                         const SizedBox(height: 16),
                         LogoutButton(),

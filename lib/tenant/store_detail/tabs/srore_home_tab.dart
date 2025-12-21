@@ -11,11 +11,14 @@ class StoreHomeTab extends StatefulWidget {
   final String tenantId;
   final String? tenantName;
   final String? ownerId;
+  final VoidCallback? onGoToPrintTab;
+
   const StoreHomeTab({
     super.key,
     required this.tenantId,
     this.tenantName,
     this.ownerId,
+    this.onGoToPrintTab,
   });
 
   @override
@@ -558,463 +561,6 @@ class _StoreHomeTabState extends State<StoreHomeTab> {
     );
   }
 
-  // Future<void> _exportMonthlyReportPdf() async {
-  //   try {
-  //     setState(() => loading = true);
-
-  //     final b = _rangeBounds();
-  //     if (b.start == null || b.endExclusive == null) {
-  //       if (!mounted) return;
-  //       ScaffoldMessenger.of(context).showSnackBar(
-  //         const SnackBar(
-  //           content: Text(
-  //             '期間を選択してください',
-  //             style: TextStyle(fontFamily: 'LINEseed'),
-  //           ),
-  //           backgroundColor: Color(0xFFFCC400),
-  //         ),
-  //       );
-  //       return;
-  //     }
-
-  //     String ymd(DateTime d) =>
-  //         '${d.year}/${d.month.toString().padLeft(2, '0')}/${d.day.toString().padLeft(2, '0')}';
-  //     final periodLabel =
-  //         '${ymd(b.start!)}〜${ymd(b.endExclusive!.subtract(const Duration(days: 1)))}';
-
-  //     // 現行の手数料設定（古いレコードのフォールバック用）
-  //     final tSnap = await FirebaseFirestore.instance
-  //         .collection(widget.ownerId!)
-  //         .doc(widget.tenantId)
-  //         .get();
-  //     final tData = tSnap.data() ?? {};
-  //     final feeCfg =
-  //         (tData['fee'] as Map?)?.cast<String, dynamic>() ?? const {};
-  //     final storeCfg =
-  //         (tData['storeDeduction'] as Map?)?.cast<String, dynamic>() ??
-  //         const {};
-  //     final feePercent = feeCfg['percent'] as num?;
-  //     final feeFixed = feeCfg['fixed'] as num?;
-  //     final storePercent = storeCfg['percent'] as num?;
-  //     final storeFixed = storeCfg['fixed'] as num?;
-
-  //     // 期間の Tips を取得
-  //     final qs = await FirebaseFirestore.instance
-  //         .collection(widget.ownerId!)
-  //         .doc(widget.tenantId)
-  //         .collection('tips')
-  //         .where('status', isEqualTo: 'succeeded')
-  //         .where(
-  //           'createdAt',
-  //           isGreaterThanOrEqualTo: Timestamp.fromDate(b.start!),
-  //         )
-  //         .where('createdAt', isLessThan: Timestamp.fromDate(b.endExclusive!))
-  //         .orderBy('createdAt', descending: false)
-  //         .limit(5000)
-  //         .get();
-
-  //     if (qs.docs.isEmpty) {
-  //       if (!mounted) return;
-  //       ScaffoldMessenger.of(context).showSnackBar(
-  //         const SnackBar(
-  //           content: Text(
-  //             '対象期間にデータがありません',
-  //             style: TextStyle(fontFamily: 'LINEseed'),
-  //           ),
-  //           backgroundColor: Color(0xFFFCC400),
-  //         ),
-  //       );
-  //       return;
-  //     }
-
-  //     // Stripe手数料の推定（保存が無い古いレコード用）
-  //     int estimateStripeFee(int v) => (v * 34) ~/ 1000;
-
-  //     // 集計
-  //     int totalGross = 0; // 全体の実額合計
-  //     int totalAppFee = 0; // プラットフォーム手数料合計
-  //     int totalStripeFee = 0; // Stripe手数料合計
-  //     int totalStoreNet = 0; // 店舗受取見込み（net.toStore）の合計
-  //     bool anyStripeEstimated = false;
-
-  //     final byStaff = <String, Map<String, dynamic>>{};
-  //     int grandGross = 0,
-  //         grandAppFee = 0,
-  //         grandStripe = 0,
-  //         grandStore = 0,
-  //         grandNet = 0;
-
-  //     for (final doc in qs.docs) {
-  //       final d = doc.data();
-  //       final currency = (d['currency'] as String?)?.toUpperCase() ?? 'JPY';
-  //       if (currency != 'JPY') continue;
-
-  //       final amount = (d['amount'] as num?)?.toInt() ?? 0;
-  //       if (amount <= 0) continue;
-
-  //       // プラットフォーム手数料（保存優先: fees.platform or appFee -> 無ければ現行設定で算出）
-  //       final feesMap = (d['fees'] as Map?)?.cast<String, dynamic>();
-  //       final appFeeStored =
-  //           (feesMap?['platform'] as num?)?.toInt() ??
-  //           (d['appFee'] as num?)?.toInt();
-  //       final appFee =
-  //           appFeeStored ??
-  //           _calcFee(amount, percent: feePercent, fixed: feeFixed);
-
-  //       // Stripe手数料（保存があればそれを使用／無ければ推定2.4%）
-  //       final stripeFeeStored =
-  //           ((feesMap?['stripe'] as Map?)?['amount'] as num?)?.toInt();
-  //       final stripeFee = stripeFeeStored ?? estimateStripeFee(amount);
-  //       if (stripeFeeStored == null) anyStripeEstimated = true;
-
-  //       // 店舗控除（split.storeAmount -> applied値 -> 現行設定）
-  //       final split = (d['split'] as Map?)?.cast<String, dynamic>();
-  //       int storeCut;
-  //       if (split != null) {
-  //         final storeAmount = (split['storeAmount'] as num?)?.toInt();
-  //         if (storeAmount != null) {
-  //           storeCut = storeAmount;
-  //         } else {
-  //           final pApplied = (split['percentApplied'] as num?)?.toDouble();
-  //           final fApplied = (split['fixedApplied'] as num?)?.toDouble();
-  //           storeCut = _calcFee(amount, percent: pApplied, fixed: fApplied);
-  //         }
-  //       } else {
-  //         storeCut = _calcFee(amount, percent: storePercent, fixed: storeFixed);
-  //       }
-
-  //       // 受取先（スタッフ/店舗）
-  //       final rec = (d['recipient'] as Map?)?.cast<String, dynamic>();
-  //       final staffId =
-  //           (d['employeeId'] as String?) ?? (rec?['employeeId'] as String?);
-  //       final isStaff = staffId != null && staffId.isNotEmpty;
-
-  //       // 保存済みのnet（あれば優先）
-  //       final netMap = (d['net'] as Map?)?.cast<String, dynamic>();
-  //       final netToStoreSaved = (netMap?['toStore'] as num?)?.toInt();
-  //       final netToStaffSaved = (netMap?['toStaff'] as num?)?.toInt();
-
-  //       final netToStore =
-  //           netToStoreSaved ??
-  //           (isStaff
-  //               ? storeCut
-  //               : (amount - appFee - stripeFee).clamp(0, amount));
-  //       final netToStaff =
-  //           netToStaffSaved ??
-  //           (isStaff
-  //               ? (amount - appFee - stripeFee - storeCut).clamp(0, amount)
-  //               : 0);
-
-  //       // 店舗サマリ（除外スタッフは含めない）
-  //       final include = !isStaff || !_excludedStaff.contains(staffId);
-  //       if (include) {
-  //         totalGross += amount;
-  //         totalAppFee += appFee;
-  //         totalStripeFee += stripeFee;
-  //         totalStoreNet += netToStore;
-  //       }
-
-  //       // スタッフ別（スタッフのみ & 除外していない）
-  //       if (isStaff && !_excludedStaff.contains(staffId)) {
-  //         final staffName =
-  //             (d['employeeName'] as String?) ??
-  //             (rec?['employeeName'] as String?) ??
-  //             'スタッフ';
-
-  //         final ts = d['createdAt'];
-  //         final when = (ts is Timestamp) ? ts.toDate() : DateTime.now();
-  //         final memo = (d['memo'] as String?) ?? '';
-
-  //         final bucket = byStaff.putIfAbsent(
-  //           staffId,
-  //           () => {
-  //             'name': staffName,
-  //             'rows': <Map<String, dynamic>>[],
-  //             'gross': 0,
-  //             'appFee': 0,
-  //             'stripe': 0,
-  //             'store': 0,
-  //             'net': 0,
-  //           },
-  //         );
-
-  //         (bucket['rows'] as List).add({
-  //           'when': when,
-  //           'gross': amount,
-  //           'appFee': appFee,
-  //           'stripe': stripeFee,
-  //           'store': storeCut,
-  //           'net': netToStaff,
-  //           'memo': memo,
-  //         });
-
-  //         bucket['gross'] = (bucket['gross'] as int) + amount;
-  //         bucket['appFee'] = (bucket['appFee'] as int) + appFee;
-  //         bucket['stripe'] = (bucket['stripe'] as int) + stripeFee;
-  //         bucket['store'] = (bucket['store'] as int) + storeCut;
-  //         bucket['net'] = (bucket['net'] as int) + netToStaff;
-
-  //         grandGross += amount;
-  //         grandAppFee += appFee;
-  //         grandStripe += stripeFee;
-  //         grandStore += storeCut;
-  //         grandNet += netToStaff;
-  //       }
-  //     }
-
-  //     // ===== PDF 作成 =====
-  //     final jpTheme = await JpPdfFont.theme();
-  //     final pdf = pw.Document(theme: jpTheme);
-
-  //     final tenant = widget.tenantName ?? widget.tenantId;
-  //     String yen(int v) => '¥${v.toString()}';
-  //     String fmtDT(DateTime d) =>
-  //         '${d.year}/${d.month.toString().padLeft(2, '0')}/${d.day.toString().padLeft(2, '0')} '
-  //         '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
-
-  //     pdf.addPage(
-  //       pw.MultiPage(
-  //         pageFormat: PdfPageFormat.a4,
-  //         margin: const pw.EdgeInsets.symmetric(horizontal: 24, vertical: 28),
-  //         header: (ctx) => pw.Column(
-  //           crossAxisAlignment: pw.CrossAxisAlignment.start,
-  //           children: [
-  //             pw.Text(
-  //               '月次チップレポート',
-  //               style: pw.TextStyle(
-  //                 fontSize: 16,
-  //                 fontWeight: pw.FontWeight.bold,
-  //               ),
-  //             ),
-  //             pw.SizedBox(height: 2),
-  //             pw.Text(
-  //               '店舗: $tenant    対象期間: $periodLabel',
-  //               style: const pw.TextStyle(fontSize: 10),
-  //             ),
-  //             if (anyStripeEstimated)
-  //               pw.Padding(
-  //                 padding: const pw.EdgeInsets.only(top: 4),
-  //                 child: pw.Text(
-  //                   '※ 一部のStripe手数料は3.6%で推定しています（保存がない決済）。',
-  //                   style: const pw.TextStyle(fontSize: 9),
-  //                 ),
-  //               ),
-  //             pw.SizedBox(height: 8),
-  //             pw.Divider(),
-  //           ],
-  //         ),
-  //         build: (ctx) {
-  //           final widgets = <pw.Widget>[];
-
-  //           // ① 店舗入金（見込み）
-  //           widgets.addAll([
-  //             pw.Text(
-  //               '① 店舗入金（見込み）',
-  //               style: pw.TextStyle(
-  //                 fontSize: 13,
-  //                 fontWeight: pw.FontWeight.bold,
-  //               ),
-  //             ),
-  //             pw.SizedBox(height: 6),
-  //             pw.Table(
-  //               border: pw.TableBorder.all(
-  //                 color: PdfColors.grey500,
-  //                 width: 0.7,
-  //               ),
-  //               columnWidths: const {
-  //                 0: pw.FlexColumnWidth(2),
-  //                 1: pw.FlexColumnWidth(2),
-  //               },
-  //               children: [
-  //                 _trSummary('対象期間チップ総額', yen(totalGross)),
-  //                 _trSummary('運営手数料（合計）', yen(totalAppFee)),
-  //                 _trSummary('Stripe手数料（合計）', yen(totalStripeFee)),
-  //                 _trSummary('店舗受取見込み（合計）', yen(totalStoreNet)),
-  //               ],
-  //             ),
-  //             pw.SizedBox(height: 14),
-  //             pw.Divider(),
-  //           ]);
-
-  //           // ② スタッフ別
-  //           if (byStaff.isEmpty) {
-  //             widgets.add(
-  //               pw.Padding(
-  //                 padding: const pw.EdgeInsets.only(top: 8),
-  //                 child: pw.Text('スタッフ宛のチップは対象期間にありません。'),
-  //               ),
-  //             );
-  //           } else {
-  //             widgets.addAll([
-  //               pw.Text(
-  //                 '② スタッフ別支払予定',
-  //                 style: pw.TextStyle(
-  //                   fontSize: 13,
-  //                   fontWeight: pw.FontWeight.bold,
-  //                 ),
-  //               ),
-  //               pw.SizedBox(height: 6),
-  //             ]);
-
-  //             final staffEntries = byStaff.entries.toList()
-  //               ..sort(
-  //                 (a, b) =>
-  //                     (b.value['net'] as int).compareTo(a.value['net'] as int),
-  //               );
-
-  //             for (final e in staffEntries) {
-  //               final name = e.value['name'] as String;
-  //               final rows = (e.value['rows'] as List)
-  //                   .cast<Map<String, dynamic>>();
-  //               rows.sort(
-  //                 (a, b) =>
-  //                     (a['when'] as DateTime).compareTo(b['when'] as DateTime),
-  //               );
-
-  //               widgets.addAll([
-  //                 pw.SizedBox(height: 10),
-  //                 pw.Text(
-  //                   '■ $name',
-  //                   style: pw.TextStyle(
-  //                     fontSize: 12,
-  //                     fontWeight: pw.FontWeight.bold,
-  //                   ),
-  //                 ),
-  //                 pw.SizedBox(height: 6),
-  //                 pw.Table(
-  //                   border: pw.TableBorder.symmetric(
-  //                     inside: const pw.BorderSide(
-  //                       color: PdfColors.grey300,
-  //                       width: 0.5,
-  //                     ),
-  //                     outside: const pw.BorderSide(
-  //                       color: PdfColors.grey500,
-  //                       width: 0.7,
-  //                     ),
-  //                   ),
-  //                   columnWidths: const {
-  //                     0: pw.FlexColumnWidth(2), // 日時
-  //                     1: pw.FlexColumnWidth(1), // 実額
-  //                     2: pw.FlexColumnWidth(1), // 運営手数料
-  //                     3: pw.FlexColumnWidth(1), // Stripe手数料
-  //                     4: pw.FlexColumnWidth(1), // 店舗控除
-  //                     5: pw.FlexColumnWidth(1), // 受取
-  //                     6: pw.FlexColumnWidth(2), // メモ
-  //                   },
-  //                   children: [
-  //                     pw.TableRow(
-  //                       decoration: const pw.BoxDecoration(
-  //                         color: PdfColors.grey200,
-  //                       ),
-  //                       children: [
-  //                         _cell('日時', bold: true),
-  //                         _cell('実額', bold: true, alignRight: true),
-  //                         _cell('運営手数料', bold: true, alignRight: true),
-  //                         _cell('Stripe手数料', bold: true, alignRight: true),
-  //                         _cell('店舗控除', bold: true, alignRight: true),
-  //                         _cell('受取額', bold: true, alignRight: true),
-  //                         _cell('メモ', bold: true),
-  //                       ],
-  //                     ),
-  //                     ...rows.map((r) {
-  //                       final dt = r['when'] as DateTime;
-  //                       return pw.TableRow(
-  //                         children: [
-  //                           _cell(fmtDT(dt)),
-  //                           _cell(yen(r['gross'] as int), alignRight: true),
-  //                           _cell(yen(r['appFee'] as int), alignRight: true),
-  //                           _cell(yen(r['stripe'] as int), alignRight: true),
-  //                           _cell(yen(r['store'] as int), alignRight: true),
-  //                           _cell(yen(r['net'] as int), alignRight: true),
-  //                           _cell((r['memo'] as String?) ?? ''),
-  //                         ],
-  //                       );
-  //                     }),
-  //                   ],
-  //                 ),
-  //                 pw.Align(
-  //                   alignment: pw.Alignment.centerRight,
-  //                   child: pw.Container(
-  //                     margin: const pw.EdgeInsets.only(top: 6),
-  //                     padding: const pw.EdgeInsets.symmetric(
-  //                       horizontal: 8,
-  //                       vertical: 4,
-  //                     ),
-  //                     decoration: const pw.BoxDecoration(
-  //                       color: PdfColors.grey200,
-  //                     ),
-  //                     child: pw.Text(
-  //                       '小計  実額: ${yen(e.value['gross'] as int)}   '
-  //                       '運営手数料: ${yen(e.value['appFee'] as int)}   '
-  //                       'Stripe手数料: ${yen(e.value['stripe'] as int)}   '
-  //                       '店舗控除: ${yen(e.value['store'] as int)}   '
-  //                       '受取額: ${yen(e.value['net'] as int)}',
-  //                       style: const pw.TextStyle(fontSize: 10),
-  //                     ),
-  //                   ),
-  //                 ),
-  //               ]);
-  //             }
-
-  //             widgets.addAll([
-  //               pw.SizedBox(height: 14),
-  //               pw.Divider(),
-  //               pw.Align(
-  //                 alignment: pw.Alignment.centerRight,
-  //                 child: pw.Text(
-  //                   '（スタッフ宛）総計  実額: ${yen(grandGross)}   '
-  //                   '運営手数料: ${yen(grandAppFee)}   '
-  //                   'Stripe手数料: ${yen(grandStripe)}   '
-  //                   '店舗控除: ${yen(grandStore)}   '
-  //                   '受取額: ${yen(grandNet)}',
-  //                   style: pw.TextStyle(
-  //                     fontSize: 12,
-  //                     fontWeight: pw.FontWeight.bold,
-  //                   ),
-  //                 ),
-  //               ),
-  //             ]);
-  //           }
-
-  //           return widgets;
-  //         },
-  //       ),
-  //     );
-
-  //     // 保存（Webはダウンロード、モバイルは共有）
-  //     String ymdFile(DateTime d) =>
-  //         '${d.year}${d.month.toString().padLeft(2, '0')}${d.day.toString().padLeft(2, '0')}';
-  //     final fname =
-  //         'monthly_report_${ymdFile(b.start!)}_to_${ymdFile(b.endExclusive!.subtract(const Duration(days: 1)))}.pdf';
-  //     await Printing.sharePdf(bytes: await pdf.save(), filename: fname);
-  //   } finally {
-  //     if (mounted) setState(() => loading = false);
-  //   }
-  // }
-
-  // // ===== PDFセル & サマリー行 =====
-  // pw.Widget _cell(String text, {bool bold = false, bool alignRight = false}) {
-  //   return pw.Padding(
-  //     padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-  //     child: pw.Align(
-  //       alignment: alignRight
-  //           ? pw.Alignment.centerRight
-  //           : pw.Alignment.centerLeft,
-  //       child: pw.Text(
-  //         text,
-  //         style: pw.TextStyle(
-  //           fontSize: 9,
-  //           fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal,
-  //         ),
-  //       ),
-  //     ),
-  //   );
-  // }
-
-  // pw.TableRow _trSummary(String left, String right) => pw.TableRow(
-  //   children: [_cell(left, bold: true), _cell(right, alignRight: true)],
-  // );
-
   void _openPeriodPayments({RecipientFilter filter = RecipientFilter.all}) {
     final b = _rangeBounds();
     Navigator.of(context).push(
@@ -1030,27 +576,6 @@ class _StoreHomeTabState extends State<StoreHomeTab> {
       ),
     );
   }
-
-  // Future<void> _onTapExportMonthlyReport() async {
-  //   if (_exporting) return; // 多重タップ防止
-  //   setState(() => _exporting = true);
-  //   try {
-  //     await _exportMonthlyReportPdf(); // 既存の処理（async想定）
-  //   } catch (e) {
-  //     if (!mounted) return;
-  //     ScaffoldMessenger.of(context).showSnackBar(
-  //       SnackBar(
-  //         content: Text(
-  //           '明細の生成に失敗しました: $e',
-  //           style: TextStyle(fontFamily: 'LINEseed'),
-  //         ),
-  //         backgroundColor: Color(0xFFFCC400),
-  //       ),
-  //     );
-  //   } finally {
-  //     if (mounted) setState(() => _exporting = false);
-  //   }
-  // }
 
   @override
   Widget build(BuildContext context) {
@@ -1079,43 +604,6 @@ class _StoreHomeTabState extends State<StoreHomeTab> {
           ),
           const SizedBox(width: 12),
 
-          // // 右: これまで通りの「明細確認」ボタン（ロジック変更なし）
-          // Flexible(
-          //   child: Align(
-          //     alignment: Alignment.centerRight,
-          //     child: FittedBox(
-          //       fit: BoxFit.scaleDown,
-          //       child: FilledButton.icon(
-          //         onPressed: _exporting ? null : _onTapExportMonthlyReport,
-          //         icon: _exporting
-          //             ? const SizedBox(
-          //                 width: 16,
-          //                 height: 16,
-          //                 child: CircularProgressIndicator(
-          //                   strokeWidth: 3,
-          //                   color: Colors.black, // 黄背景に合う
-          //                 ),
-          //               )
-          //             : const Icon(Icons.receipt_long, size: 25),
-          //         label: const Text('明細'),
-          //         style: FilledButton.styleFrom(
-          //           padding: const EdgeInsets.symmetric(
-          //             horizontal: 12,
-          //             vertical: 12,
-          //           ),
-          //           backgroundColor: const Color(0xFFFCC400),
-          //           foregroundColor: Colors.black,
-          //           shape: RoundedRectangleBorder(
-          //             borderRadius: BorderRadius.circular(12),
-          //           ),
-          //           side: const BorderSide(color: Colors.black, width: 3),
-          //         ),
-          //       ),
-          //     ),
-          //   ),
-          // ),
-          // 右: これまで通りの「明細確認」ボタン（ロジック変更）
-          // ※ _exporting / _onTapExportMonthlyReport はもう不要になるので削除してOK
           Flexible(
             child: Align(
               alignment: Alignment.centerRight,
@@ -1188,56 +676,55 @@ class _StoreHomeTabState extends State<StoreHomeTab> {
               onTap: () => setState(() => _mode = _RangeMode.lastMonth),
             ),
 
-            // ▼ 月選択（黒い太枠＋太字）
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                border: Border.all(color: Colors.black, width: 3),
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<DateTime>(
-                  value: monthValue,
-                  isDense: true,
-                  dropdownColor: Colors.white,
-                  icon: const Icon(
-                    Icons.expand_more,
-                    color: Colors.black87,
-                    size: 18,
-                  ),
-                  style: const TextStyle(
-                    color: Colors.black87,
-                    fontFamily: 'LINEseed',
-                    fontWeight: FontWeight.w700, // 太字に
-                  ),
-                  items: months
-                      .map(
-                        (m) => DropdownMenuItem<DateTime>(
-                          value: m,
-                          child: Text(
-                            '${m.year}/${m.month.toString().padLeft(2, '0')}',
-                            style: const TextStyle(
-                              color: Colors.black87,
-                              fontFamily: 'LINEseed',
-                              fontWeight: FontWeight.w700, // 太字に
-                            ),
-                          ),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (val) {
-                    if (val == null) return;
-                    setState(() {
-                      monthValue = val;
-                      _mode = _RangeMode.month;
-                      _selectedMonthStart = val;
-                    });
-                  },
-                ),
-              ),
-            ),
-
+            // // ▼ 月選択（黒い太枠＋太字）
+            // Container(
+            //   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            //   decoration: BoxDecoration(
+            //     color: Colors.white,
+            //     border: Border.all(color: Colors.black, width: 3),
+            //     borderRadius: BorderRadius.circular(999),
+            //   ),
+            //   child: DropdownButtonHideUnderline(
+            //     child: DropdownButton<DateTime>(
+            //       value: monthValue,
+            //       isDense: true,
+            //       dropdownColor: Colors.white,
+            //       icon: const Icon(
+            //         Icons.expand_more,
+            //         color: Colors.black87,
+            //         size: 18,
+            //       ),
+            //       style: const TextStyle(
+            //         color: Colors.black87,
+            //         fontFamily: 'LINEseed',
+            //         fontWeight: FontWeight.w700, // 太字に
+            //       ),
+            //       items: months
+            //           .map(
+            //             (m) => DropdownMenuItem<DateTime>(
+            //               value: m,
+            //               child: Text(
+            //                 '${m.year}/${m.month.toString().padLeft(2, '0')}',
+            //                 style: const TextStyle(
+            //                   color: Colors.black87,
+            //                   fontFamily: 'LINEseed',
+            //                   fontWeight: FontWeight.w700, // 太字に
+            //                 ),
+            //               ),
+            //             ),
+            //           )
+            //           .toList(),
+            //       onChanged: (val) {
+            //         if (val == null) return;
+            //         setState(() {
+            //           monthValue = val;
+            //           _mode = _RangeMode.month;
+            //           _selectedMonthStart = val;
+            //         });
+            //       },
+            //     ),
+            //   ),
+            // ),
             RangePill(
               label: _mode == _RangeMode.custom ? _rangeLabel() : '期間指定',
               active: _mode == _RangeMode.custom,
@@ -1418,20 +905,68 @@ class _StoreHomeTabState extends State<StoreHomeTab> {
                 }
               }
 
-              // === UI ===
               if (docs.isEmpty) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    SizedBox(height: 8),
-                    Text(
-                      'この期間のデータがありません',
-                      style: TextStyle(
-                        color: Colors.black87,
-                        fontFamily: "LINEseed",
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 32),
+                  child: Center(
+                    child: CardShellHome(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text(
+                              'この期間のデータがありません',
+                              style: TextStyle(
+                                color: Colors.black87,
+                                fontFamily: "LINEseed",
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'QRコードを印刷し、チップを受け取ろう',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.black54,
+                                fontFamily: "LINEseed",
+                                fontSize: 12,
+                                height: 1.4,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            FilledButton.icon(
+                              style: FilledButton.styleFrom(
+                                backgroundColor: const Color(0xFFFCC400),
+                                foregroundColor: Colors.black,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                side: const BorderSide(
+                                  color: Colors.black,
+                                  width: 3,
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                  vertical: 10,
+                                ),
+                                textStyle: const TextStyle(
+                                  fontFamily: 'LINEseed',
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              onPressed: () {
+                                // 親から渡してもらうコールバックで「印刷」タブへ
+                                widget.onGoToPrintTab?.call();
+                              },
+                              icon: const Icon(Icons.qr_code_2),
+                              label: const Text('印刷タブを開く'),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ],
+                  ),
                 );
               }
 

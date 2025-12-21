@@ -1005,14 +1005,14 @@ class _AddStaffDialogState extends State<addStaffDialog>
                     side: const BorderSide(color: Colors.black, width: 4),
                   ),
                 ),
-                labelColor: Colors.white, // アクティブ文字色
+                labelColor: Colors.black, // アクティブ文字色
                 unselectedLabelColor: Colors.black87,
                 labelStyle: const TextStyle(fontWeight: FontWeight.w600),
                 unselectedLabelStyle: const TextStyle(
                   fontWeight: FontWeight.w500,
                 ),
                 tabs: const [
-                  Tab(child: _TabLabel('新規 / グローバル')),
+                  Tab(child: _TabLabel('新規')),
                   Tab(child: _TabLabel('他店舗から取り込み')),
                 ],
               ),

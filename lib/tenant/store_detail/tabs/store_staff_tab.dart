@@ -384,227 +384,362 @@ class _StoreStaffTabState extends State<StoreStaffTab> {
 
   @override
   Widget build(BuildContext context) {
-    //final mq = MediaQuery.of(context);
     const fabHeight = 44.0;
 
     final primaryBtnStyle = FilledButton.styleFrom(
       minimumSize: const Size(0, fabHeight),
-      backgroundColor: Color(0xFFFCC400),
+      backgroundColor: const Color(0xFFFCC400),
       foregroundColor: Colors.black,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      side: BorderSide(color: Colors.black, width: 3),
+      side: const BorderSide(color: Colors.black, width: 3),
     );
 
-    return _connected
-        ? Theme(
-            data: _withLineSeed(Theme.of(context)),
-            child: Stack(
-              children: [
-                Column(
-                  children: [
-                    const SizedBox(height: 20),
-                    Padding(
-                      padding: const EdgeInsets.all(4.0),
-                      child: Center(
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
+    // ===== Stripe 未接続時 =====
+    if (!_connected) {
+      return Scaffold(
+        body: SafeArea(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 450),
+                child: Material(
+                  elevation: 6,
+                  color: Colors.white,
+                  shadowColor: const Color(0x14000000),
+                  borderRadius: BorderRadius.circular(20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+                        child: Column(
                           children: [
-                            FilledButton.icon(
-                              style: primaryBtnStyle,
-                              onPressed: () async {
-                                await Clipboard.setData(
-                                  ClipboardData(text: _allStaffUrl()),
-                                );
-                                if (!mounted) return;
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'URLをコピーしました',
-                                      style: TextStyle(fontFamily: 'LINEseed'),
-                                    ),
-                                    backgroundColor: Color(0xFFFCC400),
-                                  ),
-                                );
-                              },
-                              icon: const Icon(Icons.qr_code_2),
-                              label: const Text('全スタッフQRコード'),
+                            const Text(
+                              'サブスクリプションを登録しよう',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 18,
+                              ),
                             ),
-                            const SizedBox(width: 7),
-                            FilledButton.icon(
-                              style: primaryBtnStyle,
-                              onPressed: _openAddEmployeeDialog,
-                              icon: const Icon(Icons.person_add_alt_1),
-                              label: const Text('スタッフ追加'),
+                            const SizedBox(height: 8),
+                            const Text(
+                              '登録するとチップ受け取りや詳細レポートが有効になります。',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.black54,
+                                height: 1.4,
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            SizedBox(
+                              width: double.infinity,
+                              child: TextButton.icon(
+                                onPressed: () => showTipriInfoDialog(context),
+                                icon: const Icon(Icons.info_outline),
+                                label: const Text('チップリについて'),
+                                style: TextButton.styleFrom(
+                                  side: const BorderSide(
+                                    width: 3,
+                                    color: Colors.black,
+                                  ),
+                                  foregroundColor: Colors.black87,
+                                  backgroundColor: const Color(0xFFFCC400),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 14,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                              ),
                             ),
                           ],
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 5),
-                    Expanded(
-                      child: StreamBuilder<QuerySnapshot>(
-                        stream: FirebaseFirestore.instance
-                            .collection(widget.ownerId!)
-                            .doc(widget.tenantId)
-                            .collection('employees')
-                            .orderBy('createdAt', descending: true)
-                            .snapshots(),
-                        builder: (context, snap) {
-                          if (snap.hasError) {
-                            return Center(
-                              child: Text('読み込みエラー: ${snap.error}'),
-                            );
-                          }
-                          if (!snap.hasData) {
-                            return const Center(
-                              child: CircularProgressIndicator(),
-                            );
-                          }
-                          final docs = snap.data!.docs;
-                          if (docs.isEmpty) {
-                            return Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Text(
-                                    'スタッフを追加しよう',
-                                    style: TextStyle(color: Colors.black87),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  OutlinedButton.icon(
-                                    onPressed: _openAddEmployeeDialog,
-                                    icon: const Icon(Icons.person_add),
-                                    label: const Text('最初のスタッフを追加'),
-                                    style: primaryBtnStyle,
-                                  ),
-                                ],
-                              ),
-                            );
-                          }
-
-                          final entries = List.generate(docs.length, (i) {
-                            final doc = docs[i];
-                            final d = docs[i].data() as Map<String, dynamic>;
-                            final empId = doc.id;
-                            return StaffEntry(
-                              index: i + 1,
-                              name: (d['name'] ?? '') as String,
-                              email: (d['email'] ?? '') as String,
-                              photoUrl: (d['photoUrl'] ?? '') as String,
-                              comment: (d['comment'] ?? '') as String,
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => StaffDetailScreen(
-                                      tenantId: widget.tenantId,
-                                      employeeId: empId,
-                                      ownerId: widget.ownerId!,
-                                    ),
-                                  ),
-                                );
-                              },
-                            );
-                          });
-
-                          return Padding(
-                            padding: EdgeInsets.only(bottom: 0),
-                            child: StaffGalleryGrid(entries: entries),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ],
+              ),
             ),
-          )
-        : Scaffold(
-            body: SafeArea(
-              child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 450),
-                    child: Material(
-                      elevation: 6,
-                      color: Colors.white,
-                      shadowColor: const Color(0x14000000),
-                      borderRadius: BorderRadius.circular(20),
+          ),
+        ),
+      );
+    }
 
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
+    // ===== 接続済み：スタッフタブ =====
+    return Theme(
+      data: _withLineSeed(Theme.of(context)),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isNarrow = constraints.maxWidth < 480; // スマホ判定ざっくり
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(height: isNarrow ? 12 : 16),
+
+              // === 上部ヘッダ（スマホ / PC でレイアウトを変える）===
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: isNarrow ? 12 : 16),
+                child: isNarrow
+                    // ----- スマホ向け：縦積み + ボタンは2つ横並びで幅いっぱい -----
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-                            child: Column(
-                              children: [
-                                // アイコンのアクセント（黒地に白）
+                          const Text(
+                            'スタッフ',
+                            style: TextStyle(
+                              fontFamily: 'LINEseed',
+                              fontWeight: FontWeight.w700,
+                              fontSize: 18,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          const Text(
+                            'スタッフごとのQRコードやプロフィールを管理できます',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.black54,
+                              height: 1.4,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: FilledButton.icon(
+                                  style: primaryBtnStyle,
+                                  onPressed: () async {
+                                    await Clipboard.setData(
+                                      ClipboardData(text: _allStaffUrl()),
+                                    );
+                                    if (!mounted) return;
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'URLをコピーしました',
+                                          style: TextStyle(
+                                            fontFamily: 'LINEseed',
+                                          ),
+                                        ),
+                                        backgroundColor: Color(0xFFFCC400),
+                                      ),
+                                    );
+                                  },
+                                  icon: const Icon(Icons.qr_code_2, size: 18),
+                                  label: const Text('全スタッフQR'),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: FilledButton.icon(
+                                  style: primaryBtnStyle,
+                                  onPressed: _openAddEmployeeDialog,
+                                  icon: const Icon(
+                                    Icons.person_add_alt_1,
+                                    size: 18,
+                                  ),
+                                  label: const Text('スタッフ追加'),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      )
+                    // ----- タブレット/PC向け：左にタイトル、右に2ボタン -----
+                    : Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: const [
+                              Text(
+                                'スタッフ',
+                                style: TextStyle(
+                                  fontFamily: 'LINEseed',
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 18,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                'スタッフごとのQRコードやプロフィールを管理できます',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.black54,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const Spacer(),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              FilledButton.icon(
+                                style: primaryBtnStyle,
+                                onPressed: () async {
+                                  await Clipboard.setData(
+                                    ClipboardData(text: _allStaffUrl()),
+                                  );
+                                  if (!mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'URLをコピーしました',
+                                        style: TextStyle(
+                                          fontFamily: 'LINEseed',
+                                        ),
+                                      ),
+                                      backgroundColor: Color(0xFFFCC400),
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(Icons.qr_code_2, size: 18),
+                                label: const Text('全スタッフQRコード'),
+                              ),
+                              FilledButton.icon(
+                                style: primaryBtnStyle,
+                                onPressed: _openAddEmployeeDialog,
+                                icon: const Icon(
+                                  Icons.person_add_alt_1,
+                                  size: 18,
+                                ),
+                                label: const Text('スタッフ追加'),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+              ),
 
-                                // タイトル
+              SizedBox(height: isNarrow ? 8 : 12),
+
+              // === スタッフ一覧（白カード）===
+              Expanded(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    isNarrow ? 8 : 12,
+                    0,
+                    isNarrow ? 8 : 12,
+                    isNarrow ? 4 : 8,
+                  ),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(isNarrow ? 14 : 18),
+                      border: Border.all(color: Colors.black, width: 3),
+                    ),
+                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+                    child: StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance
+                          .collection(widget.ownerId!)
+                          .doc(widget.tenantId)
+                          .collection('employees')
+                          .orderBy('createdAt', descending: true)
+                          .snapshots(),
+                      builder: (context, snap) {
+                        if (snap.hasError) {
+                          return Center(child: Text('読み込みエラー: ${snap.error}'));
+                        }
+                        if (!snap.hasData) {
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
+                        }
+
+                        final docs = snap.data!.docs;
+                        if (docs.isEmpty) {
+                          return Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
                                 const Text(
-                                  'サブスクリプションを登録しよう',
-                                  textAlign: TextAlign.center,
+                                  'まだスタッフが登録されていません',
                                   style: TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 18,
+                                    color: Colors.black87,
+                                    fontFamily: 'LINEseed',
                                   ),
                                 ),
                                 const SizedBox(height: 8),
-
-                                // 補足文（任意で一行足してリッチに）
                                 const Text(
-                                  '登録するとチップ受け取りや詳細レポートが有効になります。',
+                                  '右上の「スタッフ追加」から、最初のスタッフを登録しましょう。',
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
                                     color: Colors.black54,
-                                    height: 1.4,
+                                    fontSize: 12,
                                   ),
                                 ),
-                                const SizedBox(height: 20),
-
-                                // 情報ボタン（色は既存を踏襲：ラベル #FCC400、前景は黒）
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: TextButton.icon(
-                                    onPressed: () =>
-                                        showTipriInfoDialog(context),
-
-                                    label: const Text('チップリについて'),
-                                    style: TextButton.styleFrom(
-                                      side: BorderSide(
-                                        width: 3,
-                                        color: Colors.black,
-                                      ),
-                                      foregroundColor: Colors.black87,
-                                      backgroundColor: Color(0xFFFCC400),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 16,
-                                        vertical: 14,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        side: const BorderSide(
-                                          color: Color(0xFFFCC400), // 枠線だけアクセント
-                                          width: 1.5,
-                                        ),
-                                      ),
+                                const SizedBox(height: 16),
+                                OutlinedButton.icon(
+                                  onPressed: _openAddEmployeeDialog,
+                                  icon: const Icon(Icons.person_add),
+                                  label: const Text('最初のスタッフを追加'),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: Colors.black87,
+                                    side: const BorderSide(
+                                      color: Colors.black,
+                                      width: 2,
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 10,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
                                     ),
                                   ),
                                 ),
                               ],
                             ),
-                          ),
-                        ],
-                      ),
+                          );
+                        }
+
+                        final entries = List.generate(docs.length, (i) {
+                          final doc = docs[i];
+                          final d = doc.data() as Map<String, dynamic>;
+                          final empId = doc.id;
+                          return StaffEntry(
+                            index: i + 1,
+                            name: (d['name'] ?? '') as String,
+                            email: (d['email'] ?? '') as String,
+                            photoUrl: (d['photoUrl'] ?? '') as String,
+                            comment: (d['comment'] ?? '') as String,
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => StaffDetailScreen(
+                                    tenantId: widget.tenantId,
+                                    employeeId: empId,
+                                    ownerId: widget.ownerId!,
+                                  ),
+                                ),
+                              );
+                            },
+                          );
+                        });
+
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: StaffGalleryGrid(entries: entries),
+                        );
+                      },
                     ),
                   ),
                 ),
               ),
-            ),
+            ],
           );
+        },
+      ),
+    );
   }
 }

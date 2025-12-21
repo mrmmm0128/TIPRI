@@ -355,18 +355,6 @@ class _AdminSectionCardState extends State<AdminSectionCard> {
                 final uids =
                     (dataMap['memberUids'] as List?)?.cast<String>() ??
                     const <String>[];
-                if (uids.isEmpty) {
-                  return const ListTile(
-                    title: Text(
-                      '管理者がいません',
-                      style: TextStyle(color: Colors.black87),
-                    ),
-                    subtitle: Text(
-                      '右上の追加ボタンから招待できます',
-                      style: TextStyle(color: Colors.black87),
-                    ),
-                  );
-                }
 
                 return AdminList(
                   entries: uids

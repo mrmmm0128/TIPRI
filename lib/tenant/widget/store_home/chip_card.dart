@@ -135,9 +135,8 @@ class SplitMetricsRow extends StatelessWidget {
             label: '店舗',
             value: '¥$storeYen',
             sub: '$storeCount 件',
-            onCardTap: onTapStore, // 本体
-            onHelpTap: () =>
-                _showPayoutInfoSheet(context, isStore: true), // はてな
+            onCardTap: onTapStore,
+            onHelpTap: () => _showPayoutInfoSheet(context, isStore: true),
           ),
         ),
 
@@ -368,19 +367,37 @@ class TotalsCard extends StatelessWidget {
               // 左：総チップ金額
               Expanded(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text(
-                      '総チップ金額',
-                      style: TextStyle(fontSize: 12, color: Colors.black54),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.payments_outlined,
+                          size: 16,
+                          color: Colors.black54,
+                        ),
+                        const SizedBox(width: 6),
+                        const Text(
+                          '総チップ金額',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.black54,
+                            fontFamily: 'LINEseed',
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 6),
                     Text(
                       _yen(totalYen),
                       style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w800,
                         color: Colors.black,
+                        fontFamily: 'LINEseed',
                       ),
                     ),
                   ],
@@ -396,24 +413,154 @@ class TotalsCard extends StatelessWidget {
               // 右：取引回数
               Expanded(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text(
-                      '取引回数',
-                      style: TextStyle(fontSize: 12, color: Colors.black54),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.receipt_long_outlined,
+                          size: 16,
+                          color: Colors.black54,
+                        ),
+                        const SizedBox(width: 6),
+                        const Text(
+                          '取引回数',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.black54,
+                            fontFamily: 'LINEseed',
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 6),
                     Text(
                       '$count 件',
                       style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w800,
                         color: Colors.black,
+                        fontFamily: 'LINEseed',
                       ),
                     ),
                   ],
                 ),
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class PayerAgg {
+  final String name;
+  final int total;
+  PayerAgg({required this.name, required this.total});
+}
+
+class PayerRankingCard extends StatelessWidget {
+  final List<PayerAgg> topPayers;
+  final VoidCallback? onTap;
+
+  const PayerRankingCard({super.key, required this.topPayers, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: CardShellHome(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start, // 左寄せ
+            mainAxisAlignment: MainAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: const [
+                  Icon(
+                    Icons.emoji_events_outlined,
+                    size: 18,
+                    color: Colors.black54,
+                  ),
+                  SizedBox(width: 8),
+                  Text(
+                    '送金者ランキング',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black54,
+                      fontFamily: 'LINEseed',
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              if (topPayers.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.only(top: 8, bottom: 8),
+                  child: Text(
+                    'データがありません',
+                    style: TextStyle(
+                      color: Colors.black45,
+                      fontSize: 13,
+                      fontFamily: 'LINEseed',
+                    ),
+                  ),
+                )
+              else
+                ...topPayers.take(3).map((e) {
+                  // 上位3名を表示
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            e.name.isEmpty ? 'ゲスト' : e.name,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black87,
+                              fontFamily: 'LINEseed',
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Text(
+                          '¥${e.total}',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.black87,
+                            fontFamily: 'LINEseed',
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+
+              if (topPayers.length > 3)
+                const Padding(
+                  padding: EdgeInsets.only(top: 4),
+                  child: Text(
+                    'ほか...',
+                    style: TextStyle(
+                      color: Colors.black45,
+                      fontSize: 11,
+                      fontFamily: 'LINEseed',
+                    ),
+                  ),
+                ),
             ],
           ),
         ),

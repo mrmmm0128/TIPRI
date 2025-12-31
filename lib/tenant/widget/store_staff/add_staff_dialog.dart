@@ -410,7 +410,7 @@ class _AddStaffDialogState extends State<addStaffDialog>
     required String comment,
     required String ownerId,
   }) async {
-    // 親へ進捗通知（ローカル状態で）
+    // 親へ進捗通知（ローカル状態）
     widget.onLocalStateChanged(
       true,
       _localPhotoBytes,
@@ -419,16 +419,17 @@ class _AddStaffDialogState extends State<addStaffDialog>
     );
 
     try {
-      final uid = FirebaseAuth.instance.currentUser?.uid;
       final user = FirebaseAuth.instance.currentUser!;
+      final uid = user.uid;
 
-      final empRef = FirebaseFirestore.instance
+      final empCol = FirebaseFirestore.instance
           .collection(ownerId)
           .doc(tenantId)
-          .collection('employees')
-          .doc();
+          .collection('employees');
 
-      // 写真アップロード（ローカル状態を使用）
+      final empRef = empCol.doc(); // 新規社員ID
+
+      // ── ① 写真アップロード（先にやる：transaction不要） ──
       String photoUrl = '';
       if (_localPhotoBytes != null) {
         final contentType = _detectContentType(_localPhotoName);
@@ -445,16 +446,34 @@ class _AddStaffDialogState extends State<addStaffDialog>
         photoUrl = _localPrefilledPhotoUrl!;
       }
 
+      // ── ② sortOrder = 既存最大値 + 1 ──
+      int nextSortOrder = 1;
+      final maxSnap = await empCol
+          .orderBy('sortOrder', descending: true)
+          .limit(1)
+          .get();
+
+      if (maxSnap.docs.isNotEmpty) {
+        final v = maxSnap.docs.first.data()['sortOrder'];
+        if (v is int) {
+          nextSortOrder = v + 1;
+        } else if (v is num) {
+          nextSortOrder = v.toInt() + 1;
+        }
+      }
+
+      // ── ③ 社員ドキュメント作成 ──
       await empRef.set({
         'name': name,
         'email': email,
         'photoUrl': photoUrl,
         'comment': comment,
+        'sortOrder': nextSortOrder, // ★ 追加
         'createdAt': FieldValue.serverTimestamp(),
         'createdBy': {'uid': user.uid, 'email': user.email},
       });
 
-      // グローバル staff/{email} を軽く upsert
+      // ── ④ グローバル staff/{email} を upsert ──
       if (email.isNotEmpty) {
         await FirebaseFirestore.instance.collection('staff').doc(email).set({
           'email': email,
@@ -484,14 +503,14 @@ class _AddStaffDialogState extends State<addStaffDialog>
           SnackBar(
             content: Text(
               '追加に失敗: $e',
-              style: TextStyle(fontFamily: 'LINEseed'),
+              style: const TextStyle(fontFamily: 'LINEseed'),
             ),
-            backgroundColor: Color(0xFFFCC400),
+            backgroundColor: const Color(0xFFFCC400),
           ),
         );
       }
     } finally {
-      // 親へ完了通知（ローカル状態で）
+      // 親へ完了通知
       widget.onLocalStateChanged(
         false,
         _localPhotoBytes,

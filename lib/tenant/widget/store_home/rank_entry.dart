@@ -27,6 +27,7 @@ class RankingGrid extends StatelessWidget {
   final bool shrinkWrap; // ← 追加
   final ScrollPhysics? physics; // ← 追加
   final String ownerId;
+  final void Function(RankEntry)? onEntryTap; // ← 追加
 
   const RankingGrid({
     super.key,
@@ -35,6 +36,7 @@ class RankingGrid extends StatelessWidget {
     this.shrinkWrap = false, // 既定は従来どおり
     this.physics,
     required this.ownerId,
+    this.onEntryTap,
   });
 
   @override
@@ -63,10 +65,14 @@ class RankingGrid extends StatelessWidget {
             final e = entries[i];
             return Padding(
               padding: const EdgeInsets.fromLTRB(8, 10, 8, 6),
-              child: EmployeeRankTile(
-                tenantId: tenantId,
-                entry: e,
-                ownerId: ownerId,
+              child: InkWell(
+                onTap: () => onEntryTap?.call(e),
+                borderRadius: BorderRadius.circular(12),
+                child: EmployeeRankTile(
+                  tenantId: tenantId,
+                  entry: e,
+                  ownerId: ownerId,
+                ),
               ),
             );
           },

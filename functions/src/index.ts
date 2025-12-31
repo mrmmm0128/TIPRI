@@ -662,6 +662,8 @@ async function sendTipNotification(
     tip.billingType === "subscription" ||
     tip.tipType === "employee_subscription" ||
     tip.tipType === "store_subscription";
+  
+  const payerName = tip.payerName;
 
   // -------- 金額・通貨と内訳（既に保存済みの値を使う） --------
   const currency = toUpperCurrency(tip.currency);
@@ -785,8 +787,8 @@ async function sendTipNotification(
     ``,
     subscriptionNoteText,
     `■受領金額（内訳）`,
+    `・送り主：${payerName}`,
     `・チップ：${money(grossAmount)}`,
-    `・Stripe手数料：${money(stripeFee)}`,
     `・プラットフォーム手数料：${money(platformFee)}`,
     `・店舗が差し引く金額：${money(storeDeduct)}`,
     ``,
@@ -821,8 +823,8 @@ async function sendTipNotification(
 
   <h3 style="margin:0 0 6px">■受領金額（内訳）</h3>
   <ul style="margin:0 0 12px; padding-left:18px">
+  <li>送り主：<strong>${payerName}</strong></li>
     <li>チップ：<strong>${escapeHtml(money(grossAmount))}</strong></li>
-    <li>Stripe手数料：${escapeHtml(money(stripeFee))}</li>
     <li>プラットフォーム手数料：${escapeHtml(money(platformFee))}</li>
     <li>店舗が差し引く金額：${escapeHtml(money(storeDeduct))}</li>
   </ul>
@@ -1845,12 +1847,16 @@ export const createTipSessionPublic = functions
       amount,
       memo = "Tip",
       payerMessage,
+      payerName,
+      
     } = data as {
       tenantId?: string;
       employeeId?: string;
       amount?: number;
       memo?: string;
       payerMessage?: string;
+      payerName?:string;
+
     };
 
     if (!tenantId || !employeeId)
@@ -1917,6 +1923,8 @@ export const createTipSessionPublic = functions
       employeeId,
       amount,
       payerMessage,
+      
+      payerName: payerName ?? "",
       currency: "JPY",
       status: "pending",
       recipient: { type: "employee", employeeId, employeeName },
@@ -1925,11 +1933,7 @@ export const createTipSessionPublic = functions
     });
 
     const stripe = stripeClient();
-    const FRONTEND_BASE_URL = requireEnv("FRONTEND_BASE_URL").replace(
-      /\/+$/,
-      ""
-    );
-    const successUrl = `https://tip.tipri.jp/#/p?t=${encodeURIComponent(
+    const successUrl = `https://tip.tipri.jp/tip-complete?t=${encodeURIComponent(
       tenantId
     )}&thanks=true&amount=${amount}&employeeName=${encodeURIComponent(
       employeeName
@@ -1972,11 +1976,7 @@ export const createTipSessionPublic = functions
             feePercentApplied: String(percent),
             stripeAccountId: acctId, // ★ 後で transfer するときに使う
           },
-          // payment_intent_data: {
-          //   application_fee_amount: appFee,
-          // },
         }
-        // { stripeAccount: acctId }
       );
       return {
         checkoutUrl: session.url,
@@ -1985,7 +1985,6 @@ export const createTipSessionPublic = functions
       };
     }
 
-    // ---- acctId が存在しない場合: プラットフォームに全額入金 ----
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       line_items: [
@@ -2007,7 +2006,8 @@ export const createTipSessionPublic = functions
         tipDocId: tipRef.id,
         tipType: "employee",
         memo,
-        chargeMode: "platform", // 任意: ログ識別用
+        chargeMode: "platform", 
+        payerName: payerName ?? ""
       },
     });
 
@@ -2089,7 +2089,7 @@ export const createStoreTipSessionPublic = functions
     });
 
     const stripe = stripeClient();
-    const successUrl = `https://tip.tipri.jp/#/p?t=${tenantId}&thanks=true&amount=${amount}&tenantName=${encodeURIComponent(
+    const successUrl = `https://tip.tipri.jp/tip-complete?t=${tenantId}&thanks=true&amount=${amount}&tenantName=${encodeURIComponent(
       storeName
     )}`;
     const cancelUrl = `https://tip.tipri.jp/#/p?t=${tenantId}`;
@@ -2128,11 +2128,7 @@ export const createStoreTipSessionPublic = functions
             feePercentApplied: String(percent),
             stripeAccountId: acctId,
           },
-          // payment_intent_data: {
-          //   application_fee_amount: appFee,
-          // },
         }
-        // { stripeAccount: acctId }
       );
 
       return {
@@ -2188,6 +2184,7 @@ export const createSubscriptionTipSessionPublic = functions
       memo = "Subscription tip",
       payerMessage,
       payerEmail,
+      payerName
     } = data as {
       tenantId?: string;
       employeeId?: string;
@@ -2195,6 +2192,7 @@ export const createSubscriptionTipSessionPublic = functions
       memo?: string;
       payerMessage?: string;
       payerEmail?: string;
+      payerName?: string;
     };
 
     if (!tenantId || !employeeId || !subscriptionTipId) {
@@ -2215,12 +2213,6 @@ export const createSubscriptionTipSessionPublic = functions
     }
 
     const acctId = tDoc.data()?.stripeAccountId as string | undefined;
-    // if (!acctId) {
-    //   throw new functions.https.HttpsError(
-    //     "failed-precondition",
-    //     "Store Stripe account not connected for subscription tips"
-    //   );
-    // }
 
     const employeeDoc = await tRef
       .collection("employees")
@@ -2233,7 +2225,6 @@ export const createSubscriptionTipSessionPublic = functions
     const employeeName = (employeeDoc.data()?.name as string) ?? "Staff";
     const tenantName = (tDoc.data()?.name as string | undefined) ?? "";
 
-    // プランに応じた手数料率（あとで transfer 金額を計算するために metadata に積む）
     const subInfo = (tDoc.data()?.subscription ?? {}) as {
       plan?: string;
       feePercent?: number;
@@ -2248,8 +2239,6 @@ export const createSubscriptionTipSessionPublic = functions
         ? 30
         : 50;
 
-    // サブスク用 price を subscriptionTip コレクションから取得
-    // パスは必要に応じて変更してください（例: root コレクションなら Firestore.instance.collection("subscriptionTip") ...）
     const priceDoc = await db
       .collection("subscriptionTip")
       .doc(subscriptionTipId)
@@ -2268,7 +2257,6 @@ export const createSubscriptionTipSessionPublic = functions
       );
     }
 
-    // Firestore: サブスク設定用の Doc （単発と区別できるように別コレクション & billingType を持たせる）
     const tipSubRef = tRef.collection("tipSubscriptions").doc();
     const baseData = {
       tenantId,
@@ -2279,7 +2267,9 @@ export const createSubscriptionTipSessionPublic = functions
       stripePriceId: priceId,
       memo,
       payerMessage: payerMessage ?? "",
-      billingType: "subscription", // 単発と区別するフラグ
+      payerEmail:payerEmail?? "",
+      payerName:payerName??"",
+      billingType: "subscription",
       targetType: "employee",
       status: "checkout_pending",
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -2293,7 +2283,7 @@ export const createSubscriptionTipSessionPublic = functions
       ""
     );
 
-    const successUrl = `https://tip.tipri.jp/#/p?t=${encodeURIComponent(
+    const successUrl = `https://tip.tipri.jp/tip-complete?t=${encodeURIComponent(
       tenantId
     )}&thanks=true&subscription=true&employeeName=${encodeURIComponent(
       employeeName
@@ -2302,8 +2292,6 @@ export const createSubscriptionTipSessionPublic = functions
       tenantId
     )}`;
 
-    // サブスク Checkout (プラットフォーム課金)
-    // → 支払が成功したら invoice.payment_succeeded から transfer を作成する想定
     const metadata = {
       tenantId,
       employeeId,
@@ -2315,8 +2303,9 @@ export const createSubscriptionTipSessionPublic = functions
       memo,
       payerMessage: payerMessage ?? "",
       feePercentApplied: String(feePercent),
-      stripeAccountId: acctId ?? "", // 後続の webhook で transfer 先に使う
+      stripeAccountId: acctId ?? "",
       payerEmail: payerEmail ?? "",
+      payerName: payerName ?? "",
     };
 
     const session = await stripe.checkout.sessions.create({
@@ -2348,7 +2337,6 @@ export const createSubscriptionTipSessionPublic = functions
     };
   });
 
-/* ===================== send-email ===================== */
 export const onTipSucceededSendMailV2 = onDocumentWritten(
   {
     region: "us-central1",
@@ -3604,7 +3592,6 @@ export const stripeWebhook = functions
                   ? (pi.latest_charge as Stripe.Charge)
                   : null) || null;
 
-              // Stripe手数料など（プラットフォーム側 BT）
               const bt = latestCharge?.balance_transaction as
                 | Stripe.BalanceTransaction
                 | undefined;
@@ -3627,7 +3614,7 @@ export const stripeWebhook = functions
 
               const isStaff = !!employeeId;
 
-              // テナント（店舗＋スタッフ）へ回したい総額（Stripe手数料＋プラットフォーム手数料を差し引いた値）
+
               const totalNetForTenant = Math.max(0, gross - platformFee);
 
               // 店舗とスタッフの内訳（とりあえず従来どおり、storeCut ベースで計算）

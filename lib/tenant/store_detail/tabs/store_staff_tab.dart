@@ -6,6 +6,7 @@ import 'package:yourpay/tenant/method/image_scrol.dart';
 import 'package:yourpay/tenant/widget/store_staff/add_staff_dialog.dart';
 import 'package:yourpay/tenant/widget/store_staff/staff_detail.dart';
 import 'package:yourpay/tenant/widget/store_staff/staff_entry.dart';
+import 'package:yourpay/tenant/widget/store_staff/staff_reorder_dialog.dart';
 import 'dart:async';
 
 class StoreStaffTab extends StatefulWidget {
@@ -508,7 +509,41 @@ class _StoreStaffTabState extends State<StoreStaffTab> {
                               height: 1.4,
                             ),
                           ),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFF8DC),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: const Color(0xFFFCC400),
+                                width: 1,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: const [
+                                Icon(
+                                  Icons.info_outline,
+                                  size: 14,
+                                  color: Colors.black87,
+                                ),
+                                SizedBox(width: 6),
+                                Text(
+                                  'チップ支払者にも同様の順番で表示されます',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.black87,
+                                    fontFamily: 'LINEseed',
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 8),
                           Row(
                             children: [
                               Expanded(
@@ -549,6 +584,30 @@ class _StoreStaffTabState extends State<StoreStaffTab> {
                               ),
                             ],
                           ),
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              style: OutlinedButton.styleFrom(
+                                minimumSize: const Size(0, 40),
+                                foregroundColor: Colors.black87,
+                                side: const BorderSide(
+                                  color: Colors.black,
+                                  width: 2,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                              onPressed: () => showStaffReorderDialog(
+                                context: context,
+                                ownerId: widget.ownerId!,
+                                tenantId: widget.tenantId,
+                              ),
+                              icon: const Icon(Icons.swap_vert, size: 18),
+                              label: const Text('並び替え変更'),
+                            ),
+                          ),
                         ],
                       )
                     // ----- タブレット/PC向け：左にタイトル、右に2ボタン -----
@@ -557,8 +616,8 @@ class _StoreStaffTabState extends State<StoreStaffTab> {
                         children: [
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
-                            children: const [
-                              Text(
+                            children: [
+                              const Text(
                                 'スタッフ',
                                 style: TextStyle(
                                   fontFamily: 'LINEseed',
@@ -567,13 +626,47 @@ class _StoreStaffTabState extends State<StoreStaffTab> {
                                   color: Colors.black87,
                                 ),
                               ),
-                              SizedBox(height: 4),
-                              Text(
+                              const SizedBox(height: 4),
+                              const Text(
                                 'スタッフごとのQRコードやプロフィールを管理できます',
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: Colors.black54,
                                   height: 1.4,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFFF8DC),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(
+                                    color: const Color(0xFFFCC400),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: const [
+                                    Icon(
+                                      Icons.info_outline,
+                                      size: 14,
+                                      color: Colors.black87,
+                                    ),
+                                    SizedBox(width: 6),
+                                    Text(
+                                      'チップ支払者にも同様の順番で表示されます',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.black87,
+                                        fontFamily: 'LINEseed',
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
@@ -614,6 +707,29 @@ class _StoreStaffTabState extends State<StoreStaffTab> {
                                 ),
                                 label: const Text('スタッフ追加'),
                               ),
+                              OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(
+                                  minimumSize: const Size(0, fabHeight),
+                                  foregroundColor: Colors.black87,
+                                  side: const BorderSide(
+                                    color: Colors.black,
+                                    width: 2,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                  ),
+                                ),
+                                onPressed: () => showStaffReorderDialog(
+                                  context: context,
+                                  ownerId: widget.ownerId!,
+                                  tenantId: widget.tenantId,
+                                ),
+                                icon: const Icon(Icons.swap_vert, size: 18),
+                                label: const Text('並び替え変更'),
+                              ),
                             ],
                           ),
                         ],
@@ -643,7 +759,7 @@ class _StoreStaffTabState extends State<StoreStaffTab> {
                           .collection(widget.ownerId!)
                           .doc(widget.tenantId)
                           .collection('employees')
-                          .orderBy('createdAt', descending: true)
+                          .orderBy('sortOrder', descending: false)
                           .snapshots(),
                       builder: (context, snap) {
                         if (snap.hasError) {

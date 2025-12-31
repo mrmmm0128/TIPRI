@@ -2,9 +2,11 @@ import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import "package:yourpay/firebase_options.dart";
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_web_plugins/flutter_web_plugins.dart';
 import 'package:yourpay/appadmin/admin_dashboard_screen.dart';
+import 'package:yourpay/appadmin/admin_select_page.dart';
 import 'package:yourpay/appadmin/agent/agent_login.dart';
 import 'package:yourpay/tenant/bootGate.dart';
 import 'package:yourpay/tenant/staff_qr/public_staff_qr_list_page.dart';
@@ -14,15 +16,6 @@ import 'package:yourpay/tenant/widget/store_setting/account_detail_page.dart';
 import 'package:yourpay/tenant/widget/store_setting/tenant_detail_screen.dart';
 import 'tenant/login_screens.dart';
 import 'tenant/store_detail/store_detail_screen.dart';
-
-FirebaseOptions web = FirebaseOptions(
-  apiKey: 'AIzaSyAIfxdoGM5TWDVRjtfazvWZ9LnLlMnOuZ4',
-  appId: '1:1005883564338:web:ad2b27b5bbd8c0993d772b',
-  messagingSenderId: '1005883564338',
-  projectId: 'yourpay-c5aaf',
-  authDomain: 'yourpay-c5aaf.firebaseapp.com',
-  storageBucket: 'yourpay-c5aaf.firebasestorage.app',
-);
 
 // ===== 白黒固定テーマ =====
 final ThemeData _monochromeLightTheme = ThemeData(
@@ -79,7 +72,7 @@ Future<void> main() async {
   setUrlStrategy(const HashUrlStrategy());
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp(options: web);
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.web);
 
   // 画面が真っ白になっても原因が見えるように
   ErrorWidget.builder = (FlutterErrorDetails details) {
@@ -136,8 +129,9 @@ class MyApp extends StatelessWidget {
       }
 
       // 許可された UID のみ admin 画面へ
+      // 許可された UID は選択画面へ
       return MaterialPageRoute(
-        builder: (_) => const AdminDashboardHome(),
+        builder: (_) => const AdminSelectPage(),
         settings: settings,
       );
     }

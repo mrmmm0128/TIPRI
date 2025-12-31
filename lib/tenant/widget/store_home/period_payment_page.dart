@@ -508,6 +508,7 @@ class _PeriodPaymentsPageState extends State<PeriodPaymentsPage> {
                   : '${amountNum.toInt()} $currency';
 
               final pmText = _pmLabelFromDoc(d);
+              final payerName = (d['payerName'] as String?) ?? '';
 
               String when = '';
               final ts = d['createdAt'];
@@ -517,6 +518,16 @@ class _PeriodPaymentsPageState extends State<PeriodPaymentsPage> {
                     '${dt.year}/${dt.month.toString().padLeft(2, '0')}/${dt.day.toString().padLeft(2, '0')} '
                     '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
               }
+
+              // サブタイトル文字列を組み立て
+              final subtitleParts = <String>[when];
+              if (payerName.isNotEmpty) {
+                subtitleParts.add('送り主: $payerName');
+              }
+              if (pmText.isNotEmpty) {
+                subtitleParts.add(pmText);
+              }
+              final subtitleText = subtitleParts.join('\n');
 
               return CardShell(
                 child: ListTile(
@@ -535,10 +546,10 @@ class _PeriodPaymentsPageState extends State<PeriodPaymentsPage> {
                     ),
                   ),
                   subtitle: Text(
-                    pmText.isEmpty ? when : '$when\n$pmText',
+                    subtitleText,
                     style: const TextStyle(color: Colors.black87),
                   ),
-                  isThreeLine: pmText.isNotEmpty,
+                  isThreeLine: subtitleParts.length > 1,
                   trailing: Text(
                     amountText,
                     style: const TextStyle(

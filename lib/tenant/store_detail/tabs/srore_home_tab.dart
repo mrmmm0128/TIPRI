@@ -6,6 +6,7 @@ import 'package:yourpay/tenant/widget/store_setting/subscription_card.dart';
 import 'package:yourpay/tenant/widget/store_home/chip_card.dart';
 import 'package:yourpay/tenant/widget/store_home/rank_entry.dart';
 import 'package:yourpay/tenant/widget/store_home/period_payment_page.dart';
+import 'package:yourpay/tenant/widget/store_staff/staff_detail.dart';
 
 class StoreHomeTab extends StatefulWidget {
   final String tenantId;
@@ -570,7 +571,7 @@ class _StoreHomeTabState extends State<StoreHomeTab> {
           tenantName: widget.tenantName,
           start: b.start,
           endExclusive: b.endExclusive,
-          recipientFilter: filter, // ★ ここ！
+          recipientFilter: filter,
           ownerId: widget.ownerId!,
         ),
       ),
@@ -675,56 +676,6 @@ class _StoreHomeTabState extends State<StoreHomeTab> {
               active: _mode == _RangeMode.lastMonth,
               onTap: () => setState(() => _mode = _RangeMode.lastMonth),
             ),
-
-            // // ▼ 月選択（黒い太枠＋太字）
-            // Container(
-            //   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            //   decoration: BoxDecoration(
-            //     color: Colors.white,
-            //     border: Border.all(color: Colors.black, width: 3),
-            //     borderRadius: BorderRadius.circular(999),
-            //   ),
-            //   child: DropdownButtonHideUnderline(
-            //     child: DropdownButton<DateTime>(
-            //       value: monthValue,
-            //       isDense: true,
-            //       dropdownColor: Colors.white,
-            //       icon: const Icon(
-            //         Icons.expand_more,
-            //         color: Colors.black87,
-            //         size: 18,
-            //       ),
-            //       style: const TextStyle(
-            //         color: Colors.black87,
-            //         fontFamily: 'LINEseed',
-            //         fontWeight: FontWeight.w700, // 太字に
-            //       ),
-            //       items: months
-            //           .map(
-            //             (m) => DropdownMenuItem<DateTime>(
-            //               value: m,
-            //               child: Text(
-            //                 '${m.year}/${m.month.toString().padLeft(2, '0')}',
-            //                 style: const TextStyle(
-            //                   color: Colors.black87,
-            //                   fontFamily: 'LINEseed',
-            //                   fontWeight: FontWeight.w700, // 太字に
-            //                 ),
-            //               ),
-            //             ),
-            //           )
-            //           .toList(),
-            //       onChanged: (val) {
-            //         if (val == null) return;
-            //         setState(() {
-            //           monthValue = val;
-            //           _mode = _RangeMode.month;
-            //           _selectedMonthStart = val;
-            //         });
-            //       },
-            //     ),
-            //   ),
-            // ),
             RangePill(
               label: _mode == _RangeMode.custom ? _rangeLabel() : '期間指定',
               active: _mode == _RangeMode.custom,
@@ -863,6 +814,7 @@ class _StoreHomeTabState extends State<StoreHomeTab> {
               int totalStore = 0, countStore = 0;
               int totalStaff = 0, countStaff = 0;
               final Map<String, StaffAgg> agg = {};
+              final Map<String, int> payerTotals = {}; // ★ 追加: 送金者集計
 
               for (final doc in docs) {
                 final d = doc.data() as Map<String, dynamic>;
@@ -903,7 +855,21 @@ class _StoreHomeTabState extends State<StoreHomeTab> {
                   totalStore += amount;
                   countStore += 1;
                 }
+
+                // 送金者集計（名前があるもののみ）
+                final payerName = (d['payerName'] as String?)?.trim() ?? '';
+                if (payerName.isNotEmpty) {
+                  payerTotals[payerName] =
+                      (payerTotals[payerName] ?? 0) + amount;
+                }
               }
+
+              // 送金者ランキング作成
+              final payerRanking =
+                  payerTotals.entries
+                      .map((e) => PayerAgg(name: e.key, total: e.value))
+                      .toList()
+                    ..sort((a, b) => b.total.compareTo(a.total));
 
               if (docs.isEmpty) {
                 return Padding(
@@ -998,12 +964,50 @@ class _StoreHomeTabState extends State<StoreHomeTab> {
                   ),
                   const SizedBox(height: 10),
                   staffChips(),
-                  TotalsCard(
-                    totalYen: totalAll,
-                    count: countAll,
-                    onTap: _openPeriodPayments,
+                  // ★ 横並びに変更
+                  LayoutBuilder(
+                    builder: (context, box) {
+                      final isNarrow = box.maxWidth < 600;
+                      if (isNarrow) {
+                        return Column(
+                          mainAxisSize: MainAxisSize.min, // ← 追加
+                          children: [
+                            TotalsCard(
+                              totalYen: totalAll,
+                              count: countAll,
+                              onTap: _openPeriodPayments,
+                            ),
+                            const SizedBox(height: 10), // 12 -> 10
+                            PayerRankingCard(
+                              topPayers: payerRanking,
+                              onTap: _openPeriodPayments,
+                            ),
+                          ],
+                        );
+                      } else {
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: TotalsCard(
+                                totalYen: totalAll,
+                                count: countAll,
+                                onTap: _openPeriodPayments,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: PayerRankingCard(
+                                topPayers: payerRanking,
+                                onTap: _openPeriodPayments,
+                              ),
+                            ),
+                          ],
+                        );
+                      }
+                    },
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10), // 12 -> 10
                   // 例：SplitMetricsRow の配置箇所
                   SplitMetricsRow(
                     storeYen: totalStore,
@@ -1036,6 +1040,17 @@ class _StoreHomeTabState extends State<StoreHomeTab> {
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     ownerId: widget.ownerId!,
+                    onEntryTap: (entry) {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => StaffDetailScreen(
+                            tenantId: widget.tenantId,
+                            employeeId: entry.employeeId,
+                            ownerId: widget.ownerId!,
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ],
               );

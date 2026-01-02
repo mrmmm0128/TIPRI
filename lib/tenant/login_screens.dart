@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle; // ★ 追加：規約本文読み込み
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 import 'package:yourpay/tenant/method/verify_email.dart';
 import 'package:yourpay/tenant/widget/tipri_policy.dart';
@@ -544,632 +545,720 @@ class _LoginScreenState extends State<LoginScreen> {
       onTap: () => FocusScope.of(context).unfocus(),
       child: Scaffold(
         backgroundColor: Colors.white,
-        body: SafeArea(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final width = MediaQuery.of(context).size.width;
-              final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+        body: Stack(
+          children: [
+            Positioned.fill(
+              child: Center(
+                child: Container(
+                  width: 520, // フォーム420より少し広く
+                  color: const Color(0xFFFCC400),
+                ),
+              ),
+            ),
+            SafeArea(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final width = MediaQuery.of(context).size.width;
+                  final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
-              return SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                padding: EdgeInsets.only(bottom: bottomInset),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment:
-                          MainAxisAlignment.center, // ← 初期位置は従来どおり中央
-                      children: [
-                        const SizedBox(height: 10),
-                        ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 370),
-                          child: Image.asset(
-                            "assets/posters/tipri.png",
-                            width: width / 2,
-                            fit: BoxFit.contain,
-                          ),
-                        ),
+                  return SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    padding: EdgeInsets.only(bottom: bottomInset),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: constraints.maxHeight,
+                      ),
+                      child: Center(
+                        child: Column(
+                          mainAxisAlignment:
+                              MainAxisAlignment.center, // ← 初期位置は従来どおり中央
+                          children: [
+                            const SizedBox(height: 65),
+                            ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 370),
+                              child: Image.asset(
+                                "assets/posters/tipri.png",
+                                width: width / 2,
+                                fit: BoxFit.contain,
+                              ),
+                            ),
 
-                        const SizedBox(height: 8),
+                            const SizedBox(height: 8),
 
-                        // ここから下は元のフォームの中身をそのまま使用
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 24,
-                          ),
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 420),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(18),
-                                border: Border.all(
-                                  color: Colors.black,
-                                  width: 5,
-                                ), // ← active時だけ黒の太枠
-                                boxShadow: const [
-                                  BoxShadow(
-                                    color: Color(0x1A000000),
-                                    blurRadius: 24,
-                                    offset: Offset(0, 12),
+                            // ここから下は元のフォームの中身をそのまま使用
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 24,
+                              ),
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxWidth: 420,
+                                ),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(18),
+                                    border: Border.all(
+                                      color: Colors.black,
+                                      width: 5,
+                                    ), // ← active時だけ黒の太枠
+                                    boxShadow: const [
+                                      BoxShadow(
+                                        color: Color(0x1A000000),
+                                        blurRadius: 24,
+                                        offset: Offset(0, 12),
+                                      ),
+                                    ],
                                   ),
-                                ],
-                              ),
-                              padding: const EdgeInsets.fromLTRB(
-                                20,
-                                20,
-                                20,
-                                16,
-                              ),
-                              child: Form(
-                                key: _formKey,
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: [
-                                    Align(
-                                      alignment: Alignment.centerLeft,
-                                      child: Container(
-                                        decoration: BoxDecoration(
-                                          color: Colors.grey[100],
-                                          borderRadius: BorderRadius.circular(
-                                            12,
+                                  padding: const EdgeInsets.fromLTRB(
+                                    20,
+                                    20,
+                                    20,
+                                    16,
+                                  ),
+                                  child: Form(
+                                    key: _formKey,
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        Align(
+                                          alignment: Alignment.centerLeft,
+                                          child: Container(
+                                            decoration: BoxDecoration(
+                                              color: Colors.grey[100],
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                            ),
+                                            padding: const EdgeInsets.all(4),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                _ModeChip(
+                                                  label: 'ログイン',
+                                                  active: !_isSignUp,
+                                                  onTap: _loading
+                                                      ? null
+                                                      : () => setState(
+                                                          () =>
+                                                              _isSignUp = false,
+                                                        ),
+                                                ),
+                                                _ModeChip(
+                                                  label: '新規登録',
+                                                  active: _isSignUp,
+                                                  onTap: _loading
+                                                      ? null
+                                                      : () => setState(
+                                                          () =>
+                                                              _isSignUp = true,
+                                                        ),
+                                                ),
+                                              ],
+                                            ),
                                           ),
                                         ),
-                                        padding: const EdgeInsets.all(4),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            _ModeChip(
-                                              label: 'ログイン',
-                                              active: !_isSignUp,
-                                              onTap: _loading
-                                                  ? null
-                                                  : () => setState(
-                                                      () => _isSignUp = false,
+                                        const SizedBox(height: 16),
+
+                                        TextFormField(
+                                          controller: _email,
+                                          decoration:
+                                              _input(
+                                                'メールアドレス',
+                                                required: true,
+                                                prefixIcon: const Icon(
+                                                  Icons.email_outlined,
+                                                ),
+                                              ).copyWith(
+                                                enabledBorder:
+                                                    OutlineInputBorder(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            8,
+                                                          ),
+                                                      borderSide:
+                                                          const BorderSide(
+                                                            color: Colors.black,
+                                                            width: 5,
+                                                          ),
                                                     ),
-                                            ),
-                                            _ModeChip(
-                                              label: '新規登録',
-                                              active: _isSignUp,
-                                              onTap: _loading
-                                                  ? null
-                                                  : () => setState(
-                                                      () => _isSignUp = true,
+                                                focusedBorder:
+                                                    OutlineInputBorder(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            8,
+                                                          ),
+                                                      borderSide:
+                                                          const BorderSide(
+                                                            color: Colors.black,
+                                                            width: 5,
+                                                          ),
                                                     ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 16),
-
-                                    TextFormField(
-                                      controller: _email,
-                                      decoration:
-                                          _input(
-                                            'メールアドレス',
-                                            required: true,
-                                            prefixIcon: const Icon(
-                                              Icons.email_outlined,
-                                            ),
-                                          ).copyWith(
-                                            enabledBorder: OutlineInputBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
-                                              borderSide: const BorderSide(
-                                                color: Colors.black,
-                                                width: 5,
                                               ),
-                                            ),
-                                            focusedBorder: OutlineInputBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
-                                              borderSide: const BorderSide(
-                                                color: Colors.black,
-                                                width: 5,
-                                              ),
-                                            ),
-                                          ),
-                                      style: const TextStyle(
-                                        color: Colors.black87,
-                                      ),
-                                      keyboardType: TextInputType.emailAddress,
-                                      textInputAction: TextInputAction.next,
-                                      // autofillHints: const [
-                                      //   AutofillHints.username,
-                                      // ],
-                                      validator: (v) {
-                                        if (v == null || v.trim().isEmpty)
-                                          return 'メールを入力してください';
-                                        if (!v.contains('@'))
-                                          return 'メール形式が不正です';
-                                        return null;
-                                      },
-                                    ),
-                                    const SizedBox(height: 10),
-
-                                    TextFormField(
-                                      controller: _pass,
-                                      style: const TextStyle(
-                                        color: Colors.black,
-                                      ),
-                                      decoration:
-                                          _input(
-                                            'パスワード',
-                                            required: true,
-                                            prefixIcon: const Icon(
-                                              Icons.lock_outline,
-                                            ),
-                                            suffixIcon: IconButton(
-                                              onPressed: () => setState(
-                                                () => _showPass = !_showPass,
-                                              ),
-                                              icon: Icon(
-                                                _showPass
-                                                    ? Icons.visibility_off
-                                                    : Icons.visibility,
-                                              ),
-                                            ),
-                                            //helperText: '8文字以上・英字と数字を含む（記号可）',
-                                          ).copyWith(
-                                            enabledBorder: OutlineInputBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
-                                              borderSide: const BorderSide(
-                                                color: Colors.black,
-                                                width: 5,
-                                              ),
-                                            ),
-                                            focusedBorder: OutlineInputBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
-                                              borderSide: const BorderSide(
-                                                color: Colors.black,
-                                                width: 5,
-                                              ),
-                                            ),
-                                          ),
-                                      obscureText: !_showPass,
-                                      textInputAction: _isSignUp
-                                          ? TextInputAction.next
-                                          : TextInputAction.done,
-                                      // autofillHints: const [
-                                      //   AutofillHints.password,
-                                      // ],
-                                      autofillHints: const <String>[],
-                                      validator: _validatePassword,
-                                      onEditingComplete: _isSignUp
-                                          ? null
-                                          : _submit,
-                                    ),
-
-                                    // ここから差し替え
-                                    if (_isSignUp) ...[
-                                      const SizedBox(height: 8),
-
-                                      // パスワード確認
-                                      TextFormField(
-                                        controller: _passConfirm,
-                                        style: lineSeed.merge(
-                                          const TextStyle(
+                                          style: const TextStyle(
                                             color: Colors.black87,
                                           ),
+                                          keyboardType:
+                                              TextInputType.emailAddress,
+                                          textInputAction: TextInputAction.next,
+                                          // autofillHints: const [
+                                          //   AutofillHints.username,
+                                          // ],
+                                          validator: (v) {
+                                            if (v == null || v.trim().isEmpty)
+                                              return 'メールを入力してください';
+                                            if (!v.contains('@'))
+                                              return 'メール形式が不正です';
+                                            return null;
+                                          },
                                         ),
-                                        decoration:
-                                            _decorateWithLineSeed(
+                                        const SizedBox(height: 10),
+
+                                        TextFormField(
+                                          controller: _pass,
+                                          style: const TextStyle(
+                                            color: Colors.black,
+                                          ),
+                                          decoration:
                                               _input(
-                                                'パスワードを再入力しよう',
+                                                'パスワード',
                                                 required: true,
                                                 prefixIcon: const Icon(
                                                   Icons.lock_outline,
                                                 ),
                                                 suffixIcon: IconButton(
                                                   onPressed: () => setState(
-                                                    () => _showPass2 =
-                                                        !_showPass2,
+                                                    () =>
+                                                        _showPass = !_showPass,
                                                   ),
                                                   icon: Icon(
-                                                    _showPass2
+                                                    _showPass
                                                         ? Icons.visibility_off
                                                         : Icons.visibility,
                                                   ),
                                                 ),
-                                                helperText:
-                                                    '8文字以上・英字と数字を含む（記号可）',
+                                                //helperText: '8文字以上・英字と数字を含む（記号可）',
+                                              ).copyWith(
+                                                enabledBorder:
+                                                    OutlineInputBorder(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            8,
+                                                          ),
+                                                      borderSide:
+                                                          const BorderSide(
+                                                            color: Colors.black,
+                                                            width: 5,
+                                                          ),
+                                                    ),
+                                                focusedBorder:
+                                                    OutlineInputBorder(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            8,
+                                                          ),
+                                                      borderSide:
+                                                          const BorderSide(
+                                                            color: Colors.black,
+                                                            width: 5,
+                                                          ),
+                                                    ),
                                               ),
-                                            ).copyWith(
-                                              enabledBorder: OutlineInputBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                                borderSide: const BorderSide(
-                                                  color: Colors.black,
-                                                  width: 5,
-                                                ),
-                                              ),
-                                              focusedBorder: OutlineInputBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                                borderSide: const BorderSide(
-                                                  color: Colors.black,
-                                                  width: 5,
-                                                ),
-                                              ),
-                                            ),
-                                        obscureText: !_showPass2,
-                                        textInputAction: TextInputAction.next,
-                                        validator: _validatePasswordConfirm,
-                                        autofillHints: const <String>[],
-                                      ),
-
-                                      const SizedBox(height: 8),
-
-                                      // 名前
-                                      TextFormField(
-                                        controller: _nameCtrl,
-                                        style: lineSeed.merge(
-                                          const TextStyle(
-                                            color: Colors.black87,
-                                          ),
+                                          obscureText: !_showPass,
+                                          textInputAction: _isSignUp
+                                              ? TextInputAction.next
+                                              : TextInputAction.done,
+                                          // autofillHints: const [
+                                          //   AutofillHints.password,
+                                          // ],
+                                          autofillHints: const <String>[],
+                                          validator: _validatePassword,
+                                          onEditingComplete: _isSignUp
+                                              ? null
+                                              : _submit,
                                         ),
-                                        decoration:
-                                            _decorateWithLineSeed(
-                                              _input('名前', required: true),
-                                            ).copyWith(
-                                              enabledBorder: OutlineInputBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                                borderSide: const BorderSide(
-                                                  color: Colors.black,
-                                                  width: 5,
-                                                ),
-                                              ),
-                                              focusedBorder: OutlineInputBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                                borderSide: const BorderSide(
-                                                  color: Colors.black,
-                                                  width: 5,
-                                                ),
+
+                                        // ここから差し替え
+                                        if (_isSignUp) ...[
+                                          const SizedBox(height: 8),
+
+                                          // パスワード確認
+                                          TextFormField(
+                                            controller: _passConfirm,
+                                            style: lineSeed.merge(
+                                              const TextStyle(
+                                                color: Colors.black87,
                                               ),
                                             ),
-                                        validator: (v) {
-                                          if (_isSignUp &&
-                                              (v == null || v.trim().isEmpty)) {
-                                            return '名前を入力してください';
-                                          }
-                                          return null;
-                                        },
-                                      ),
-
-                                      const SizedBox(height: 8),
-                                    ],
-
-                                    if (_isSignUp) ...[
-                                      // 規約同意
-                                      Row(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.center,
-                                        children: [
-                                          Checkbox(
-                                            value: _agreeTerms,
-                                            onChanged: _loading
-                                                ? null
-                                                : (v) => setState(
-                                                    () => _agreeTerms =
-                                                        v ?? false,
-                                                  ),
-                                            side: const BorderSide(
-                                              color: Colors.black54,
-                                            ),
-                                            checkColor: Colors.white,
-                                            activeColor: Colors.black,
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Expanded(
-                                            child: RichText(
-                                              text: TextSpan(
-                                                style: lineSeed.merge(
-                                                  const TextStyle(
-                                                    color: Colors.black87,
-                                                    height: 1.4,
-                                                  ),
-                                                ),
-                                                children: [
-                                                  TextSpan(
-                                                    text: '利用規約に同意する',
-                                                    style: lineSeedBold.merge(
-                                                      const TextStyle(
-                                                        decoration:
-                                                            TextDecoration
-                                                                .underline,
-                                                        color: Colors.black,
+                                            decoration:
+                                                _decorateWithLineSeed(
+                                                  _input(
+                                                    'パスワードを再入力しよう',
+                                                    required: true,
+                                                    prefixIcon: const Icon(
+                                                      Icons.lock_outline,
+                                                    ),
+                                                    suffixIcon: IconButton(
+                                                      onPressed: () => setState(
+                                                        () => _showPass2 =
+                                                            !_showPass2,
+                                                      ),
+                                                      icon: Icon(
+                                                        _showPass2
+                                                            ? Icons
+                                                                  .visibility_off
+                                                            : Icons.visibility,
                                                       ),
                                                     ),
-                                                    recognizer:
-                                                        TapGestureRecognizer()
-                                                          ..onTap = _openTerms,
+                                                    helperText:
+                                                        '8文字以上・英字と数字を含む（記号可）',
                                                   ),
-                                                ],
+                                                ).copyWith(
+                                                  enabledBorder:
+                                                      OutlineInputBorder(
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              8,
+                                                            ),
+                                                        borderSide:
+                                                            const BorderSide(
+                                                              color:
+                                                                  Colors.black,
+                                                              width: 5,
+                                                            ),
+                                                      ),
+                                                  focusedBorder:
+                                                      OutlineInputBorder(
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              8,
+                                                            ),
+                                                        borderSide:
+                                                            const BorderSide(
+                                                              color:
+                                                                  Colors.black,
+                                                              width: 5,
+                                                            ),
+                                                      ),
+                                                ),
+                                            obscureText: !_showPass2,
+                                            textInputAction:
+                                                TextInputAction.next,
+                                            validator: _validatePasswordConfirm,
+                                            autofillHints: const <String>[],
+                                          ),
+
+                                          const SizedBox(height: 8),
+
+                                          // 名前
+                                          TextFormField(
+                                            controller: _nameCtrl,
+                                            style: lineSeed.merge(
+                                              const TextStyle(
+                                                color: Colors.black87,
                                               ),
                                             ),
-                                          ),
-                                        ],
-                                      ),
-
-                                      // プライバシー同意
-                                      Row(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.center,
-                                        children: [
-                                          Checkbox(
-                                            value: _agreePrivacy,
-                                            onChanged: _loading
-                                                ? null
-                                                : (v) => setState(
-                                                    () => _agreePrivacy =
-                                                        v ?? false,
-                                                  ),
-                                            side: const BorderSide(
-                                              color: Colors.black54,
-                                            ),
-                                            checkColor: Colors.white,
-                                            activeColor: Colors.black,
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Expanded(
-                                            child: RichText(
-                                              text: TextSpan(
-                                                style: lineSeed.merge(
-                                                  const TextStyle(
-                                                    color: Colors.black87,
-                                                    height: 1.4,
-                                                  ),
+                                            decoration:
+                                                _decorateWithLineSeed(
+                                                  _input('名前', required: true),
+                                                ).copyWith(
+                                                  enabledBorder:
+                                                      OutlineInputBorder(
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              8,
+                                                            ),
+                                                        borderSide:
+                                                            const BorderSide(
+                                                              color:
+                                                                  Colors.black,
+                                                              width: 5,
+                                                            ),
+                                                      ),
+                                                  focusedBorder:
+                                                      OutlineInputBorder(
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              8,
+                                                            ),
+                                                        borderSide:
+                                                            const BorderSide(
+                                                              color:
+                                                                  Colors.black,
+                                                              width: 5,
+                                                            ),
+                                                      ),
                                                 ),
-                                                children: [
-                                                  // const TextSpan(
-                                                  //   text:
-                                                  //       'プライバシーポリシーに同意します\n',
-                                                  // ),
-                                                  TextSpan(
-                                                    text: 'プライバシーポリシーに同意する',
-                                                    style: lineSeedBold.merge(
+                                            validator: (v) {
+                                              if (_isSignUp &&
+                                                  (v == null ||
+                                                      v.trim().isEmpty)) {
+                                                return '名前を入力してください';
+                                              }
+                                              return null;
+                                            },
+                                          ),
+
+                                          const SizedBox(height: 8),
+                                        ],
+
+                                        if (_isSignUp) ...[
+                                          // 規約同意
+                                          Row(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.center,
+                                            children: [
+                                              Checkbox(
+                                                value: _agreeTerms,
+                                                onChanged: _loading
+                                                    ? null
+                                                    : (v) => setState(
+                                                        () => _agreeTerms =
+                                                            v ?? false,
+                                                      ),
+                                                side: const BorderSide(
+                                                  color: Colors.black54,
+                                                ),
+                                                checkColor: Colors.white,
+                                                activeColor: Colors.black,
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Expanded(
+                                                child: RichText(
+                                                  text: TextSpan(
+                                                    style: lineSeed.merge(
                                                       const TextStyle(
-                                                        decoration:
-                                                            TextDecoration
-                                                                .underline,
-                                                        color: Colors.black,
+                                                        color: Colors.black87,
+                                                        height: 1.4,
                                                       ),
                                                     ),
-                                                    recognizer:
-                                                        TapGestureRecognizer()
-                                                          ..onTap =
-                                                              _openPrivacy,
+                                                    children: [
+                                                      TextSpan(
+                                                        text: '利用規約に同意する',
+                                                        style: lineSeedBold.merge(
+                                                          const TextStyle(
+                                                            decoration:
+                                                                TextDecoration
+                                                                    .underline,
+                                                            color: Colors.black,
+                                                          ),
+                                                        ),
+                                                        recognizer:
+                                                            TapGestureRecognizer()
+                                                              ..onTap =
+                                                                  _openTerms,
+                                                      ),
+                                                    ],
                                                   ),
-                                                ],
+                                                ),
                                               ),
-                                            ),
+                                            ],
+                                          ),
+
+                                          // プライバシー同意
+                                          Row(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.center,
+                                            children: [
+                                              Checkbox(
+                                                value: _agreePrivacy,
+                                                onChanged: _loading
+                                                    ? null
+                                                    : (v) => setState(
+                                                        () => _agreePrivacy =
+                                                            v ?? false,
+                                                      ),
+                                                side: const BorderSide(
+                                                  color: Colors.black54,
+                                                ),
+                                                checkColor: Colors.white,
+                                                activeColor: Colors.black,
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Expanded(
+                                                child: RichText(
+                                                  text: TextSpan(
+                                                    style: lineSeed.merge(
+                                                      const TextStyle(
+                                                        color: Colors.black87,
+                                                        height: 1.4,
+                                                      ),
+                                                    ),
+                                                    children: [
+                                                      // const TextSpan(
+                                                      //   text:
+                                                      //       'プライバシーポリシーに同意します\n',
+                                                      // ),
+                                                      TextSpan(
+                                                        text: 'プライバシーポリシーに同意する',
+                                                        style: lineSeedBold.merge(
+                                                          const TextStyle(
+                                                            decoration:
+                                                                TextDecoration
+                                                                    .underline,
+                                                            color: Colors.black,
+                                                          ),
+                                                        ),
+                                                        recognizer:
+                                                            TapGestureRecognizer()
+                                                              ..onTap =
+                                                                  _openPrivacy,
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+
+                                          const SizedBox(height: 8),
+                                        ],
+
+                                        if (!_isSignUp) ...[
+                                          const SizedBox(height: 8),
+                                          Row(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.center,
+                                            children: [
+                                              Checkbox(
+                                                value: _rememberMe,
+                                                onChanged: _loading
+                                                    ? null
+                                                    : (v) => setState(
+                                                        () => _rememberMe =
+                                                            v ?? true,
+                                                      ),
+                                                side: const BorderSide(
+                                                  color: Colors.black54,
+                                                ),
+                                                checkColor: Colors.white,
+                                                //activeColor: Colors.black,
+                                                activeColor: Color(0xFFFCC400),
+                                              ),
+                                              const SizedBox(width: 4),
+                                              const Expanded(
+                                                child: Text(
+                                                  'ログイン状態を保持する',
+                                                  style: TextStyle(
+                                                    color: Colors.black,
+                                                  ),
+                                                ),
+                                              ),
+                                              const Tooltip(
+                                                message:
+                                                    'オン：ブラウザを閉じてもログイン維持\nオフ：このタブ/ウィンドウを閉じるとログアウト（Webのみ）',
+                                                child: Icon(
+                                                  Icons.info_outline,
+                                                  size: 18,
+                                                  color: Colors.black45,
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ],
-                                      ),
 
-                                      const SizedBox(height: 8),
-                                    ],
+                                        const SizedBox(height: 4),
 
-                                    if (!_isSignUp) ...[
-                                      const SizedBox(height: 8),
-                                      Row(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.center,
-                                        children: [
-                                          Checkbox(
-                                            value: _rememberMe,
-                                            onChanged: _loading
-                                                ? null
-                                                : (v) => setState(
-                                                    () =>
-                                                        _rememberMe = v ?? true,
-                                                  ),
-                                            side: const BorderSide(
-                                              color: Colors.black54,
+                                        if (_error != null)
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 12,
+                                              vertical: 10,
                                             ),
-                                            checkColor: Colors.white,
-                                            //activeColor: Colors.black,
-                                            activeColor: Color(0xFFFCC400),
-                                          ),
-                                          const SizedBox(width: 4),
-                                          const Expanded(
-                                            child: Text(
-                                              'ログイン状態を保持する',
-                                              style: TextStyle(
-                                                color: Colors.black,
-                                              ),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFFFFE8E8),
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                              boxShadow: const [
+                                                BoxShadow(
+                                                  color: Color(0x14000000),
+                                                  blurRadius: 10,
+                                                  offset: Offset(0, 4),
+                                                ),
+                                              ],
                                             ),
-                                          ),
-                                          const Tooltip(
-                                            message:
-                                                'オン：ブラウザを閉じてもログイン維持\nオフ：このタブ/ウィンドウを閉じるとログアウト（Webのみ）',
-                                            child: Icon(
-                                              Icons.info_outline,
-                                              size: 18,
-                                              color: Colors.black45,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-
-                                    const SizedBox(height: 4),
-
-                                    if (_error != null)
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 10,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFFFFE8E8),
-                                          borderRadius: BorderRadius.circular(
-                                            10,
-                                          ),
-                                          boxShadow: const [
-                                            BoxShadow(
-                                              color: Color(0x14000000),
-                                              blurRadius: 10,
-                                              offset: Offset(0, 4),
-                                            ),
-                                          ],
-                                        ),
-                                        child: Row(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            const Icon(
-                                              Icons.error_outline,
-                                              color: Colors.red,
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Expanded(
-                                              child: Text(
-                                                _error!,
-                                                style: const TextStyle(
+                                            child: Row(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                const Icon(
+                                                  Icons.error_outline,
                                                   color: Colors.red,
                                                 ),
-                                              ),
+                                                const SizedBox(width: 8),
+                                                Expanded(
+                                                  child: Text(
+                                                    _error!,
+                                                    style: const TextStyle(
+                                                      color: Colors.red,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
                                             ),
-                                          ],
-                                        ),
-                                      ),
-
-                                    FilledButton(
-                                      style: FilledButton.styleFrom(
-                                        backgroundColor: const Color(
-                                          0xFFFCC400,
-                                        ),
-                                        foregroundColor: Colors.black,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
                                           ),
-                                        ),
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 18,
-                                        ),
-                                        side: const BorderSide(
-                                          color: Colors.black,
-                                          width: 5,
-                                        ), // ★ 太い黒枠
-                                      ),
-                                      onPressed: _loading
-                                          ? null
-                                          : (_isSignUp &&
-                                                    (!(_agreeTerms) ||
-                                                        !(_agreePrivacy))
-                                                ? null
-                                                : _submit),
-                                      child: _loading
-                                          ? const SizedBox(
-                                              height: 18,
-                                              width: 18,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                                valueColor:
-                                                    AlwaysStoppedAnimation<
-                                                      Color
-                                                    >(Colors.black), // ★ 白
-                                              ),
-                                            )
-                                          : Text(
-                                              _isSignUp ? 'アカウント作成' : 'ログイン',
+
+                                        FilledButton(
+                                          style: FilledButton.styleFrom(
+                                            backgroundColor: const Color(
+                                              0xFFFCC400,
                                             ),
+                                            foregroundColor: Colors.black,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                            ),
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 18,
+                                            ),
+                                            side: const BorderSide(
+                                              color: Colors.black,
+                                              width: 5,
+                                            ), // ★ 太い黒枠
+                                          ),
+                                          onPressed: _loading
+                                              ? null
+                                              : (_isSignUp &&
+                                                        (!(_agreeTerms) ||
+                                                            !(_agreePrivacy))
+                                                    ? null
+                                                    : _submit),
+                                          child: _loading
+                                              ? const SizedBox(
+                                                  height: 18,
+                                                  width: 18,
+                                                  child: CircularProgressIndicator(
+                                                    strokeWidth: 2,
+                                                    valueColor:
+                                                        AlwaysStoppedAnimation<
+                                                          Color
+                                                        >(Colors.black), // ★ 白
+                                                  ),
+                                                )
+                                              : Text(
+                                                  _isSignUp
+                                                      ? 'アカウント作成'
+                                                      : 'ログイン',
+                                                ),
+                                        ),
+
+                                        const SizedBox(height: 8),
+
+                                        if (!_isSignUp)
+                                          Row(
+                                            children: [
+                                              TextButton(
+                                                onPressed: _loading
+                                                    ? null
+                                                    : _resendVerifyManually,
+                                                style: TextButton.styleFrom(
+                                                  foregroundColor: Colors.black,
+                                                ),
+                                                child: const Text('認証メールを再送'),
+                                              ),
+                                              const Spacer(),
+                                              TextButton(
+                                                onPressed: _loading
+                                                    ? null
+                                                    : _sendResetEmail,
+                                                style: TextButton.styleFrom(
+                                                  foregroundColor: Colors.black,
+                                                ),
+                                                child: const Text(
+                                                  'パスワードをお忘れですか？',
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                      ],
                                     ),
-
-                                    const SizedBox(height: 8),
-
-                                    if (!_isSignUp)
-                                      Row(
-                                        children: [
-                                          TextButton(
-                                            onPressed: _loading
-                                                ? null
-                                                : _resendVerifyManually,
-                                            style: TextButton.styleFrom(
-                                              foregroundColor: Colors.black,
-                                            ),
-                                            child: const Text('認証メールを再送'),
-                                          ),
-                                          const Spacer(),
-                                          TextButton(
-                                            onPressed: _loading
-                                                ? null
-                                                : _sendResetEmail,
-                                            style: TextButton.styleFrom(
-                                              foregroundColor: Colors.black,
-                                            ),
-                                            child: const Text('パスワードをお忘れですか？'),
-                                          ),
-                                        ],
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-
-                        const SizedBox(height: 4),
-
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                          child: Center(
-                            // 中央寄せ
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(
-                                maxWidth: 380,
-                              ), // ★ 最大幅420
-                              child: SizedBox(
-                                width: double.infinity, // 親(=420まで)の横幅に合わせる
-                                child: FittedBox(
-                                  fit: BoxFit.scaleDown, // 収まらない場合は縮小
-                                  alignment: Alignment.center,
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      _LegalOutlinedButton(
-                                        icon: Icons.description_outlined,
-                                        label: '利用規約',
-                                        onPressed: _openTerms,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      _LegalOutlinedButton(
-                                        icon: Icons.privacy_tip_outlined,
-                                        label: 'プライバシーポリシー',
-                                        onPressed: _openPrivacy,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      _LegalOutlinedButton(
-                                        icon: Icons.receipt_long_outlined,
-                                        label: '特定商取引法に基づく表記',
-                                        onPressed: _openScta,
-                                      ),
-                                    ],
                                   ),
                                 ),
                               ),
                             ),
-                          ),
-                        ),
 
-                        const SizedBox(height: 40),
-                      ],
+                            const SizedBox(height: 25),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Image.asset(
+                                  'assets/posters/ZOTMAN.png',
+                                  height: 110,
+                                ),
+                                const SizedBox(width: 25),
+                                OfficialSiteButton(
+                                  url: 'https://www.zotman.jp/tipri',
+                                ),
+                              ],
+                            ),
+
+                            const SizedBox(height: 12),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 20,
+                                horizontal: 8,
+                              ),
+                              child: Center(
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    maxWidth: 380,
+                                  ),
+                                  child: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    alignment: Alignment.center,
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        _LegalTextLink(
+                                          icon: Icons.description_outlined,
+                                          label: '利用規約',
+                                          onPressed: _openTerms,
+                                        ),
+                                        const SizedBox(width: 10),
+                                        _LegalTextLink(
+                                          icon: Icons.privacy_tip_outlined,
+                                          label: 'プライバシーポリシー',
+                                          onPressed: _openPrivacy,
+                                        ),
+                                        const SizedBox(width: 10),
+                                        _LegalTextLink(
+                                          icon: Icons.receipt_long_outlined,
+                                          label: '特定商取引法',
+                                          onPressed: _openScta,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 55),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 10.0,
+                              ),
+                              child: Center(
+                                child: Text(
+                                  "by ZOTMAN",
+                                  style: TextStyle(
+                                    color: Colors.black,
+                                    fontSize: 12,
+                                    fontFamily: "LINEseed",
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-              );
-            },
-          ),
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -1240,6 +1329,112 @@ class _LegalOutlinedButton extends StatelessWidget {
           fontSize: 13,
           fontWeight: FontWeight.w500,
           fontFamily: "LINEseed",
+        ),
+      ),
+    );
+  }
+}
+
+class OfficialSiteButton extends StatelessWidget {
+  const OfficialSiteButton({
+    super.key,
+    required this.url,
+    this.label = '公式サイトはこちら',
+  });
+
+  final String url;
+  final String label;
+
+  Future<void> _open(BuildContext context) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok && context.mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('リンクを開けませんでした')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final onBlackBg =
+        Theme.of(context).scaffoldBackgroundColor ==
+        Colors.black; // 使わないなら消してOK
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 320),
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          onTap: () => _open(context),
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: Colors.black.withOpacity(0.18),
+                width: 1.5,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(
+                    label,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontFamily: 'LINEseed',
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14.5,
+                      color: Colors.black,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Icon(
+                  Icons.open_in_new,
+                  size: 18,
+                  color: Colors.black.withOpacity(0.65),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LegalTextLink extends StatelessWidget {
+  const _LegalTextLink({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 18),
+      label: Text(label),
+      style: TextButton.styleFrom(
+        foregroundColor: Colors.black,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        textStyle: const TextStyle(
+          fontFamily: 'LINEseed',
+          fontWeight: FontWeight.w600,
+          fontSize: 13,
+          decoration: TextDecoration.underline, // “リンク感”
         ),
       ),
     );

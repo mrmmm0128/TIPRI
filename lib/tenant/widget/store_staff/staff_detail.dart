@@ -52,13 +52,12 @@ class _StaffDetailScreenState extends State<StaffDetailScreen> {
 
   String _staffTipUrl(String tenantId, String employeeId, {int? initAmount}) {
     final qp = <String, String>{
-      'u': widget.ownerId,
       't': tenantId,
       'e': employeeId,
       if (initAmount != null) 'a': '$initAmount',
     };
     final query = Uri(queryParameters: qp).query;
-    return '$_publicBase/#/staff?$query';
+    return '$_publicBase/staff?$query';
   }
 
   Future<void> _pickNewPhoto() async {
@@ -547,69 +546,163 @@ class _StaffDetailScreenState extends State<StaffDetailScreen> {
                   // QRコードセクション
                   _whiteCard(
                     Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const Row(
-                          children: [
+                        // ヘッダ
+                        Row(
+                          children: const [
                             Icon(Icons.qr_code_2, color: Colors.black54),
                             SizedBox(width: 8),
                             Text(
                               'スタッフ用QRコード',
                               style: TextStyle(
+                                fontFamily: 'LINEseed',
                                 fontWeight: FontWeight.w600,
                                 color: Colors.black87,
+                                fontSize: 16,
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
-                        Center(child: QrImageView(data: tipUrl, size: 180)),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 12),
+
+                        // QRを“額縁”に入れて主役化
                         Center(
-                          child: Wrap(
-                            spacing: 8,
-                            children: [
-                              OutlinedButton.icon(
-                                style: outlineButton,
-                                onPressed: () => launchUrlString(
-                                  tipUrl,
-                                  mode: LaunchMode.externalApplication,
-                                  webOnlyWindowName: '_self',
-                                ),
-                                icon: const Icon(Icons.open_in_new),
-                                label: const Text(
-                                  'リンクを開く',
-                                  style: TextStyle(color: Colors.black87),
-                                ),
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: Colors.black.withOpacity(0.12),
+                                width: 1.5,
                               ),
-                              OutlinedButton.icon(
-                                style: outlineButton,
-                                onPressed: () async {
-                                  await Clipboard.setData(
-                                    ClipboardData(text: tipUrl),
-                                  );
-                                  if (mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        backgroundColor: Color(0xFFFCC400),
-                                        content: Text(
-                                          'URLをコピーしました',
-                                          style: TextStyle(
-                                            fontFamily: 'LINEseed',
-                                          ),
-                                        ),
-                                      ),
-                                    );
-                                  }
-                                },
-                                icon: const Icon(Icons.copy),
-                                label: const Text(
-                                  'URLをコピー',
-                                  style: TextStyle(color: Colors.black87),
+                              boxShadow: const [
+                                BoxShadow(
+                                  color: Color(0x14000000),
+                                  blurRadius: 12,
+                                  offset: Offset(0, 6),
+                                ),
+                              ],
+                            ),
+                            child: QrImageView(data: tipUrl, size: 180),
+                          ),
+                        ),
+
+                        const SizedBox(height: 12),
+
+                        // URLのサマリ（長いURLでも崩れない）
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.black.withOpacity(0.08),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.link,
+                                size: 18,
+                                color: Colors.black54,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  tipUrl,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontFamily: 'LINEseed',
+                                    fontSize: 12.5,
+                                    color: Colors.black87,
+                                  ),
                                 ),
                               ),
                             ],
                           ),
+                        ),
+
+                        const SizedBox(height: 12),
+
+                        // ボタン：同幅2分割、狭い時は縦積み
+                        LayoutBuilder(
+                          builder: (context, c) {
+                            final isNarrow = c.maxWidth < 360;
+
+                            final openBtn = OutlinedButton.icon(
+                              style: outlineButton,
+                              onPressed: () => launchUrlString(
+                                tipUrl,
+                                mode: LaunchMode.externalApplication,
+                                webOnlyWindowName: '_self',
+                              ),
+                              icon: const Icon(Icons.open_in_new),
+                              label: const Text(
+                                'リンクを開く',
+                                style: TextStyle(
+                                  fontFamily: 'LINEseed',
+                                  color: Colors.black87,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            );
+
+                            final copyBtn = OutlinedButton.icon(
+                              style: outlineButton,
+                              onPressed: () async {
+                                await Clipboard.setData(
+                                  ClipboardData(text: tipUrl),
+                                );
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      backgroundColor: Color(0xFFFCC400),
+                                      content: Text(
+                                        'URLをコピーしました',
+                                        style: TextStyle(
+                                          fontFamily: 'LINEseed',
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                }
+                              },
+                              icon: const Icon(Icons.copy),
+                              label: const Text(
+                                'URLをコピー',
+                                style: TextStyle(
+                                  fontFamily: 'LINEseed',
+                                  color: Colors.black87,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            );
+
+                            if (isNarrow) {
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  openBtn,
+                                  const SizedBox(height: 8),
+                                  copyBtn,
+                                ],
+                              );
+                            }
+
+                            return Row(
+                              children: [
+                                Expanded(child: openBtn),
+                                const SizedBox(width: 8),
+                                Expanded(child: copyBtn),
+                              ],
+                            );
+                          },
                         ),
                       ],
                     ),

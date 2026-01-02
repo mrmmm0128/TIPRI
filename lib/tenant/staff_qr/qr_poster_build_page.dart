@@ -232,7 +232,7 @@ class _QrPosterBuilderPageState extends State<QrPosterBuilderPage> {
     final params = Uri(
       queryParameters: {'t': tenantId!, 'e': employeeId!},
     ).query;
-    return 'https://tip.tipri.jp/#/staff?$params';
+    return 'https://tip.tipri.jp/staff?$params';
   }
 
   // ====== 背景画像アップロード（Cのみ） ======
@@ -241,7 +241,7 @@ class _QrPosterBuilderPageState extends State<QrPosterBuilderPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            '写真アップロードは C プラン限定です',
+            '写真アップロードは B プラン限定です',
             style: TextStyle(fontFamily: 'LINEseed'),
           ),
           backgroundColor: Color(0xFFFCC400),
@@ -345,12 +345,6 @@ class _QrPosterBuilderPageState extends State<QrPosterBuilderPage> {
   @override
   Widget build(BuildContext context) {
     final valid = tenantId != null && employeeId != null;
-
-    final pdef = _paperDefs[_paper]!;
-    final previewAspect = _landscape
-        ? (pdef.heightMm / pdef.widthMm)
-        : (pdef.widthMm / pdef.heightMm);
-
     final canUpload = _isCPlan;
 
     return Scaffold(
@@ -377,285 +371,314 @@ class _QrPosterBuilderPageState extends State<QrPosterBuilderPage> {
         ],
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: InputDecorator(
-                      decoration: InputDecoration(
-                        labelText: '用紙サイズ',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<_Paper>(
-                          value: _paper,
-                          items: _paperDefs.entries
-                              .map(
-                                (e) => DropdownMenuItem(
-                                  value: e.key,
-                                  child: Text(
-                                    e.value.label,
-                                    style: const TextStyle(
-                                      fontFamily: 'LINEseed',
-                                    ),
-                                  ),
-                                ),
-                              )
-                              .toList(),
-                          onChanged: (v) => setState(() => _paper = v!),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: InputDecorator(
-                      decoration: InputDecoration(
-                        labelText: '向き',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<bool>(
-                          value: _landscape,
-                          items: const [
-                            DropdownMenuItem(
-                              value: false,
-                              child: Text(
-                                '縦向き',
-                                style: TextStyle(fontFamily: 'LINEseed'),
-                              ),
-                            ),
-                            DropdownMenuItem(
-                              value: true,
-                              child: Text(
-                                '横向き',
-                                style: TextStyle(fontFamily: 'LINEseed'),
-                              ),
-                            ),
-                          ],
-                          onChanged: (v) => setState(() => _landscape = v!),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              // ==== QRデザイン選択 ====
-              Row(
-                children: [
-                  Expanded(
-                    child: InputDecorator(
-                      decoration: InputDecoration(
-                        labelText: 'QRデザイン',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<_QrDesign>(
-                          value: _qrDesign,
-                          items: const [
-                            DropdownMenuItem(
-                              value: _QrDesign.classic,
-                              child: Text(
-                                'クラシック（四角）',
-                                style: TextStyle(fontFamily: 'LINEseed'),
-                              ),
-                            ),
-                            DropdownMenuItem(
-                              value: _QrDesign.roundEyes,
-                              child: Text(
-                                '角丸アイ（目だけ丸）',
-                                style: TextStyle(fontFamily: 'LINEseed'),
-                              ),
-                            ),
-                            DropdownMenuItem(
-                              value: _QrDesign.dots,
-                              child: Text(
-                                'ドット（全体丸）',
-                                style: TextStyle(fontFamily: 'LINEseed'),
-                              ),
-                            ),
-                          ],
-                          onChanged: (v) => setState(() => _qrDesign = v!),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1400),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                // PC画面判定（横幅900px以上で2カラムレイアウト）
+                final isWideScreen = constraints.maxWidth >= 900;
 
-              if (!valid)
-                const Text(
-                  'URLが不正です（t/e パラメータが必要）',
-                  style: TextStyle(fontFamily: 'LINEseed'),
-                ),
-
-              if (valid) ...[
-                // ==== プレビュー（ドラッグでQR移動） ====
-                RepaintBoundary(
-                  key: _previewKey,
-                  child: _PosterPreview(
-                    paper: _paper,
-                    landscape: _landscape,
-                    marginMm: _marginMm,
-                    qrPos: _qrPos,
-                    qrSizeMm: _qrSizeMm,
-                    putWhiteBg: _putWhiteBg,
-                    qrWhiteMarginMm: _qrWhiteMarginMm,
-                    photoBytes: _photoBytes,
-                    qrData: _qrData,
-                    qrDesign: _qrDesign,
-                    onPosChanged: (o) =>
-                        setState(() => _qrPos = _clampOffset(o)),
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-
-                // ==== コントロール群 ====
-                LayoutBuilder(
-                  builder: (context, c) {
-                    final narrow = c.maxWidth < 560;
-                    final pickBtn = Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: canUpload
-                            ? _pickPhoto
-                            : () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      '写真アップロードは C プラン限定です',
-                                      style: TextStyle(fontFamily: 'LINEseed'),
-                                    ),
-                                    backgroundColor: Color(0xFFFCC400),
-                                  ),
-                                );
-                              },
-                        icon: const Icon(Icons.photo_library),
-                        label: Text(
-                          _loadingPlan
-                              ? 'プラン確認中...'
-                              : (_photoName ??
-                                    (canUpload ? '写真を選ぶ' : '写真アップロード（Cプランのみ）')),
-                          style: const TextStyle(fontFamily: 'LINEseed'),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.black87,
-                          side: const BorderSide(color: Colors.black87),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: !valid
+                      ? const Center(
+                          child: Text(
+                            'URLが不正です（t/e パラメータが必要）',
+                            style: TextStyle(fontFamily: 'LINEseed'),
                           ),
-                        ),
-                      ),
-                    );
-                    final pdfBtn = FilledButton.icon(
-                      onPressed: _makePdfAndDownload,
-                      icon: const Icon(Icons.file_download),
-                      label: const Text(
-                        'PDFをダウンロード',
-                        style: TextStyle(fontFamily: 'LINEseed'),
-                      ),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFFFCC400),
-                        foregroundColor: Colors.black,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                    );
-                    if (narrow) {
-                      return Column(
-                        children: [
-                          Row(children: [pickBtn]),
-                          const SizedBox(height: 8),
-                          SizedBox(width: double.infinity, child: pdfBtn),
-                        ],
-                      );
-                    } else {
-                      return Row(
-                        children: [pickBtn, const SizedBox(width: 8), pdfBtn],
-                      );
-                    }
-                  },
-                ),
-
-                const SizedBox(height: 8),
-                if (!_loadingPlan && !canUpload)
-                  const Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      '※ 写真アップロードは C プラン限定機能です。',
-                      style: TextStyle(
-                        color: Colors.black54,
-                        fontSize: 12,
-                        fontFamily: 'LINEseed',
-                      ),
-                    ),
-                  ),
-
-                const SizedBox(height: 12),
-                _SliderTile(
-                  label: 'QRサイズ (mm)',
-                  value: _qrSizeMm,
-                  min: 30,
-                  max: 120,
-                  onChanged: (v) => setState(() => _qrSizeMm = v),
-                ),
-                _SliderTile(
-                  label: '外周余白 (mm)',
-                  value: _marginMm,
-                  min: 0,
-                  max: 40,
-                  onChanged: (v) => setState(() => _marginMm = v),
-                ),
-                SwitchListTile(
-                  title: const Text(
-                    'QRの背景を白で敷く',
-                    style: TextStyle(
-                      color: Colors.black87,
-                      fontFamily: 'LINEseed',
-                    ),
-                  ),
-                  value: _putWhiteBg,
-                  onChanged: (v) => setState(() => _putWhiteBg = v),
-                  contentPadding: EdgeInsets.zero,
-                ),
-
-                // 位置の数値表示＆微調整
-                const SizedBox(height: 8),
-                _NudgePad(
-                  pos: _qrPos,
-                  onChanged: (o) => setState(() => _qrPos = _clampOffset(o)),
-                ),
-
-                const SizedBox(height: 24),
-              ],
-            ],
+                        )
+                      : isWideScreen
+                      ? _buildWideLayout(canUpload)
+                      : _buildNarrowLayout(canUpload),
+                );
+              },
+            ),
           ),
         ),
       ),
+    );
+  }
+
+  // モバイル・タブレット向けレイアウト（縦並び）
+  Widget _buildNarrowLayout(bool canUpload) {
+    return Column(
+      children: [
+        _buildControlsSection(canUpload),
+        const SizedBox(height: 12),
+        _buildPreviewSection(),
+        const SizedBox(height: 24),
+      ],
+    );
+  }
+
+  // PC向けレイアウト（横並び2カラム）
+  Widget _buildWideLayout(bool canUpload) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 左側：プレビュー
+        Expanded(flex: 3, child: _buildPreviewSection()),
+        const SizedBox(width: 24),
+        // 右側：コントロール
+        Expanded(flex: 2, child: _buildControlsSection(canUpload)),
+      ],
+    );
+  }
+
+  // プレビューセクション
+  Widget _buildPreviewSection() {
+    return RepaintBoundary(
+      key: _previewKey,
+      child: _PosterPreview(
+        paper: _paper,
+        landscape: _landscape,
+        marginMm: _marginMm,
+        qrPos: _qrPos,
+        qrSizeMm: _qrSizeMm,
+        putWhiteBg: _putWhiteBg,
+        qrWhiteMarginMm: _qrWhiteMarginMm,
+        photoBytes: _photoBytes,
+        qrData: _qrData,
+        qrDesign: _qrDesign,
+        onPosChanged: (o) => setState(() => _qrPos = _clampOffset(o)),
+      ),
+    );
+  }
+
+  // コントロールセクション
+  Widget _buildControlsSection(bool canUpload) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // 用紙サイズと向き
+        Row(
+          children: [
+            Expanded(
+              child: InputDecorator(
+                decoration: InputDecoration(
+                  labelText: '用紙サイズ',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<_Paper>(
+                    value: _paper,
+                    items: _paperDefs.entries
+                        .map(
+                          (e) => DropdownMenuItem(
+                            value: e.key,
+                            child: Text(
+                              e.value.label,
+                              style: const TextStyle(fontFamily: 'LINEseed'),
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (v) => setState(() => _paper = v!),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: InputDecorator(
+                decoration: InputDecoration(
+                  labelText: '向き',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<bool>(
+                    value: _landscape,
+                    items: const [
+                      DropdownMenuItem(
+                        value: false,
+                        child: Text(
+                          '縦向き',
+                          style: TextStyle(fontFamily: 'LINEseed'),
+                        ),
+                      ),
+                      DropdownMenuItem(
+                        value: true,
+                        child: Text(
+                          '横向き',
+                          style: TextStyle(fontFamily: 'LINEseed'),
+                        ),
+                      ),
+                    ],
+                    onChanged: (v) => setState(() => _landscape = v!),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        // QRデザイン選択
+        InputDecorator(
+          decoration: InputDecoration(
+            labelText: 'QRデザイン',
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 6,
+            ),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<_QrDesign>(
+              value: _qrDesign,
+              items: const [
+                DropdownMenuItem(
+                  value: _QrDesign.classic,
+                  child: Text(
+                    'クラシック（四角）',
+                    style: TextStyle(fontFamily: 'LINEseed'),
+                  ),
+                ),
+                DropdownMenuItem(
+                  value: _QrDesign.roundEyes,
+                  child: Text(
+                    '角丸アイ（目だけ丸）',
+                    style: TextStyle(fontFamily: 'LINEseed'),
+                  ),
+                ),
+                DropdownMenuItem(
+                  value: _QrDesign.dots,
+                  child: Text(
+                    'ドット（全体丸）',
+                    style: TextStyle(fontFamily: 'LINEseed'),
+                  ),
+                ),
+              ],
+              onChanged: (v) => setState(() => _qrDesign = v!),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // 写真アップロードとPDFダウンロードボタン
+        LayoutBuilder(
+          builder: (context, c) {
+            final narrow = c.maxWidth < 380;
+            final pickBtn = Expanded(
+              child: OutlinedButton.icon(
+                onPressed: canUpload
+                    ? _pickPhoto
+                    : () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              '写真アップロードは C プラン限定です',
+                              style: TextStyle(fontFamily: 'LINEseed'),
+                            ),
+                            backgroundColor: Color(0xFFFCC400),
+                          ),
+                        );
+                      },
+                icon: const Icon(Icons.photo_library),
+                label: Text(
+                  _loadingPlan
+                      ? 'プラン確認中...'
+                      : (_photoName ??
+                            (canUpload ? '写真を選ぶ' : '写真アップロード（Cプランのみ）')),
+                  style: const TextStyle(fontFamily: 'LINEseed'),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.black87,
+                  side: const BorderSide(color: Colors.black87),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+            );
+            final pdfBtn = FilledButton.icon(
+              onPressed: _makePdfAndDownload,
+              icon: const Icon(Icons.file_download),
+              label: const Text(
+                'PDFをダウンロード',
+                style: TextStyle(fontFamily: 'LINEseed'),
+              ),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFFCC400),
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            );
+            if (narrow) {
+              return Column(
+                children: [
+                  Row(children: [pickBtn]),
+                  const SizedBox(height: 8),
+                  SizedBox(width: double.infinity, child: pdfBtn),
+                ],
+              );
+            } else {
+              return Row(children: [pickBtn, const SizedBox(width: 8), pdfBtn]);
+            }
+          },
+        ),
+
+        const SizedBox(height: 8),
+        if (!_loadingPlan && !canUpload)
+          const Text(
+            '※ 写真アップロードは C プラン限定機能です。',
+            style: TextStyle(
+              color: Colors.black54,
+              fontSize: 12,
+              fontFamily: 'LINEseed',
+            ),
+          ),
+
+        const SizedBox(height: 16),
+
+        // スライダー群
+        _SliderTile(
+          label: 'QRサイズ (mm)',
+          value: _qrSizeMm,
+          min: 30,
+          max: 120,
+          onChanged: (v) => setState(() => _qrSizeMm = v),
+        ),
+        _SliderTile(
+          label: '外周余白 (mm)',
+          value: _marginMm,
+          min: 0,
+          max: 40,
+          onChanged: (v) => setState(() => _marginMm = v),
+        ),
+        SwitchListTile(
+          title: const Text(
+            'QRの背景を白で敷く',
+            style: TextStyle(color: Colors.black87, fontFamily: 'LINEseed'),
+          ),
+          value: _putWhiteBg,
+          onChanged: (v) => setState(() => _putWhiteBg = v),
+          contentPadding: EdgeInsets.zero,
+        ),
+
+        const SizedBox(height: 8),
+        // 位置の数値表示＆微調整
+        _NudgePad(
+          pos: _qrPos,
+          onChanged: (o) => setState(() => _qrPos = _clampOffset(o)),
+        ),
+      ],
     );
   }
 }
@@ -675,7 +698,6 @@ class _PosterPreview extends StatelessWidget {
   final _QrDesign qrDesign;
 
   const _PosterPreview({
-    super.key,
     required this.paper,
     required this.landscape,
     required this.marginMm,

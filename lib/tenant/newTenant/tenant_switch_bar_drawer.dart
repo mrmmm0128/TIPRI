@@ -59,11 +59,8 @@ class _TenantSwitchDrawerState extends State<TenantSwitchDrawer> {
     super.dispose();
   }
 
-  // --- Firestore: 自分がオーナーの店舗 ---
   Stream<List<_TenantRow>> _ownedTenantsStream(String uid) {
     final col = FirebaseFirestore.instance.collection(uid);
-
-    // invited をサーバー側で除外（!= を使うときは documentId で orderBy が必須）
     final q = col
         .where(FieldPath.documentId, isNotEqualTo: 'invited')
         .orderBy(FieldPath.documentId);

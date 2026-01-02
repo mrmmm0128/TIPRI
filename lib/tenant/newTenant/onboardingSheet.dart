@@ -1093,7 +1093,7 @@ class OnboardingSheetState extends State<OnboardingSheet> {
       // _Plan(code: 'B', title: 'Bプラン', monthly: 3980, feePct: 25),
       _Plan(code: 'B', title: 'Bプラン', monthly: 9800, feePct: 30),
     ];
-    final bool trialOnlyC = trialStatus != "none"; // ← トライアル有効なら true
+    final bool trialOnlyC = trialStatus != "none";
 
     Future<void> _showTrialOnlyDialog(BuildContext context) async {
       await showDialog<void>(
@@ -1103,7 +1103,7 @@ class OnboardingSheetState extends State<OnboardingSheet> {
           surfaceTintColor: Colors.white, // ← M3の色乗りを防ぐ
           title: const Text('無料トライアルについて'),
           content: const Text(
-            '無料トライアルは全ての機能が使えるCプランのみとなります。\n'
+            '無料トライアルは全ての機能が使えるXプランのみとなります。\n'
             '契約後トライアル中にAプランに変更が可能です。',
           ),
           actions: [
@@ -1426,7 +1426,7 @@ class OnboardingSheetState extends State<OnboardingSheet> {
                 onPressed: (disabled || creating)
                     ? null
                     : () async {
-                        if (trialOnlyC && selectedPlan != 'C') {
+                        if (trialOnlyC && selectedPlan != 'B') {
                           await _showTrialOnlyDialog(context); // ← ここで白ダイアログ
                           return; // 中断（確定しない）
                         }

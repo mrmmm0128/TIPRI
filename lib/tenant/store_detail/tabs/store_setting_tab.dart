@@ -70,13 +70,6 @@ class _StoreSettingsTabState extends State<StoreSettingsTab>
     } else {
       ownerIsMe = false;
     }
-    // // ★ 初期テナントの未読数 Stream をキャッシュ
-    // if (widget.ownerId != null) {
-    //   _unreadCountStreamCache = _buildUnreadCountStream(
-    //     widget.ownerId!,
-    //     widget.tenantId,
-    //   );
-    // }
   }
 
   @override
@@ -93,16 +86,6 @@ class _StoreSettingsTabState extends State<StoreSettingsTab>
         _storeFixedCtrl.clear();
         _tenantIdVN.value = widget.tenantId;
       });
-
-      // if (widget.ownerId != null) {
-      //   _unreadCountStreamCache = _buildUnreadCountStream(
-      //     widget.ownerId!,
-      //     widget.tenantId,
-      //   );
-      // } else {
-      //   _unreadCountStreamCache = null;
-      // }
-
       _startWatchTenantStatus();
     }
   }

@@ -872,6 +872,7 @@ class _StoreHomeTabState extends State<StoreHomeTab> {
                     ..sort((a, b) => b.total.compareTo(a.total));
 
               if (docs.isEmpty) {
+                const SizedBox(height: 20);
                 return Padding(
                   padding: const EdgeInsets.symmetric(vertical: 32),
                   child: Center(

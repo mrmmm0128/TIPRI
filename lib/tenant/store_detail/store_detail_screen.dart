@@ -1,6 +1,4 @@
-// lib/tenant/store_detail_screen.dart
 import 'dart:async';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -228,7 +226,6 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
   // ---- 店舗作成ダイアログ（TenantSwitcherBar と同等の仕様）----
   Future<void> createTenantDialog() async {
     final nameCtrl = TextEditingController();
-    final agentCtrl = TextEditingController();
     final ok = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -298,31 +295,6 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: agentCtrl,
-                  style: const TextStyle(color: Colors.black87),
-                  decoration: const InputDecoration(
-                    labelText: 'キャンペーンコード',
-                    hintText: '代理店の方からお聞きください',
-                    labelStyle: TextStyle(color: Colors.black87),
-                    hintStyle: TextStyle(color: Colors.black54),
-                    filled: true,
-                    fillColor: Colors.white,
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 12,
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: Colors.black26, width: 1.2),
-                      borderRadius: BorderRadius.all(Radius.circular(12)),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: Colors.black87, width: 1.6),
-                      borderRadius: BorderRadius.all(Radius.circular(12)),
-                    ),
-                  ),
-                ),
               ],
             ),
             actionsPadding: const EdgeInsets.symmetric(
@@ -363,36 +335,8 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
 
     if (ok != true) return;
 
-    // TextField 実体を拾う
     final name = nameCtrl.text.trim();
-    final agentCode = agentCtrl.text.trim();
     if (name.isEmpty) return;
-    // 代理店コードの事前確認
-    bool shouldLinkAgency = false;
-    if (agentCode.isEmpty) {
-      final proceed = await _confirmProceedWithoutAgency(
-        context,
-        title: '代理店コードが未入力です',
-        message: '代理店と未連携のまま店舗を作成してよろしいですか？\n代理店の方から連携されている場合は、必ず入力ください',
-        proceedLabel: '未連携で作成',
-      );
-      if (!proceed) return;
-    } else {
-      final exists = await _agencyCodeExists(agentCode);
-      if (!exists) {
-        final proceed = await _confirmProceedWithoutAgency(
-          context,
-          title: '代理店コードが見つかりません',
-          message: '入力されたコード「$agentCode」は有効ではない可能性があります。\n未連携のまま作成しますか？',
-          proceedLabel: '未連携で作成',
-        );
-        print("a");
-        if (!proceed) return;
-      } else {
-        shouldLinkAgency = true;
-      }
-    }
-    print("a");
 
     final u = FirebaseAuth.instance.currentUser;
     if (u == null) {
@@ -419,21 +363,9 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
       'status': 'draft',
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
-      'agency': {'code': agentCode, 'linked': false},
       'members': [u.uid],
       'createdBy': {'uid': u.uid, 'email': u.email},
     }, SetOptions(merge: true));
-
-    // 代理店リンク
-    if (shouldLinkAgency) {
-      await _tryLinkAgencyByCode(
-        code: agentCode,
-        ownerUid: u.uid,
-        tenantRef: newRef,
-        tenantName: name,
-        scaffoldContext: context,
-      );
-    }
 
     // 画面状態更新
     if (!mounted) return;
@@ -446,111 +378,6 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
 
     // オンボーディング開始（v2）
     await startOnboarding(tenantIdNew, name);
-  }
-
-  Future<bool> _agencyCodeExists(String code) async {
-    final qs = await FirebaseFirestore.instance
-        .collection('agencies')
-        .where('code', isEqualTo: code)
-        .where('status', isEqualTo: 'active')
-        .limit(1)
-        .get();
-    return qs.docs.isNotEmpty;
-  }
-
-  Future<bool> _confirmProceedWithoutAgency(
-    BuildContext context, {
-    required String title,
-    required String message,
-    String proceedLabel = '続行',
-  }) async {
-    return await showDialog<bool>(
-          context: context,
-          builder: (_) => AlertDialog(
-            backgroundColor: Colors.white,
-            surfaceTintColor: Colors.transparent,
-            title: Text(title),
-            content: Text(message),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('戻る'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: Text(proceedLabel),
-              ),
-            ],
-          ),
-        ) ??
-        false;
-  }
-
-  Future<void> _tryLinkAgencyByCode({
-    required String code,
-    required String ownerUid,
-    required DocumentReference<Map<String, dynamic>> tenantRef,
-    required String tenantName,
-    required BuildContext scaffoldContext,
-  }) async {
-    try {
-      final qs = await FirebaseFirestore.instance
-          .collection('agencies')
-          .where('code', isEqualTo: code)
-          .where('status', isEqualTo: 'active')
-          .limit(1)
-          .get();
-      if (qs.docs.isEmpty) {
-        ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-          const SnackBar(
-            content: Text(
-              '代理店コードが見つかりませんでした',
-              style: TextStyle(fontFamily: 'LINEseed'),
-            ),
-            backgroundColor: Color(0xFFFCC400),
-          ),
-        );
-        return;
-      }
-      final agent = qs.docs.first;
-      final agentId = agent.id;
-      final commission =
-          (agent.data()['commissionPercent'] as num?)?.toInt() ?? 0;
-
-      await tenantRef.set({
-        'agency': {
-          'code': code,
-          'agentId': agentId,
-          'commissionPercent': commission,
-          'linked': true,
-          'linkedAt': FieldValue.serverTimestamp(),
-        },
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-
-      await FirebaseFirestore.instance
-          .collection('agencies')
-          .doc(agentId)
-          .collection('contracts')
-          .doc(tenantRef.id)
-          .set({
-            'tenantId': tenantRef.id,
-            'tenantName': tenantName,
-            'ownerUid': ownerUid,
-            'contractedAt': FieldValue.serverTimestamp(),
-            'status': 'draft',
-          }, SetOptions(merge: true));
-    } catch (e) {
-      ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-        SnackBar(
-          content: Text(
-            '代理店リンクに失敗しました: $e',
-            style: TextStyle(fontFamily: 'LINEseed'),
-          ),
-          backgroundColor: Color(0xFFFCC400),
-        ),
-      );
-    }
   }
 
   Future<void> startOnboarding(String tenantId, String tenantName) async {
@@ -881,35 +708,52 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
 
           // ▼ actions 側もまとめて下にずらす
           actions: [
-            Padding(
-              padding: EdgeInsets.only(top: _downShift, right: 5),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: (MediaQuery.of(context).size.width * 0.7)
-                      .clamp(280.0, 560.0)
-                      .toDouble(),
+            if (!isNarrow)
+              Padding(
+                padding: EdgeInsets.only(top: _downShift, right: 5),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: (MediaQuery.of(context).size.width * 0.7)
+                        .clamp(280.0, 560.0)
+                        .toDouble(),
+                  ),
+                  child: TenantSwitcherBar(
+                    currentTenantId: tenantId,
+                    currentTenantName: tenantName,
+                    onChangedEx: (id, name, oUid, isInvited) {
+                      if (id == tenantId && oUid == ownerUid) return;
+                      setState(() {
+                        tenantId = id;
+                        tenantName = name;
+                        ownerUid = oUid;
+                        invited = isInvited;
+                        _initialFeePopupChecked = false;
+                        _showInitialFeePopup = false;
+                      });
+                    },
+                  ),
                 ),
-                child: MediaQuery.of(context).size.width < 480
-                    ? const SizedBox.shrink()
-                    : TenantSwitcherBar(
-                        currentTenantId: tenantId,
-                        currentTenantName: tenantName,
-                        compact: false,
-                        onChangedEx: (id, name, oUid, isInvited) {
-                          if (id == tenantId && oUid == ownerUid) return;
-                          setState(() {
-                            tenantId = id;
-                            tenantName = name;
-                            ownerUid = oUid;
-                            invited = isInvited;
-                            _initialFeePopupChecked = false;
-                            _showInitialFeePopup = false;
-                          });
-                        },
-                      ),
+              ),
+            if (!isNarrow)
+              Padding(
+                padding: EdgeInsets.only(top: _downShift),
+                child: _buildNotificationsAction(),
+              ),
+            Padding(
+              padding: EdgeInsets.only(top: _downShift),
+              child: IconButton(
+                tooltip: 'アカウント',
+                icon: const Icon(Icons.manage_accounts),
+                onPressed: () {
+                  Navigator.pushNamed(
+                    context,
+                    '/account',
+                    arguments: {"tenantId": tenantId},
+                  );
+                },
               ),
             ),
-            if (MediaQuery.of(context).size.width < 480)
+            if (isNarrow)
               Padding(
                 padding: EdgeInsets.only(top: _downShift, right: 10.0),
                 child: IconButton(
@@ -919,10 +763,7 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
                 ),
               )
             else
-              Padding(
-                padding: EdgeInsets.only(top: _downShift),
-                child: _buildNotificationsAction(),
-              ),
+              const SizedBox(width: 10),
           ],
 
           bottom: const PreferredSize(

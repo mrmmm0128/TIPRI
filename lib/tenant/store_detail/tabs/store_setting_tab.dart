@@ -328,6 +328,7 @@ class _StoreSettingsTabState extends State<StoreSettingsTab>
         await launchUrlString(url, webOnlyWindowName: '_self');
         return;
       }
+      newPlan == "A" ? newPlan = "A" : newPlan = "C";
 
       // ここから既存サブスクの即日切替
       // ※ trial中かどうかはサーバ側で trial_end/behavior を適切に処理するためフラグ渡しは不要
@@ -665,156 +666,6 @@ class _StoreSettingsTabState extends State<StoreSettingsTab>
                       key: const PageStorageKey('store_settings_list'), // ★ 追加
                       controller: _scrollCtrl, // ★ 追加
                       children: [
-                        // ownerIsMe
-                        //     ? Column(
-                        //         children: [
-                        //           const SizedBox(height: 20),
-                        //           Padding(
-                        //             padding: const EdgeInsets.symmetric(
-                        //               horizontal: 25,
-                        //             ),
-                        //             child: SizedBox(
-                        //               width: double.infinity,
-                        //               child: FilledButton.icon(
-                        //                 style: FilledButton.styleFrom(
-                        //                   backgroundColor: Color(0xFFFCC400),
-                        //                   foregroundColor: Colors.black,
-                        //                   side: BorderSide(
-                        //                     color: Colors.black,
-                        //                     width: 3,
-                        //                   ),
-                        //                   shape: RoundedRectangleBorder(
-                        //                     borderRadius: BorderRadius.circular(
-                        //                       12,
-                        //                     ),
-                        //                   ),
-                        //                   padding: const EdgeInsets.symmetric(
-                        //                     horizontal: 16,
-                        //                     vertical: 7,
-                        //                   ),
-                        //                 ),
-                        //                 onPressed: () => Navigator.pushNamed(
-                        //                   context,
-                        //                   '/account',
-                        //                   arguments: {
-                        //                     "tenantId": widget.tenantId,
-                        //                   },
-                        //                 ),
-                        //                 icon: const Icon(Icons.manage_accounts),
-                        //                 label: const Text('アカウント情報を確認'),
-                        //               ),
-                        //             ),
-                        //           ),
-                        //           const SizedBox(height: 3),
-                        //           isNarrow
-                        //               ? Padding(
-                        //                   padding: const EdgeInsets.symmetric(
-                        //                     horizontal: 25,
-                        //                   ),
-                        //                   child: Row(
-                        //                     mainAxisAlignment:
-                        //                         MainAxisAlignment.end,
-                        //                     children: [
-                        //                       if (widget.ownerId! == uid) ...[
-                        //                         Expanded(
-                        //                           child: FilledButton.icon(
-                        //                             style: FilledButton.styleFrom(
-                        //                               backgroundColor: Color(
-                        //                                 0xFFFCC400,
-                        //                               ),
-                        //                               foregroundColor:
-                        //                                   Colors.black,
-                        //                               shape: RoundedRectangleBorder(
-                        //                                 borderRadius:
-                        //                                     BorderRadius.circular(
-                        //                                       12,
-                        //                                     ),
-                        //                               ),
-                        //                               side: BorderSide(
-                        //                                 color: Colors.black,
-                        //                                 width: 3,
-                        //                               ),
-                        //                               padding:
-                        //                                   const EdgeInsets.symmetric(
-                        //                                     horizontal: 16,
-                        //                                     vertical: 10,
-                        //                                   ),
-                        //                             ),
-                        //                             onPressed: () =>
-                        //                                 Navigator.pushNamed(
-                        //                                   context,
-                        //                                   '/tenant',
-                        //                                   arguments: {
-                        //                                     "tenantId":
-                        //                                         widget.tenantId,
-                        //                                   },
-                        //                                 ),
-                        //                             icon: const Icon(
-                        //                               Icons
-                        //                                   .store_mall_directory_outlined,
-                        //                             ),
-                        //                             label: const Text(
-                        //                               'テナント情報を確認',
-                        //                             ),
-                        //                           ),
-                        //                         ),
-                        //                       ],
-
-                        //                       const SizedBox(width: 5),
-                        //                       TenantAlertsButton(
-                        //                         tenantId: widget.tenantId,
-                        //                       ),
-                        //                     ],
-                        //                   ),
-                        //                 )
-                        //               : widget.ownerId! == uid
-                        //               ? Padding(
-                        //                   padding: const EdgeInsets.symmetric(
-                        //                     horizontal: 25,
-                        //                   ),
-                        //                   child: SizedBox(
-                        //                     width: double.infinity,
-                        //                     child: FilledButton.icon(
-                        //                       style: FilledButton.styleFrom(
-                        //                         backgroundColor: Color(
-                        //                           0xFFFCC400,
-                        //                         ),
-                        //                         foregroundColor: Colors.black,
-                        //                         shape: RoundedRectangleBorder(
-                        //                           borderRadius:
-                        //                               BorderRadius.circular(12),
-                        //                         ),
-                        //                         side: BorderSide(
-                        //                           color: Colors.black,
-                        //                           width: 3,
-                        //                         ),
-                        //                         padding:
-                        //                             const EdgeInsets.symmetric(
-                        //                               horizontal: 16,
-                        //                               vertical: 10,
-                        //                             ),
-                        //                       ),
-                        //                       onPressed: () =>
-                        //                           Navigator.pushNamed(
-                        //                             context,
-                        //                             '/tenant',
-                        //                             arguments: {
-                        //                               "tenantId":
-                        //                                   widget.tenantId,
-                        //                             },
-                        //                           ),
-                        //                       icon: const Icon(
-                        //                         Icons
-                        //                             .store_mall_directory_outlined,
-                        //                       ),
-                        //                       label: const Text('テナント情報を確認'),
-                        //                     ),
-                        //                   ),
-                        //                 )
-                        //               : const SizedBox(height: 1),
-                        //         ],
-                        //       )
-                        //     : const SizedBox(height: 0),
                         const SizedBox(height: 16),
 
                         Padding(
@@ -940,7 +791,7 @@ class _StoreSettingsTabState extends State<StoreSettingsTab>
                                             CrossAxisAlignment.start,
                                         children: [
                                           const Text(
-                                            'アカウント・店舗設定',
+                                            '店舗詳細',
                                             style: TextStyle(
                                               fontFamily: 'LINEseed',
                                               fontWeight: FontWeight.w700,
@@ -950,31 +801,11 @@ class _StoreSettingsTabState extends State<StoreSettingsTab>
                                           ),
                                           const SizedBox(height: 4),
                                           const Text(
-                                            '請求情報や店舗情報の確認・変更はこちらから行えます。',
+                                            '店舗情報の確認・変更はこちらから行えます。',
                                             style: TextStyle(
                                               fontSize: 12,
                                               color: Colors.black54,
                                               height: 1.4,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 12),
-                                          SizedBox(
-                                            width: double.infinity,
-                                            child: FilledButton.icon(
-                                              style: btnStyle,
-                                              onPressed: () =>
-                                                  Navigator.pushNamed(
-                                                    context,
-                                                    '/account',
-                                                    arguments: {
-                                                      "tenantId":
-                                                          widget.tenantId,
-                                                    },
-                                                  ),
-                                              icon: const Icon(
-                                                Icons.manage_accounts,
-                                              ),
-                                              label: const Text('アカウント情報を確認'),
                                             ),
                                           ),
                                           const SizedBox(height: 8),
@@ -1021,7 +852,7 @@ class _StoreSettingsTabState extends State<StoreSettingsTab>
                                                   CrossAxisAlignment.start,
                                               children: const [
                                                 Text(
-                                                  'アカウント・店舗設定',
+                                                  '店舗の詳細',
                                                   style: TextStyle(
                                                     fontFamily: 'LINEseed',
                                                     fontWeight: FontWeight.w700,
@@ -1031,7 +862,7 @@ class _StoreSettingsTabState extends State<StoreSettingsTab>
                                                 ),
                                                 SizedBox(height: 4),
                                                 Text(
-                                                  'オーナー用の設定メニューです。請求情報と店舗情報をまとめて管理できます。',
+                                                  'オーナー用の詳細メニューです。店舗情報を管理できます。',
                                                   style: TextStyle(
                                                     fontSize: 12,
                                                     color: Colors.black54,
@@ -1042,33 +873,11 @@ class _StoreSettingsTabState extends State<StoreSettingsTab>
                                             ),
                                           ),
                                           const SizedBox(width: 16),
-                                          // 右：ボタン2つを縦にそろえる
+                                          // 右：ボタンを縦にそろえる
                                           Column(
                                             crossAxisAlignment:
                                                 CrossAxisAlignment.end,
                                             children: [
-                                              SizedBox(
-                                                width: 260,
-                                                child: FilledButton.icon(
-                                                  style: btnStyle,
-                                                  onPressed: () =>
-                                                      Navigator.pushNamed(
-                                                        context,
-                                                        '/account',
-                                                        arguments: {
-                                                          "tenantId":
-                                                              widget.tenantId,
-                                                        },
-                                                      ),
-                                                  icon: const Icon(
-                                                    Icons.manage_accounts,
-                                                  ),
-                                                  label: const Text(
-                                                    'アカウント情報を確認',
-                                                  ),
-                                                ),
-                                              ),
-                                              const SizedBox(height: 8),
                                               SizedBox(
                                                 width: 260,
                                                 child: FilledButton.icon(

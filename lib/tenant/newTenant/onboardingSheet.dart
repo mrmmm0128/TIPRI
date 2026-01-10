@@ -42,6 +42,10 @@ class OnboardingSheetState extends State<OnboardingSheet> {
   bool _registered = false;
   String tenantName = "";
 
+  // 代理店連携用
+  final TextEditingController _agencyCodeCtrl = TextEditingController();
+  bool _linkingAgency = false;
+
   // 下書き関連
   DateTime? _draftUpdatedAt;
 
@@ -73,6 +77,7 @@ class OnboardingSheetState extends State<OnboardingSheet> {
     _postMessageSub?.cancel();
     _focusSub?.cancel();
     _draftSub?.cancel();
+    _agencyCodeCtrl.dispose();
     super.dispose();
   }
 
@@ -501,6 +506,12 @@ class OnboardingSheetState extends State<OnboardingSheet> {
         _draftUpdatedAt = (snap.data()?['updatedAt'] is Timestamp)
             ? (snap.data()?['updatedAt'] as Timestamp).toDate()
             : null;
+
+        if (_agencyCodeCtrl.text.isEmpty) {
+          final agencyData = (data['agency'] as Map?) ?? {};
+          final code = (agencyData['code'] ?? '').toString();
+          _agencyCodeCtrl.text = code;
+        }
       });
     } catch (_) {
       // 読み込み失敗は無視（UIのみ影響）
@@ -613,6 +624,7 @@ class OnboardingSheetState extends State<OnboardingSheet> {
   Future<void> _openSubscriptionCheckout() async {
     if (_creatingSub) return;
     setState(() => _creatingSub = true);
+    selectedPlan == "A" ? selectedPlan = "A" : selectedPlan = "C";
     try {
       final res = await widget.functions
           .httpsCallable('createSubscriptionCheckout')
@@ -821,15 +833,6 @@ class OnboardingSheetState extends State<OnboardingSheet> {
         indexRef.set({...data}, SetOptions(merge: true)),
       ]);
 
-      // 代理店コードがあればリンクを試み、contracts を draft で作成/更新
-      await _maybeLinkAgencyFromTenantDoc(
-        ownerUid: uid,
-        tenantRef: userRef,
-        tenantName: tenantNameEdit.text,
-        desiredStatus: 'draft',
-        scaffoldContext: context,
-      );
-
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -891,15 +894,6 @@ class OnboardingSheetState extends State<OnboardingSheet> {
           'uid': uid, // インデックスにもオーナーuid
         }, SetOptions(merge: true)),
       ]);
-
-      // 2) 代理店連携（あれば）を active に更新
-      await _maybeLinkAgencyFromTenantDoc(
-        ownerUid: uid,
-        tenantRef: userRef,
-        tenantName: tenantNameEdit.text,
-        desiredStatus: 'active',
-        scaffoldContext: context,
-      );
 
       if (!mounted) return;
 
@@ -1529,6 +1523,9 @@ class OnboardingSheetState extends State<OnboardingSheet> {
           trialStatus = "";
         }
 
+        final agency = (m['agency'] as Map?) ?? {};
+        final isLinked = agency['linked'] == true;
+
         // ステップ誘導
         int desiredStep = step;
         if (desiredStep == 0 && initialFeePaid) desiredStep = 1;
@@ -1557,6 +1554,78 @@ class OnboardingSheetState extends State<OnboardingSheet> {
                   ),
                 ),
                 const SizedBox(height: 12),
+
+                _actionCard(
+                  title: 'キャンペーンコード',
+                  description: 'お持ちの場合は入力して「連携」を押してください。',
+                  trailing: _statusPill(isLinked),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _agencyCodeCtrl,
+                          enabled: !isLinked && !_linkingAgency,
+                          decoration: InputDecoration(
+                            hintText: 'コードを入力',
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        height: 44,
+                        child: FilledButton(
+                          onPressed: (isLinked || _linkingAgency)
+                              ? null
+                              : () async {
+                                  final code = _agencyCodeCtrl.text.trim();
+                                  if (code.isEmpty) return;
+                                  setState(() => _linkingAgency = true);
+                                  await _maybeLinkAgencyFromTenantDoc(
+                                    ownerUid: uid,
+                                    tenantRef: FirebaseFirestore.instance
+                                        .collection(uid)
+                                        .doc(widget.tenantId),
+                                    tenantName: widget.tenantName,
+                                    desiredStatus: subscribed
+                                        ? 'active'
+                                        : 'draft',
+                                    scaffoldContext: context,
+                                  );
+                                  if (mounted) {
+                                    setState(() => _linkingAgency = false);
+                                  }
+                                },
+                          style: FilledButton.styleFrom(
+                            backgroundColor: Colors.black,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          child: _linkingAgency
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Text('連携'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 10),
 
                 _actionCard(
                   title: 'サブスクリプション登録',
@@ -1783,7 +1852,7 @@ class OnboardingSheetState extends State<OnboardingSheet> {
                         onPressed: _savingDraft
                             ? null
                             : () async {
-                                await _saveDraft(); // ① 下書き保存（進捗とplanも保存）
+                                await _saveDraft();
                                 if (!mounted) return;
                                 Navigator.of(
                                   context,

@@ -8,7 +8,6 @@ import 'package:yourpay/tenant/newTenant/onboardingSheet.dart';
 class TenantSwitcherBar extends StatefulWidget {
   final String? currentTenantId;
   final String? currentTenantName;
-  final bool compact; // ← 追加: AppBar用に幅を節約
 
   final void Function(
     String tenantId,
@@ -28,7 +27,6 @@ class TenantSwitcherBar extends StatefulWidget {
     this.currentTenantId,
     this.currentTenantName,
     this.padding = const EdgeInsets.fromLTRB(10, 4, 10, 4),
-    this.compact = false,
   });
 
   @override
@@ -249,7 +247,6 @@ class _TenantSwitcherBarState extends State<TenantSwitcherBar> {
 
   Future<void> createTenantDialog() async {
     final nameCtrl = TextEditingController();
-    final agentCtrl = TextEditingController(); // 代理店コード
 
     final ok = await showDialog<bool>(
       context: context,
@@ -320,32 +317,6 @@ class _TenantSwitcherBarState extends State<TenantSwitcherBar> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 10),
-                // 代理店コード入力（任意）
-                TextField(
-                  controller: agentCtrl,
-                  style: const TextStyle(color: Colors.black87),
-                  decoration: const InputDecoration(
-                    labelText: 'キャンペーンコード',
-                    hintText: '代理店の方からお聞きください',
-                    labelStyle: TextStyle(color: Colors.black87),
-                    hintStyle: TextStyle(color: Colors.black54),
-                    filled: true,
-                    fillColor: Colors.white,
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 12,
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: Colors.black26),
-                      borderRadius: BorderRadius.all(Radius.circular(12)),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: Colors.black87, width: 1.2),
-                      borderRadius: BorderRadius.all(Radius.circular(12)),
-                    ),
-                  ),
-                ),
               ],
             ),
             actionsPadding: const EdgeInsets.symmetric(
@@ -364,11 +335,11 @@ class _TenantSwitcherBarState extends State<TenantSwitcherBar> {
               FilledButton(
                 onPressed: () => Navigator.pop(context, true),
                 style: FilledButton.styleFrom(
-                  backgroundColor: Color(0xFFFCC400), // 主ボタンは黒地に白文字
+                  backgroundColor: const Color(0xFFFCC400),
                   foregroundColor: Colors.black,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(width: 3, color: Colors.black),
+                    side: const BorderSide(width: 3, color: Colors.black),
                   ),
                 ),
                 child: const Text(
@@ -385,37 +356,7 @@ class _TenantSwitcherBarState extends State<TenantSwitcherBar> {
     if (ok != true) return;
 
     final name = nameCtrl.text.trim();
-    final agentCode = agentCtrl.text.trim();
     if (name.isEmpty) return;
-
-    // ❶ 代理店コードの事前チェック＆確認ダイアログ
-    bool shouldTryLinkAgency = false;
-    if (agentCode.isEmpty) {
-      final proceed = await _confirmProceedWithoutAgency(
-        context,
-        title: '代理店コードが未入力です',
-        message: '代理店と未連携のまま店舗を作成してよろしいですか？\n代理店の方から連携されている場合は、必ず入力ください',
-        proceedLabel: '未連携で作成',
-      );
-      if (!proceed) return;
-      shouldTryLinkAgency = false;
-    } else {
-      final exists = await _agencyCodeExists(agentCode);
-      if (!exists) {
-        final proceed = await _confirmProceedWithoutAgency(
-          context,
-          title: '代理店コードが見つかりません',
-          message:
-              '入力されたコード「$agentCode」は有効ではない可能性があります。\n'
-              '代理店と未連携のまま店舗を作成してよろしいですか？',
-          proceedLabel: '未連携で作成',
-        );
-        if (!proceed) return;
-        shouldTryLinkAgency = false;
-      } else {
-        shouldTryLinkAgency = true;
-      }
-    }
 
     final uid = _uid; // 既存のログイン中ユーザーUID
     if (uid == null) return;
@@ -437,25 +378,10 @@ class _TenantSwitcherBarState extends State<TenantSwitcherBar> {
       'status': 'draft', // 下書き保存
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
-      'agency': {'code': agentCode, 'linked': false},
     }, SetOptions(merge: true));
 
     final callable = _functions.httpsCallable('createTenantAndNotify');
-    final resp = await callable.call({
-      'storeName': name,
-      if (agentCode.isNotEmpty) 'agentCode': agentCode,
-    });
-
-    // ❸ 代理店リンク（見つかった場合のみ実施）
-    if (shouldTryLinkAgency) {
-      await _tryLinkAgencyByCode(
-        code: agentCode,
-        ownerUid: uid,
-        tenantRef: newRef,
-        tenantName: name,
-        scaffoldContext: context,
-      );
-    }
+    await callable.call({'storeName': name});
 
     // ❹ UI更新 & 親へ通知（★キーも更新）
     if (!mounted) return;
@@ -486,129 +412,6 @@ class _TenantSwitcherBarState extends State<TenantSwitcherBar> {
         ),
       );
       return;
-    }
-  }
-
-  /// 代理店コードが存在するかを事前チェック（status=active のみ有効）
-  Future<bool> _agencyCodeExists(String code) async {
-    final qs = await FirebaseFirestore.instance
-        .collection('agencies')
-        .where('code', isEqualTo: code)
-        .where('status', isEqualTo: 'active')
-        .limit(1)
-        .get();
-    return qs.docs.isNotEmpty;
-  }
-
-  /// 「代理店未連携で続行しますか？」の確認ダイアログ
-  Future<bool> _confirmProceedWithoutAgency(
-    BuildContext context, {
-    required String title,
-    required String message,
-    String proceedLabel = '続行',
-  }) async {
-    return await showDialog<bool>(
-          context: context,
-          builder: (_) => AlertDialog(
-            backgroundColor: Colors.white,
-            surfaceTintColor: Colors.transparent,
-            title: Text(title),
-            content: Text(message),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('戻る'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: Text(proceedLabel),
-              ),
-            ],
-          ),
-        ) ??
-        false;
-  }
-
-  /// 代理店コードから agencies を逆引きし、見つかれば tenant にリンク & contracts を作成
-  Future<void> _tryLinkAgencyByCode({
-    required String code,
-    required String ownerUid,
-    required DocumentReference<Map<String, dynamic>> tenantRef,
-    required String tenantName,
-    required BuildContext scaffoldContext,
-  }) async {
-    try {
-      final qs = await FirebaseFirestore.instance
-          .collection('agencies')
-          .where('code', isEqualTo: code)
-          .where('status', isEqualTo: 'active')
-          .limit(1)
-          .get();
-
-      if (qs.docs.isEmpty) {
-        // コードは保存済み（'agency.code'）なので、ここでは未リンクのままにする
-        ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-          const SnackBar(
-            content: Text(
-              '代理店コードが見つかりませんでした',
-              style: TextStyle(fontFamily: "LINEseed"),
-            ),
-            backgroundColor: Color(0xFFFCC400),
-          ),
-        );
-        return;
-      }
-
-      final agentDoc = qs.docs.first;
-      final agentId = agentDoc.id;
-      final commissionPercent =
-          (agentDoc.data()['commissionPercent'] as num?)?.toInt() ?? 0;
-
-      // tenant の agency 情報を更新（linked=true）
-      await tenantRef.set({
-        'agency': {
-          'code': code,
-          'agentId': agentId,
-          'commissionPercent': commissionPercent,
-          'linked': true,
-          'linkedAt': FieldValue.serverTimestamp(),
-        },
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-
-      // 代理店配下の contracts にも作成（draft 状態）
-      await FirebaseFirestore.instance
-          .collection('agencies')
-          .doc(agentId)
-          .collection('contracts')
-          .doc(tenantRef.id)
-          .set({
-            'tenantId': tenantRef.id,
-            'tenantName': tenantName,
-            'ownerUid': ownerUid,
-            'contractedAt': FieldValue.serverTimestamp(),
-            'status': 'draft',
-          }, SetOptions(merge: true));
-
-      ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-        SnackBar(
-          content: Text(
-            '代理店「$agentId」とリンクしました',
-            style: TextStyle(fontFamily: "LINEseed"),
-          ),
-          backgroundColor: Color(0xFFFCC400),
-        ),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-        SnackBar(
-          content: Text(
-            '代理店リンクに失敗しました: $e',
-            style: TextStyle(fontFamily: "LINEseed"),
-          ),
-          backgroundColor: Color(0xFFFCC400),
-        ),
-      );
     }
   }
 
@@ -724,317 +527,311 @@ class _TenantSwitcherBarState extends State<TenantSwitcherBar> {
           final selectedName = selectedRow?.data['name']?.toString() ?? '店舗を選択';
           final selectedIsDraft = (selectedRow?.data['status'] == 'nonactive');
 
-          return Theme(
-            data: bwTheme(context).copyWith(
-              // ポップアップメニューのスタイル調整
-              popupMenuTheme: PopupMenuThemeData(
-                color: Colors.white,
-                surfaceTintColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(color: Colors.grey.shade200),
+          return Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Theme(
+                data: bwTheme(context).copyWith(
+                  popupMenuTheme: PopupMenuThemeData(
+                    color: Colors.white,
+                    surfaceTintColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(color: Colors.grey.shade200),
+                    ),
+                    elevation: 8,
+                    shadowColor: Colors.black.withOpacity(0.2),
+                  ),
                 ),
-                elevation: 8,
-                shadowColor: Colors.black.withOpacity(0.2),
-              ),
-            ),
-            child: PopupMenuButton<String>(
-              offset: const Offset(0, 50),
-              tooltip: '店舗切り替え',
-              onSelected: (key) async {
-                if (key == '__CREATE__') {
-                  await createTenantDialog();
-                  return;
-                }
-                if (key == '__RESUME__') {
-                  if (_selectedId != null) {
-                    await startOnboarding(_selectedId!, selectedName);
-                  }
-                  return;
-                }
+                child: PopupMenuButton<String>(
+                  offset: const Offset(0, 50),
+                  tooltip: '店舗切り替え',
+                  onSelected: (key) async {
+                    if (key == '__CREATE__') {
+                      await createTenantDialog();
+                      return;
+                    }
+                    if (key == '__RESUME__') {
+                      if (_selectedId != null) {
+                        await startOnboarding(_selectedId!, selectedName);
+                      }
+                      return;
+                    }
 
-                // テナント切り替え処理
-                if (key == _selectedKey) return;
+                    // テナント切り替え処理
+                    if (key == _selectedKey) return;
 
-                // 1) UI即時反映
-                setState(() => _selectedKey = key);
+                    // 1) UI即時反映
+                    setState(() => _selectedKey = key);
 
-                // 2) データ解決
-                final row = rows.firstWhere(
-                  (e) => _keyOf(e.ownerUid, e.tenantId) == key,
-                  orElse: () => rows.first,
-                );
-                final data = row.data;
-                final name = (data['name'] ?? '') as String?;
-                final ownerUid = row.ownerUid;
-                final tenantId = row.tenantId;
-                final invited = row.invited;
+                    // 2) データ解決
+                    final row = rows.firstWhere(
+                      (e) => _keyOf(e.ownerUid, e.tenantId) == key,
+                      orElse: () => rows.first,
+                    );
+                    final data = row.data;
+                    final name = (data['name'] ?? '') as String?;
+                    final ownerUid = row.ownerUid;
+                    final tenantId = row.tenantId;
+                    final invited = row.invited;
 
-                // 3) 旧互換ID更新
-                _selectedId = tenantId;
+                    // 3) 旧互換ID更新
+                    _selectedId = tenantId;
 
-                // 4) 下書きならダイアログ (既存ロジック踏襲)
-                if (data['status'] == 'nonactive') {
-                  final initStatus =
-                      (data['initialFee'] as Map?)?['status'] ?? 'unpaid';
-                  final subStatus =
-                      (data['subscription'] as Map?)?['status'] ?? 'inactive';
-                  final plan =
-                      (data['subscription'] as Map?)?['plan'] as String?;
+                    // 4) 下書きならダイアログ (既存ロジック踏襲)
+                    if (data['status'] == 'nonactive') {
+                      final initStatus =
+                          (data['initialFee'] as Map?)?['status'] ?? 'unpaid';
+                      final subStatus =
+                          (data['subscription'] as Map?)?['status'] ??
+                          'inactive';
+                      final plan =
+                          (data['subscription'] as Map?)?['plan'] as String?;
 
-                  // ダイアログ表示ロジックは長いので関数化した方が良いが、
-                  // ここでは一旦そのまま既存ロジックを流用しつつ非同期呼び出し
-                  // (buildメソッド内ではないのでcontext使用に注意)
-                  if (!mounted) return;
+                      if (!mounted) return;
 
-                  // ※ ここで setState等は不要だが、非同期処理後にアクションがあるため確認
-                  final shouldResume = await showDialog<bool>(
-                    context: context,
-                    builder: (ctx) => AlertDialog(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      backgroundColor: Colors.white,
-                      surfaceTintColor: Colors.transparent,
-                      title: const Text(
-                        '下書きがあります',
-                        style: TextStyle(fontFamily: 'LINEseed'),
-                      ),
-                      content: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('この店舗の登録は完了していません。再開しますか？'),
-                          const SizedBox(height: 12),
-                          Wrap(
-                            spacing: 8,
+                      final shouldResume = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          backgroundColor: Colors.white,
+                          surfaceTintColor: Colors.transparent,
+                          title: const Text(
+                            '下書きがあります',
+                            style: TextStyle(fontFamily: 'LINEseed'),
+                          ),
+                          content: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _statusChip('初期費用', initStatus == 'paid'),
-                              _statusChip(
-                                'サブスク',
-                                subStatus == 'active',
-                                trailing: plan != null ? '($plan)' : null,
+                              const Text('この店舗の登録は完了していません。再開しますか？'),
+                              const SizedBox(height: 12),
+                              Wrap(
+                                spacing: 8,
+                                children: [
+                                  _statusChip('初期費用', initStatus == 'paid'),
+                                  _statusChip(
+                                    'サブスク',
+                                    subStatus == 'active',
+                                    trailing: plan != null ? '($plan)' : null,
+                                  ),
+                                ],
                               ),
                             ],
                           ),
-                        ],
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(ctx, false),
-                          child: const Text(
-                            'あとで',
-                            style: TextStyle(color: Colors.black54),
-                          ),
-                        ),
-                        FilledButton(
-                          style: FilledButton.styleFrom(
-                            backgroundColor: const Color(0xFFFCC400),
-                            foregroundColor: Colors.black,
-                          ),
-                          onPressed: () => Navigator.pop(ctx, true),
-                          child: const Text(
-                            '再開する',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-
-                  if (shouldResume == true) {
-                    await startOnboarding(tenantId, name ?? '');
-                  }
-                }
-
-                // 5) 通知
-                widget.onChangedEx?.call(tenantId, name, ownerUid, invited);
-              },
-              itemBuilder: (context) {
-                final List<PopupMenuEntry<String>> splitItems = [];
-
-                // --- アクション (Draftの場合など) ---
-                if (selectedIsDraft && selectedRow != null) {
-                  splitItems.add(
-                    PopupMenuItem<String>(
-                      value: '__RESUME__',
-                      height: 40,
-                      child: Row(
-                        children: const [
-                          Icon(
-                            Icons.play_circle_fill,
-                            color: Color(0xFFFCC400),
-                            size: 18,
-                          ),
-                          SizedBox(width: 8),
-                          Text(
-                            '登録を再開する',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx, false),
+                              child: const Text(
+                                'あとで',
+                                style: TextStyle(color: Colors.black54),
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                  splitItems.add(const PopupMenuDivider(height: 1));
-                }
+                            FilledButton(
+                              style: FilledButton.styleFrom(
+                                backgroundColor: const Color(0xFFFCC400),
+                                foregroundColor: Colors.black,
+                              ),
+                              onPressed: () => Navigator.pop(ctx, true),
+                              child: const Text(
+                                '再開する',
+                                style: TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
 
-                // --- テナント一覧 ---
-                // 名前順ソート済みと想定
-                for (final r in rows) {
-                  final key = _keyOf(r.ownerUid, r.tenantId);
-                  final isSelected = key == _selectedKey;
-                  final name = r.data['name']?.toString() ?? '(No Name)';
-                  // Draft表示
-                  final isDraft = (r.data['status'] == 'nonactive');
+                      if (shouldResume == true) {
+                        await startOnboarding(tenantId, name ?? '');
+                      }
+                    }
 
-                  splitItems.add(
-                    PopupMenuItem<String>(
-                      value: key,
-                      height: 48,
-                      child: Row(
-                        children: [
-                          if (isSelected)
-                            const Icon(
-                              Icons.check,
-                              color: Colors.blueAccent,
-                              size: 18,
-                            )
-                          else
-                            const SizedBox(width: 18), // indent
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  name,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontWeight: isSelected
-                                        ? FontWeight.bold
-                                        : FontWeight.normal,
-                                    color: Colors.black87,
-                                    fontFamily: 'LINEseed',
-                                  ),
+                    // 5) 通知
+                    widget.onChangedEx?.call(tenantId, name, ownerUid, invited);
+                  },
+                  itemBuilder: (context) {
+                    final List<PopupMenuEntry<String>> splitItems = [];
+
+                    // --- アクション (Draftの場合など) ---
+                    if (selectedIsDraft && selectedRow != null) {
+                      splitItems.add(
+                        PopupMenuItem<String>(
+                          value: '__RESUME__',
+                          height: 40,
+                          child: Row(
+                            children: const [
+                              Icon(
+                                Icons.play_circle_fill,
+                                color: Color(0xFFFCC400),
+                                size: 18,
+                              ),
+                              SizedBox(width: 8),
+                              Text(
+                                '登録を再開する',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
                                 ),
-                                if (r.invited)
-                                  Text(
-                                    '招待された店舗',
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                      splitItems.add(const PopupMenuDivider(height: 1));
+                    }
+
+                    // --- テナント一覧 ---
+                    for (final r in rows) {
+                      final key = _keyOf(r.ownerUid, r.tenantId);
+                      final isSelected = key == _selectedKey;
+                      final name = r.data['name']?.toString() ?? '(No Name)';
+                      final isDraft = (r.data['status'] == 'nonactive');
+
+                      splitItems.add(
+                        PopupMenuItem<String>(
+                          value: key,
+                          height: 48,
+                          child: Row(
+                            children: [
+                              if (isSelected)
+                                const Icon(
+                                  Icons.check,
+                                  color: Colors.blueAccent,
+                                  size: 18,
+                                )
+                              else
+                                const SizedBox(width: 18),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontWeight: isSelected
+                                            ? FontWeight.bold
+                                            : FontWeight.normal,
+                                        color: Colors.black87,
+                                        fontFamily: 'LINEseed',
+                                      ),
+                                    ),
+                                    if (r.invited)
+                                      const Text(
+                                        '招待された店舗',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          color: Colors.grey,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                              if (isDraft)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.shade200,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: const Text(
+                                    '下書き',
                                     style: TextStyle(
                                       fontSize: 10,
-                                      color: Colors.grey,
+                                      color: Colors.black54,
                                     ),
                                   ),
-                              ],
+                                ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }
+
+                    // --- 新規作成 ---
+                    splitItems.add(const PopupMenuDivider(height: 1));
+                    splitItems.add(
+                      const PopupMenuItem<String>(
+                        value: '__CREATE__',
+                        height: 48,
+                        child: Row(
+                          children: [
+                            Icon(Icons.add, size: 18, color: Colors.black87),
+                            SizedBox(width: 12),
+                            Text('新しい店舗を作成', style: TextStyle(fontSize: 14)),
+                          ],
+                        ),
+                      ),
+                    );
+
+                    return splitItems;
+                  },
+                  child: _itemContainer(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            selectedRow?.invited == true
+                                ? Icons.storefront_outlined
+                                : Icons.store,
+                            size: 16,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            selectedName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontFamily: 'LINEseed',
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black87,
+                              fontSize: 14,
                             ),
                           ),
-                          if (isDraft)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.grey.shade200,
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: const Text(
-                                '下書き',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: Colors.black54,
-                                ),
+                        ),
+                        const SizedBox(width: 4),
+                        if (selectedIsDraft)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            child: Container(
+                              width: 8,
+                              height: 8,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFFFCC400),
+                                shape: BoxShape.circle,
                               ),
                             ),
-                        ],
-                      ),
-                    ),
-                  );
-                }
-
-                // --- 新規作成 ---
-                splitItems.add(const PopupMenuDivider(height: 1));
-                splitItems.add(
-                  const PopupMenuItem<String>(
-                    value: '__CREATE__',
-                    height: 48,
-                    child: Row(
-                      children: [
-                        Icon(Icons.add, size: 18, color: Colors.black87),
-                        SizedBox(width: 12),
-                        Text('新しい店舗を作成', style: TextStyle(fontSize: 14)),
+                          ),
+                        const SizedBox(width: 4),
+                        const Icon(
+                          Icons.keyboard_arrow_down,
+                          size: 18,
+                          color: Colors.black54,
+                        ),
                       ],
                     ),
                   ),
-                );
-
-                return splitItems;
-              },
-              // トリガー部分（モダンウィジェット）
-              child: _itemContainer(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // アイコン
-                    Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade100,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        selectedRow?.invited == true
-                            ? Icons.storefront_outlined
-                            : Icons.store, // 区別つけても良い
-                        size: 16,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    // テナント名,
-                    Flexible(
-                      child: Text(
-                        selectedName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontFamily: 'LINEseed',
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black87,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    // Draftバッジ
-                    if (selectedIsDraft)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: Container(
-                          width: 8,
-                          height: 8,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFFCC400),
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      ),
-
-                    const SizedBox(width: 4),
-                    const Icon(
-                      Icons.keyboard_arrow_down,
-                      size: 18,
-                      color: Colors.black54,
-                    ),
-                  ],
                 ),
               ),
-            ),
+            ],
           );
         },
       ),

@@ -442,10 +442,8 @@ class _StoreQrTabState extends State<StoreQrTab> {
 
   String _buildStoreUrl() {
     return 'https://tip.tipri.jp?t=${widget.tenantId}';
-    // 必要ならここでサイズやパラメータを追加
   }
 
-  // ==== アップロード → Storage 保存 → Firestore 登録 ====
   Future<void> _addPosterFromFile() async {
     try {
       final picked = await FilePicker.platform.pickFiles(
@@ -934,13 +932,21 @@ class _StoreQrTabState extends State<StoreQrTab> {
               // ▼ PDFダウンロード（FilledButton）
               Widget pdfButton() => FilledButton.icon(
                 style: primary.copyWith(
-                  // 太い黒枠（有効/無効で色だけ出し分け）
+                  backgroundColor: MaterialStateProperty.resolveWith<Color?>(
+                    (states) => states.contains(MaterialState.disabled)
+                        ? Colors.grey.shade200
+                        : null,
+                  ),
+                  foregroundColor: MaterialStateProperty.resolveWith<Color?>(
+                    (states) => states.contains(MaterialState.disabled)
+                        ? Colors.black26
+                        : null,
+                  ),
                   side: MaterialStateProperty.resolveWith<BorderSide>(
                     (states) => states.contains(MaterialState.disabled)
-                        ? const BorderSide(color: Colors.black26, width: 3)
+                        ? const BorderSide(color: Colors.black12, width: 3)
                         : const BorderSide(color: Colors.black, width: 3),
                   ),
-                  // 角丸を明示（必要なければ消してOK）
                   shape: MaterialStateProperty.all(
                     RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -984,7 +990,6 @@ class _StoreQrTabState extends State<StoreQrTab> {
                           OutlinedButton.styleFrom(
                             backgroundColor: Color(0xFFFCC400),
                             foregroundColor: Colors.black,
-
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
@@ -992,17 +997,26 @@ class _StoreQrTabState extends State<StoreQrTab> {
                               horizontal: 14,
                               vertical: 12,
                             ),
-                            side: const BorderSide(
-                              color: Colors.black,
-                              width: 3,
-                            ), // ★ 太枠
                           ).copyWith(
-                            // 無効時も太さを維持（色だけ薄く）
+                            backgroundColor:
+                                MaterialStateProperty.resolveWith<Color?>(
+                                  (states) =>
+                                      states.contains(MaterialState.disabled)
+                                      ? Colors.grey.shade200
+                                      : null,
+                                ),
+                            foregroundColor:
+                                MaterialStateProperty.resolveWith<Color?>(
+                                  (states) =>
+                                      states.contains(MaterialState.disabled)
+                                      ? Colors.black26
+                                      : null,
+                                ),
                             side: MaterialStateProperty.resolveWith<BorderSide>(
                               (states) =>
                                   states.contains(MaterialState.disabled)
                                   ? const BorderSide(
-                                      color: Colors.black26,
+                                      color: Colors.black12,
                                       width: 3,
                                     )
                                   : const BorderSide(
@@ -1157,15 +1171,15 @@ class _StoreQrTabState extends State<StoreQrTab> {
                         items: const [
                           DropdownMenuItem(
                             value: _QrDesign.classic,
-                            child: Text('デフォルト（四角）'),
+                            child: Text('パターン１'),
                           ),
                           DropdownMenuItem(
                             value: _QrDesign.roundEyes,
-                            child: Text('丸い目＋四角ドット'),
+                            child: Text('パターン２'),
                           ),
                           DropdownMenuItem(
                             value: _QrDesign.dots,
-                            child: Text('丸ドット'),
+                            child: Text('パターン３'),
                           ),
                         ],
                       ),
@@ -1199,7 +1213,7 @@ class _StoreQrTabState extends State<StoreQrTab> {
                     ),
                     const SizedBox(height: 6),
                     const Text(
-                      'ヒント：プレビュー内のQRをドラッグで移動/ダブルタップで規定位置に移動',
+                      'ヒント：プレビュー内のQRをドラッグで移動/ダブルタップで真ん中に移動',
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.black54,
@@ -1561,32 +1575,26 @@ class _StoreQrTabState extends State<StoreQrTab> {
                                   ),
                                 ),
                                 const SizedBox(height: 20),
-
-                                // 情報ボタン（色は既存を踏襲：ラベル #FCC400、前景は黒）
                                 SizedBox(
                                   width: double.infinity,
                                   child: TextButton.icon(
                                     onPressed: () =>
                                         showTipriInfoDialog(context),
-
+                                    icon: const Icon(Icons.info_outline),
                                     label: const Text('チップリについて'),
                                     style: TextButton.styleFrom(
-                                      side: BorderSide(
+                                      side: const BorderSide(
                                         width: 3,
                                         color: Colors.black,
                                       ),
                                       foregroundColor: Colors.black87,
-                                      backgroundColor: Color(0xFFFCC400),
+                                      backgroundColor: const Color(0xFFFCC400),
                                       padding: const EdgeInsets.symmetric(
                                         horizontal: 16,
                                         vertical: 14,
                                       ),
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(12),
-                                        side: const BorderSide(
-                                          color: Color(0xFFFCC400), // 枠線だけアクセント
-                                          width: 1.5,
-                                        ),
                                       ),
                                     ),
                                   ),

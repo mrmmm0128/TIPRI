@@ -736,23 +736,13 @@ class _StoreStaffTabState extends State<StoreStaffTab> {
                       ),
               ),
 
-              SizedBox(height: isNarrow ? 8 : 12),
+              const Divider(height: 1, color: Colors.black12),
 
-              // === スタッフ一覧（白カード）===
+              // === スタッフ一覧 ===
               Expanded(
                 child: Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    isNarrow ? 8 : 12,
-                    0,
-                    isNarrow ? 8 : 12,
-                    isNarrow ? 4 : 8,
-                  ),
+                  padding: EdgeInsets.symmetric(horizontal: isNarrow ? 4 : 8),
                   child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(isNarrow ? 14 : 18),
-                      border: Border.all(color: Colors.black, width: 3),
-                    ),
                     padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
                     child: StreamBuilder<QuerySnapshot>(
                       stream: FirebaseFirestore.instance

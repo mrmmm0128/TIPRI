@@ -23,6 +23,7 @@ const ALLOWED_ORIGINS = [
   APP_ORIGIN,
   "https://tip.tipri.jp",
   "https://tipri.pages.dev",
+  "https://admin.tipri.jp",
 ].filter(Boolean) as string[];
 
 /* ===================== Utils ===================== */
@@ -101,7 +102,7 @@ function buildFirstAccountMail(to: string) {
     "正式に登録が終わるとチップリ管理画面のステータス【要対応】から【完了】に変わりますのでご確認お願い致します。",
     "",
     "■ チップリ管理画面",
-    "https://tipri.jp/#/agent-login",
+    "https://admin.tipri.jp",
     "",
     "ご不明な場合は直接【モロオカ】まで LINE またはメールにてお問い合わせお願い致します。",
     "",
@@ -115,7 +116,7 @@ function buildFirstAccountMail(to: string) {
     <p>stripeアカウントが登録されるまでお時間がかかります。</p>
     <p>正式に登録が終わるとチップリ管理画面のステータス<strong>【要対応】</strong>から<strong>【完了】</strong>に変わりますのでご確認お願い致します。</p>
     <p>■ チップリ管理画面<br>
-    <a href="https://tipri.jp/#/agent-login">https://tipri.jp/#/agent-login</a></p>
+    <a href="https://admin.tipri.jp">https://admin.tipri.jp</a></p>
     <p>ご不明な場合は直接【モロオカ】まで LINE またはメールにてお問い合わせお願い致します。</p>
     <hr>
     <p>■ お問い合わせ<br>
@@ -1103,7 +1104,7 @@ export const adminSetAgencyPassword = onCall(
       if (to) {
         // === 文面生成 ===
         const subject = "【TIPRI チップリ】代理店アカウントが追加されました。";
-        const loginUrl = "https://tipri.jp/#/agent-login";
+        const loginUrl = "https://admin.tipri.jp";
         const updatedAtJst = new Date().toLocaleString("ja-JP", {
           timeZone: "Asia/Tokyo",
         });
@@ -1568,7 +1569,7 @@ export const acceptTenantAdminInvite = functions.https.onCall(
     let resolvedUid = authedUid;
     if (!resolvedUid) {
       const userSnap = await db
-        .collection("Users")
+        .collection("users")
         .where("email", "==", emailLower)
         .limit(1)
         .get();
@@ -5952,8 +5953,8 @@ export const upsertAgencyConnectedAccount = onCall(
       const link = await stripe.accountLinks.create({
         account: acctId!,
         type: "account_onboarding",
-        refresh_url: `${BASE}/#/agent-login`,
-        return_url: `${BASE}/#/agent-login`,
+        refresh_url: `https://admin.tipri.jp`,
+        return_url: `https://admin.tipri.jp`,
       });
       onboardingUrl = link.url;
     }
@@ -6266,7 +6267,7 @@ export const createAgencyConnectLink = onCall(
     });
 
     // 戻り先URL（必要に応じて変更）
-    const returnUrl = `${APP_BASE}/#/agent-login`;
+    const returnUrl = `https://admin.tipri.jp`;
     const refreshUrl = returnUrl;
 
     // アカウント取得

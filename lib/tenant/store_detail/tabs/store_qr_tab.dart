@@ -20,7 +20,8 @@ import 'dart:async'; // 追加
 class StoreQrTab extends StatefulWidget {
   final String tenantId;
   final String? tenantName;
-  final String posterAssetPath; // 例: 'assets/posters/store_poster.png'
+  final String posterAssetPath;
+  final String posterAssetPath_2;
   final String? ownerId;
   final bool? agency;
   const StoreQrTab({
@@ -29,6 +30,7 @@ class StoreQrTab extends StatefulWidget {
     this.tenantName,
     this.agency,
     this.posterAssetPath = 'assets/posters/store_poster.jpg',
+    this.posterAssetPath_2 = 'assets/posters/store_poster_2.jpg',
     this.ownerId,
   });
 
@@ -37,15 +39,20 @@ class StoreQrTab extends StatefulWidget {
 }
 
 class _PosterOption {
-  final String id; // 'asset' or Firestore docId
+  final String id;
   final String label;
   final String? assetPath;
   final String? url;
-  const _PosterOption.asset(this.assetPath, {this.label = 'テンプレ'})
-    : id = 'asset',
-      url = null;
+
+  const _PosterOption.asset({
+    required this.id,
+    required this.assetPath,
+    this.label = 'テンプレ',
+  }) : url = null;
+
   const _PosterOption.remote(this.id, this.url, {required this.label})
     : assetPath = null;
+
   bool get isAsset => assetPath != null;
 }
 
@@ -166,7 +173,7 @@ class _StoreQrTabState extends State<StoreQrTab> {
 
   // ------- 状態 -------
   String? _publicStoreUrl;
-  String _selectedPosterId = 'asset';
+  String _selectedPosterId = 'asset1';
   _PosterOption? _optimisticPoster;
   bool _exporting = false;
 
@@ -232,9 +239,9 @@ class _StoreQrTabState extends State<StoreQrTab> {
           .collection('posters');
 
       setState(() {
-        _postersStream = _postersRef.snapshots(); // ★ 張り替え
+        _postersStream = _postersRef.snapshots();
         _optimisticPoster = null;
-        _selectedPosterId = 'asset';
+        _selectedPosterId = 'asset1';
       });
 
       _primeInitialPosters(); // ★ 新テナントの初期データも取り直す
@@ -820,13 +827,22 @@ class _StoreQrTabState extends State<StoreQrTab> {
 
               final remoteDocs = (postersSnap.data?.docs ?? []);
               final options = <_PosterOption>[
-                _PosterOption.asset(widget.posterAssetPath, label: 'デフォルト'),
+                _PosterOption.asset(
+                  id: 'asset1',
+                  assetPath: widget.posterAssetPath,
+                  label: 'デフォルト1',
+                ),
+                _PosterOption.asset(
+                  id: 'asset2',
+                  assetPath: widget.posterAssetPath_2,
+                  label: 'デフォルト2',
+                ),
                 ...remoteDocs.map((d) {
                   final m = d.data();
                   return _PosterOption.remote(
                     d.id,
                     (m['url'] ?? '') as String,
-                    label: (""),
+                    label: "",
                   );
                 }),
               ];

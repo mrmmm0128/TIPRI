@@ -13,6 +13,7 @@ import 'package:printing/printing.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import 'package:yourpay/firebase_options.dart';
+import 'package:yourpay/tenant/method/fetchPlan.dart';
 
 // ===== 用紙定義（縦基準の寸法・フォーマット） =====
 enum _Paper { a0, a1, a2, a3, a4, b0, b1, b2, b3, b4, b5 }
@@ -199,12 +200,20 @@ class _QrPosterBuilderPageState extends State<QrPosterBuilderPage> {
           .doc(tid)
           .get();
       final data = doc.data() ?? {};
-      final sub = (data['subscription'] as Map?)?.cast<String, dynamic>();
-      final planRaw = (sub?['plan'] ?? data['plan'])?.toString() ?? '';
-      final plan = _canonicalizePlan(planRaw);
+
+      // 1) 基本的には tenantIndex ドキュメントからプランを判定
+      bool isC = isCPlanFromData(data);
+
+      // 2) もし ownerId (uid) が分かれば、より正確な実体のテナントドキュメント側も確認（念のため）
+      final ownerUid = data['uid'] ?? data['ownerId'] ?? data['ownerUid'];
+      if (ownerUid is String && ownerUid.isNotEmpty) {
+        final realIsC = await fetchIsCPlanById(ownerUid, tid);
+        isC = realIsC;
+      }
+
       if (!mounted) return;
       setState(() {
-        _isCPlan = (plan == 'C');
+        _isCPlan = isC;
         _loadingPlan = false;
       });
     } catch (_) {
@@ -214,17 +223,6 @@ class _QrPosterBuilderPageState extends State<QrPosterBuilderPage> {
         _loadingPlan = false;
       });
     }
-  }
-
-  String _canonicalizePlan(String raw) {
-    final n = raw.trim().toLowerCase().replaceAll(RegExp(r'[\s_-]'), '');
-    const cAliases = {'c', 'cplan', 'planc', 'premium'};
-    const aAliases = {'a', 'aplan', 'plana', 'free', 'basic'};
-    const bAliases = {'b', 'bplan', 'planb', 'pro', 'standard'};
-    if (cAliases.contains(n)) return 'C';
-    if (aAliases.contains(n)) return 'A';
-    if (bAliases.contains(n)) return 'B';
-    return raw.trim().toUpperCase();
   }
 
   String get _qrData {
@@ -574,19 +572,7 @@ class _QrPosterBuilderPageState extends State<QrPosterBuilderPage> {
             final narrow = c.maxWidth < 380;
             final pickBtn = Expanded(
               child: OutlinedButton.icon(
-                onPressed: canUpload
-                    ? _pickPhoto
-                    : () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              '写真アップロードは C プラン限定です',
-                              style: TextStyle(fontFamily: 'LINEseed'),
-                            ),
-                            backgroundColor: Color(0xFFFCC400),
-                          ),
-                        );
-                      },
+                onPressed: canUpload ? _pickPhoto : null,
                 icon: const Icon(Icons.photo_library),
                 label: Text(
                   _loadingPlan
@@ -596,13 +582,30 @@ class _QrPosterBuilderPageState extends State<QrPosterBuilderPage> {
                   style: const TextStyle(fontFamily: 'LINEseed'),
                   overflow: TextOverflow.ellipsis,
                 ),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.black87,
-                  side: const BorderSide(color: Colors.black87),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
+                style:
+                    OutlinedButton.styleFrom(
+                      foregroundColor: Colors.black87,
+                      side: const BorderSide(color: Colors.black87),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ).copyWith(
+                      backgroundColor: WidgetStateProperty.resolveWith<Color?>(
+                        (states) => states.contains(WidgetState.disabled)
+                            ? Colors.grey.shade200
+                            : null,
+                      ),
+                      foregroundColor: WidgetStateProperty.resolveWith<Color?>(
+                        (states) => states.contains(WidgetState.disabled)
+                            ? Colors.black26
+                            : null,
+                      ),
+                      side: WidgetStateProperty.resolveWith<BorderSide>(
+                        (states) => states.contains(WidgetState.disabled)
+                            ? const BorderSide(color: Colors.black12, width: 1)
+                            : const BorderSide(color: Colors.black87, width: 1),
+                      ),
+                    ),
               ),
             );
             final pdfBtn = FilledButton.icon(

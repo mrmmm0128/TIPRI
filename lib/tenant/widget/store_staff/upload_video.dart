@@ -46,6 +46,14 @@ class _StaffThanksVideoManagerState extends State<StaffThanksVideoManager> {
         .doc(widget.staffId);
   }
 
+  DocumentReference<Map<String, dynamic>> get _publicThanksRef {
+    return FirebaseFirestore.instance
+        .collection('publicThanks')
+        .doc(widget.tenantId)
+        .collection('staff')
+        .doc(widget.staffId); // ← employeeId と一致させる
+  }
+
   @override
   void initState() {
     super.initState();
@@ -142,6 +150,16 @@ class _StaffThanksVideoManagerState extends State<StaffThanksVideoManager> {
         'thanksVideoUpdatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
+      // ✅ publicThanks 側にも反映（ランキングの hasVideo 判定用）
+      await _publicThanksRef.set({
+        'employeeId': widget.staffId,
+        'name': widget.staffName,
+        'videoUrl': url,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'createdAt': FieldValue.serverTimestamp(), // 初回も上書きされるのが嫌なら下の工夫参照
+        'enabled': true,
+      }, SetOptions(merge: true));
+
       if (!mounted) return;
       setState(() {
         _currentUrl = url;
@@ -223,6 +241,13 @@ class _StaffThanksVideoManagerState extends State<StaffThanksVideoManager> {
           'thanksVideoUrl': FieldValue.delete(),
           'thanksVideoUpdatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
+      }
+
+      // ✅ publicThanks 側も削除（hasVideo 判定を false にする）
+      try {
+        await _publicThanksRef.delete();
+      } catch (_) {
+        // 無くてもOK
       }
 
       if (!mounted) return;

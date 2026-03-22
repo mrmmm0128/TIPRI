@@ -730,6 +730,7 @@ class OnboardingSheetState extends State<OnboardingSheet> {
     required String tenantName,
     required String desiredStatus, // 'draft' | 'active'
     required BuildContext scaffoldContext,
+    required String code,
   }) async {
     // 最新を読む
     final snap = await tenantRef.get();
@@ -738,11 +739,11 @@ class OnboardingSheetState extends State<OnboardingSheet> {
         (m['agency'] as Map?)?.cast<String, dynamic>() ?? {};
 
     String? agentId = agency['agentId'] as String?;
-    final code = (agency['code'] ?? '').toString();
+
     final linked = agency['linked'] == true;
 
     // code があるのに未リンクなら、リンクを試みる
-    if (agentId == null && code.isNotEmpty && !linked) {
+    if (agentId == null && !linked) {
       final linkedInfo = await _tryLinkAgencyByCodeInternal(
         code: code,
         tenantRef: tenantRef,
@@ -1597,6 +1598,7 @@ class OnboardingSheetState extends State<OnboardingSheet> {
                                         ? 'active'
                                         : 'draft',
                                     scaffoldContext: context,
+                                    code: code,
                                   );
                                   if (mounted) {
                                     setState(() => _linkingAgency = false);

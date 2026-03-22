@@ -5,9 +5,6 @@ import 'package:flutter/material.dart';
 import "package:yourpay/firebase_options.dart";
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_web_plugins/flutter_web_plugins.dart';
-import 'package:yourpay/appadmin/admin_dashboard_screen.dart';
-import 'package:yourpay/appadmin/admin_select_page.dart';
-import 'package:yourpay/appadmin/agent/agent_login.dart';
 import 'package:yourpay/tenant/bootGate.dart';
 import 'package:yourpay/tenant/staff_qr/public_staff_qr_list_page.dart';
 import 'package:yourpay/tenant/staff_qr/qr_poster_build_page.dart';
@@ -127,13 +124,6 @@ class MyApp extends StatelessWidget {
           ),
         );
       }
-
-      // 許可された UID のみ admin 画面へ
-      // 許可された UID は選択画面へ
-      return MaterialPageRoute(
-        builder: (_) => const AdminSelectPage(),
-        settings: settings,
-      );
     }
 
     // それ以外の静的ルート
@@ -141,14 +131,12 @@ class MyApp extends StatelessWidget {
       '/': (_) => const Root(),
       '/login': (_) => const BootGate(),
       '/store': (_) => const StoreDetailScreen(),
-      '/admin': (_) => const AdminDashboardHome(),
       '/tenant': (_) => const TenantDetailScreen(),
       '/account': (_) => const AccountDetailScreen(),
       '/admin-invite': (_) => const AcceptInviteScreen(),
       '/qr-all': (_) => const PublicStaffQrListPage(),
       '/qr-all/qr-builder': (_) => const QrPosterBuilderPage(),
       '/chechout-end': (_) => const LoginScreen(),
-      '/agent-login': (_) => const AgentLoginPage(),
     };
 
     final builder = staticRoutes[uri.path];

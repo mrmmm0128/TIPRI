@@ -682,26 +682,6 @@ class _StoreDetailSScreenState extends State<StoreDetailScreen> {
                   padding: const EdgeInsets.only(left: 14.0, top: 6),
                   child: Image.asset("assets/posters/tipri.png", height: 32),
                 ),
-                if (_isAdmin) const SizedBox(width: 8),
-                if (_isAdmin)
-                  OutlinedButton.icon(
-                    onPressed: () => Navigator.of(context).pushNamed('/admin'),
-                    icon: const Icon(Icons.admin_panel_settings, size: 18),
-                    label: const Text(
-                      '管理者画面',
-                      style: TextStyle(fontFamily: 'LINEseed'),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.black,
-                      side: const BorderSide(color: Colors.black26),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      shape: const StadiumBorder(),
-                      textStyle: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                  ),
               ],
             ),
           ),

@@ -262,50 +262,61 @@ class _AdminSectionCardState extends State<AdminSectionCard> {
                             spacing: 8,
                             children: [
                               TextButton.icon(
-                                onPressed: () async {
-                                  await widget.functions
-                                      .httpsCallable('inviteTenantAdmin')
-                                      .call({
-                                        'tenantId': widget.tenantId,
-                                        'email': email,
-                                      });
-                                  if (!context.mounted) return;
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        '招待メールを再送しました',
-                                        style: TextStyle(
-                                          fontFamily: 'LINEseed',
-                                        ),
-                                      ),
-                                      backgroundColor: Color(0xFFFCC400),
-                                    ),
-                                  );
-                                },
+                                onPressed: _isOwner
+                                    ? () async {
+                                        await widget.functions
+                                            .httpsCallable('inviteTenantAdmin')
+                                            .call({
+                                              'tenantId': widget.tenantId,
+                                              'email': email,
+                                            });
+                                        if (!context.mounted) return;
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              '招待メールを再送しました',
+                                              style: TextStyle(
+                                                fontFamily: 'LINEseed',
+                                              ),
+                                            ),
+                                            backgroundColor: Color(0xFFFCC400),
+                                          ),
+                                        );
+                                      }
+                                    : null,
                                 icon: const Icon(Icons.send),
                                 label: const Text('再送'),
                               ),
+
                               TextButton.icon(
-                                onPressed: () async {
-                                  await widget.functions
-                                      .httpsCallable('cancelTenantAdminInvite')
-                                      .call({
-                                        'tenantId': widget.tenantId,
-                                        'inviteId': d.id,
-                                      });
-                                  if (!context.mounted) return;
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        '招待を取り消しました',
-                                        style: TextStyle(
-                                          fontFamily: 'LINEseed',
-                                        ),
-                                      ),
-                                      backgroundColor: Color(0xFFFCC400),
-                                    ),
-                                  );
-                                },
+                                onPressed: _isOwner
+                                    ? () async {
+                                        await widget.functions
+                                            .httpsCallable(
+                                              'cancelTenantAdminInvite',
+                                            )
+                                            .call({
+                                              'tenantId': widget.tenantId,
+                                              'inviteId': d.id,
+                                            });
+                                        if (!context.mounted) return;
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              '招待を取り消しました',
+                                              style: TextStyle(
+                                                fontFamily: 'LINEseed',
+                                              ),
+                                            ),
+                                            backgroundColor: Color(0xFFFCC400),
+                                          ),
+                                        );
+                                      }
+                                    : null,
                                 icon: const Icon(Icons.close),
                                 label: const Text('取消'),
                               ),
@@ -380,10 +391,23 @@ class _AdminSectionCardState extends State<AdminSectionCard> {
             ),
 
             // --- 管理者追加ボタン ---
+            // --- 管理者追加ボタン ---
             Align(
               alignment: Alignment.centerRight,
               child: TextButton.icon(
-                onPressed: _inviteAdminDialog,
+                onPressed: _isOwner
+                    ? _inviteAdminDialog
+                    : () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              '管理者の招待はオーナーのみ実行できます',
+                              style: TextStyle(fontFamily: 'LINEseed'),
+                            ),
+                            backgroundColor: Color(0xFFFCC400),
+                          ),
+                        );
+                      },
                 icon: const Icon(Icons.person_add_alt_1),
                 label: const Text('管理者を追加'),
               ),

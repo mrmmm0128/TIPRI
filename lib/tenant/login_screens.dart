@@ -33,7 +33,8 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _error;
 
   bool _agreeTerms = false;
-  bool _agreePrivacy = false; // ★ 追加：プライバシー同意
+  bool _agreePrivacy = false;
+  bool _agreeNotAntisocial = false;
   bool _rememberMe = true;
 
   @override
@@ -192,6 +193,8 @@ class _LoginScreenState extends State<LoginScreen> {
       _openMarkdownAsset('assets/policies/terms_ja.md', '利用規約');
   Future<void> _openPrivacy() =>
       _openMarkdownAsset('assets/policies/privacy_ja.md', 'プライバシーポリシー');
+  Future<void> _openAntiSocial() =>
+      _openMarkdownAsset('assets/policies/antisocial_ja.md', '暴力団等に該当しない旨の誓約書');
 
   // ───────────────────────── Firestore プロファイル
   Future<void> _ensureUserDocExists({bool acceptedNow = false}) async {
@@ -1013,6 +1016,59 @@ class _LoginScreenState extends State<LoginScreen> {
                                             ],
                                           ),
 
+                                          // 反社同意
+                                          Row(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.center,
+                                            children: [
+                                              Checkbox(
+                                                value: _agreeNotAntisocial,
+                                                onChanged: _loading
+                                                    ? null
+                                                    : (v) => setState(
+                                                        () =>
+                                                            _agreeNotAntisocial =
+                                                                v ?? false,
+                                                      ),
+                                                side: const BorderSide(
+                                                  color: Colors.black54,
+                                                ),
+                                                checkColor: Colors.white,
+                                                activeColor: Colors.black,
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Expanded(
+                                                child: RichText(
+                                                  text: TextSpan(
+                                                    style: lineSeed.merge(
+                                                      const TextStyle(
+                                                        color: Colors.black87,
+                                                        height: 1.4,
+                                                      ),
+                                                    ),
+                                                    children: [
+                                                      TextSpan(
+                                                        text: '反社組織でない',
+                                                        style: lineSeedBold.merge(
+                                                          const TextStyle(
+                                                            decoration:
+                                                                TextDecoration
+                                                                    .underline,
+                                                            color: Colors.black,
+                                                          ),
+                                                        ),
+                                                        recognizer:
+                                                            TapGestureRecognizer()
+                                                              ..onTap =
+                                                                  _openAntiSocial,
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+
                                           const SizedBox(height: 8),
                                         ],
 
@@ -1187,7 +1243,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   'assets/posters/ZOTMAN.png',
                                   height: 110,
                                 ),
-                                const SizedBox(width: 25),
+                                const SizedBox(width: 12),
                                 OfficialSiteButton(
                                   url: 'https://www.zotman.jp/tipri',
                                 ),
@@ -1232,6 +1288,13 @@ class _LoginScreenState extends State<LoginScreen> {
                                     ),
                                   ),
                                 ),
+                              ),
+                            ),
+                            Center(
+                              child: _LegalTextLink(
+                                icon: Icons.description_outlined,
+                                label: '反社排除条項',
+                                onPressed: _openAntiSocial,
                               ),
                             ),
                             const SizedBox(height: 55),
@@ -1301,39 +1364,39 @@ class _ModeChip extends StatelessWidget {
   }
 }
 
-class _LegalOutlinedButton extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onPressed;
-  const _LegalOutlinedButton({
-    required this.icon,
-    required this.label,
-    required this.onPressed,
-  });
+// class _LegalOutlinedButton extends StatelessWidget {
+//   final IconData icon;
+//   final String label;
+//   final VoidCallback onPressed;
+//   const _LegalOutlinedButton({
+//     required this.icon,
+//     required this.label,
+//     required this.onPressed,
+//   });
 
-  @override
-  Widget build(BuildContext context) {
-    return OutlinedButton.icon(
-      icon: Icon(icon, size: 18),
-      label: Text(label),
-      onPressed: onPressed,
-      style: OutlinedButton.styleFrom(
-        foregroundColor: Colors.black,
-        side: const BorderSide(color: Colors.black, width: 3),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        // 余白をややタイトに（FittedBoxと併用で収まりやすく）
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-        visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        textStyle: const TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w500,
-          fontFamily: "LINEseed",
-        ),
-      ),
-    );
-  }
-}
+//   @override
+//   Widget build(BuildContext context) {
+//     return OutlinedButton.icon(
+//       icon: Icon(icon, size: 18),
+//       label: Text(label),
+//       onPressed: onPressed,
+//       style: OutlinedButton.styleFrom(
+//         foregroundColor: Colors.black,
+//         side: const BorderSide(color: Colors.black, width: 3),
+//         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+//         // 余白をややタイトに（FittedBoxと併用で収まりやすく）
+//         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+//         visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
+//         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+//         textStyle: const TextStyle(
+//           fontSize: 13,
+//           fontWeight: FontWeight.w500,
+//           fontFamily: "LINEseed",
+//         ),
+//       ),
+//     );
+//   }
+// }
 
 class OfficialSiteButton extends StatelessWidget {
   const OfficialSiteButton({
@@ -1359,51 +1422,18 @@ class OfficialSiteButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final onBlackBg =
-        Theme.of(context).scaffoldBackgroundColor ==
-        Colors.black; // 使わないなら消してOK
-
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 320),
-      child: Material(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        child: InkWell(
-          onTap: () => _open(context),
-          borderRadius: BorderRadius.circular(14),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: Colors.black.withOpacity(0.18),
-                width: 1.5,
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Flexible(
-                  child: Text(
-                    label,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontFamily: 'LINEseed',
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14.5,
-                      color: Colors.black,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Icon(
-                  Icons.open_in_new,
-                  size: 18,
-                  color: Colors.black.withOpacity(0.65),
-                ),
-              ],
-            ),
-          ),
+    return TextButton.icon(
+      onPressed: () => _open(context),
+      icon: const Icon(Icons.open_in_new, size: 18),
+      label: Text(label),
+      style: TextButton.styleFrom(
+        foregroundColor: Colors.black,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        textStyle: const TextStyle(
+          fontFamily: 'LINEseed',
+          fontWeight: FontWeight.w600,
+          fontSize: 13,
+          decoration: TextDecoration.underline,
         ),
       ),
     );

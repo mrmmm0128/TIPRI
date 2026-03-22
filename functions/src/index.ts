@@ -1938,7 +1938,7 @@ export const createTipSessionPublic = functions
       tenantId
     )}&thanks=true&amount=${amount}&employeeName=${encodeURIComponent(
       employeeName
-    )}&tenantName=${encodeURIComponent(tenantName)}`;
+    )}&tenantName=${encodeURIComponent(tenantName)}&employeeId=${employeeId}`;
     const cancelUrl = `https://tip.tipri.jp/#/p?t=${encodeURIComponent(
       tenantId
     )}`;

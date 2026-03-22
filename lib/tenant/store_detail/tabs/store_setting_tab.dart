@@ -813,15 +813,16 @@ class _StoreSettingsTabState extends State<StoreSettingsTab>
                                             width: double.infinity,
                                             child: FilledButton.icon(
                                               style: btnStyle,
-                                              onPressed: () =>
-                                                  Navigator.pushNamed(
-                                                    context,
-                                                    '/tenant',
-                                                    arguments: {
-                                                      "tenantId":
-                                                          widget.tenantId,
-                                                    },
-                                                  ),
+                                              onPressed: ownerIsMe
+                                                  ? () => Navigator.pushNamed(
+                                                      context,
+                                                      '/tenant',
+                                                      arguments: {
+                                                        "tenantId":
+                                                            widget.tenantId,
+                                                      },
+                                                    )
+                                                  : null,
                                               icon: const Icon(
                                                 Icons
                                                     .store_mall_directory_outlined,
@@ -882,15 +883,16 @@ class _StoreSettingsTabState extends State<StoreSettingsTab>
                                                 width: 260,
                                                 child: FilledButton.icon(
                                                   style: btnStyle,
-                                                  onPressed: () =>
-                                                      Navigator.pushNamed(
-                                                        context,
-                                                        '/tenant',
-                                                        arguments: {
-                                                          "tenantId":
-                                                              widget.tenantId,
-                                                        },
-                                                      ),
+                                                  onPressed: ownerIsMe
+                                                      ? () => Navigator.pushNamed(
+                                                          context,
+                                                          '/tenant',
+                                                          arguments: {
+                                                            "tenantId":
+                                                                widget.tenantId,
+                                                          },
+                                                        )
+                                                      : null,
                                                   icon: const Icon(
                                                     Icons
                                                         .store_mall_directory_outlined,

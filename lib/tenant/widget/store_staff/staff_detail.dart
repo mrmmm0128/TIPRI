@@ -48,7 +48,7 @@ class _StaffDetailScreenState extends State<StaffDetailScreen> {
   }
 
   // 公開ページのベースURL（末尾スラなし）
-  static const String _publicBase = 'https://tipri.jp';
+  static const String _publicBase = 'https://tip.tipri.jp';
 
   String _staffTipUrl(String tenantId, String employeeId, {int? initAmount}) {
     final qp = <String, String>{

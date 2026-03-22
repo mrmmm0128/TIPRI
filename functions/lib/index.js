@@ -1477,7 +1477,7 @@ exports.createTipSessionPublic = functions
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
     const stripe = stripeClient();
-    const successUrl = `https://tip.tipri.jp/tip-complete?t=${encodeURIComponent(tenantId)}&thanks=true&amount=${amount}&employeeName=${encodeURIComponent(employeeName)}&tenantName=${encodeURIComponent(tenantName)}`;
+    const successUrl = `https://tip.tipri.jp/tip-complete?t=${encodeURIComponent(tenantId)}&thanks=true&amount=${amount}&employeeName=${encodeURIComponent(employeeName)}&tenantName=${encodeURIComponent(tenantName)}&employeeId=${employeeId}`;
     const cancelUrl = `https://tip.tipri.jp/#/p?t=${encodeURIComponent(tenantId)}`;
     // ---- acctId が存在する場合 ----
     if (acctId) {

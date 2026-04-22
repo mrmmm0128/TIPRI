@@ -157,14 +157,7 @@ class _SubscriptionPlanCardState extends State<SubscriptionPlanCard> {
                     spacing: 8,
                     runSpacing: 6,
                     children: [
-                      const PlanChip(label: '現在', dark: true),
-                      Text(
-                        'プラン $effectivePlan',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black87,
-                        ),
-                      ),
+                      PlanChip(label: 'プラン $effectivePlan', dark: true),
                       if (periodEnd != null)
                         Text(
                           '${periodEndBool ? '終了予定' : '次回の請求'}: '

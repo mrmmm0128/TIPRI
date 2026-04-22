@@ -4,9 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 
-/// Cプラン特典セクション（c_perks だけ）
-/// - モバイル/タブレット: BottomSheetでリンク編集（各ボタンにローディング）
-/// - PC: インライン編集（各ボタンにローディング）
 Widget buildCPerksSection({
   required DocumentReference<Map<String, dynamic>> tenantRef,
   required TextEditingController lineUrlCtrl,

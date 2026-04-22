@@ -152,12 +152,6 @@ class _StoreHomeTabState extends State<StoreHomeTab> {
         backgroundColor: Color(0xFFFCC400),
       ),
     );
-
-    // （任意）URLの一度きりパラメータを消しておく → Webのみ使うならコメントアウト外す
-    // try {
-    //   final clean = '${uri.scheme}://${uri.host}${uri.hasPort ? ':${uri.port}' : ''}/#/';
-    //   html.window.history.replaceState(null, '', clean);
-    // } catch (_) {}
   }
 
   String _rangeLabel() {
@@ -224,11 +218,6 @@ class _StoreHomeTabState extends State<StoreHomeTab> {
         return (start: s, endExclusive: e);
     }
   }
-
-  // ==== 1) 既存の _pickCustomRange を “まるっと”置換 ====
-  //
-  // 使い方はそのまま：await _pickCustomRange();
-  // 選択結果は _mode = _RangeMode.custom / _customRange に反映されます。
 
   Future<void> _pickCustomRange() async {
     final picked = await _openCustomRangeSheet(
@@ -965,48 +954,23 @@ class _StoreHomeTabState extends State<StoreHomeTab> {
                   ),
                   const SizedBox(height: 10),
                   staffChips(),
-                  // ★ 横並びに変更
-                  LayoutBuilder(
-                    builder: (context, box) {
-                      final isNarrow = box.maxWidth < 600;
-                      if (isNarrow) {
-                        return Column(
-                          mainAxisSize: MainAxisSize.min, // ← 追加
-                          children: [
-                            TotalsCard(
-                              totalYen: totalAll,
-                              count: countAll,
-                              onTap: _openPeriodPayments,
-                            ),
-                            const SizedBox(height: 10), // 12 -> 10
-                            PayerRankingCard(
-                              topPayers: payerRanking,
-                              onTap: _openPeriodPayments,
-                            ),
-                          ],
-                        );
-                      } else {
-                        return Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: TotalsCard(
-                                totalYen: totalAll,
-                                count: countAll,
-                                onTap: _openPeriodPayments,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: PayerRankingCard(
-                                topPayers: payerRanking,
-                                onTap: _openPeriodPayments,
-                              ),
-                            ),
-                          ],
-                        );
-                      }
-                    },
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TotalsCard(
+                          totalYen: totalAll,
+                          count: countAll,
+                          onTap: _openPeriodPayments,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: PayerRankingCard(
+                          topPayers: payerRanking,
+                          onTap: _openPeriodPayments,
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 10), // 12 -> 10
                   // 例：SplitMetricsRow の配置箇所

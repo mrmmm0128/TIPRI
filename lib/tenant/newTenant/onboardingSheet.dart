@@ -1098,7 +1098,7 @@ class OnboardingSheetState extends State<OnboardingSheet> {
           surfaceTintColor: Colors.white, // ← M3の色乗りを防ぐ
           title: const Text('無料トライアルについて'),
           content: const Text(
-            '無料トライアルは全ての機能が使えるXプランのみとなります。\n'
+            '無料トライアルは全ての機能が使えるBプランのみとなります。\n'
             '契約後トライアル中にAプランに変更が可能です。',
           ),
           actions: [
@@ -1557,7 +1557,7 @@ class OnboardingSheetState extends State<OnboardingSheet> {
                 const SizedBox(height: 12),
 
                 _actionCard(
-                  title: 'キャンペーンコード',
+                  title: 'キャンペーンコード（任意）',
                   description: 'お持ちの場合は入力して「連携」を押してください。',
                   trailing: _statusPill(isLinked),
                   child: Row(
@@ -1772,12 +1772,27 @@ class OnboardingSheetState extends State<OnboardingSheet> {
                                       );
                               }
 
-                              // 1) 申請後〜完了前 → コネクトポータル
                               if (!connectOk) {
                                 return OutlinedButton.icon(
                                   onPressed: _openingConnectPortal
                                       ? null
                                       : _openConnectPortal,
+                                  style: OutlinedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 12,
+                                    ),
+                                    side: BorderSide(
+                                      color: Colors.black.withOpacity(0.15),
+                                      width: 1.5,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    foregroundColor: Colors.black87,
+                                    backgroundColor: Colors.white,
+                                    elevation: 0,
+                                  ),
                                   icon: _openingConnectPortal
                                       ? const SizedBox(
                                           width: 16,
@@ -1786,8 +1801,14 @@ class OnboardingSheetState extends State<OnboardingSheet> {
                                             strokeWidth: 2,
                                           ),
                                         )
-                                      : const Icon(Icons.open_in_new),
-                                  label: const Text('コネクトポータルを開く'),
+                                      : const Icon(Icons.open_in_new, size: 18),
+                                  label: const Text(
+                                    'コネクトポータル',
+                                    style: TextStyle(
+                                      fontFamily: 'LINEseed',
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
                                 );
                               }
 
@@ -1801,15 +1822,40 @@ class OnboardingSheetState extends State<OnboardingSheet> {
 
                           // 「不足項目を確認」：申請開始済みで未完了のときだけ出す
                           if (hasConnectStarted && !connectOk)
-                            OutlinedButton(
-                              onPressed: () => _showRequirementsDialog(
-                                currentlyDue: currentlyDue,
-                                pastDue: pastDue,
-                                pendingVerification: pendingVerification,
-                                errorsRaw: errorsRaw,
-                                isPendingVerification: isPendingVerification,
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: () => _showRequirementsDialog(
+                                  currentlyDue: currentlyDue,
+                                  pastDue: pastDue,
+                                  pendingVerification: pendingVerification,
+                                  errorsRaw: errorsRaw,
+                                  isPendingVerification: isPendingVerification,
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 12,
+                                  ),
+                                  side: const BorderSide(
+                                    color: Colors.redAccent,
+                                    width: 1.5,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  foregroundColor: Colors.redAccent,
+                                  backgroundColor: Colors.red.withOpacity(0.04),
+                                  elevation: 0,
+                                ),
+                                icon: const Icon(Icons.error_outline, size: 18),
+                                label: const Text(
+                                  '不足項目',
+                                  style: TextStyle(
+                                    fontFamily: 'LINEseed',
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
                               ),
-                              child: const Text('不足項目を再提出'),
                             ),
                         ],
                       ),

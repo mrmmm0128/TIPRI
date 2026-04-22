@@ -7,6 +7,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart'; // ← RepaintBoundary の toImage に必要
+import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -130,6 +131,7 @@ class _QrPosterBuilderPageState extends State<QrPosterBuilderPage> {
   // ★ Cプラン判定
   bool _isCPlan = false;
   bool _loadingPlan = true;
+  bool _exporting = false;
 
   // ====== プレビューキャプチャ用 ======
   final GlobalKey _previewKey = GlobalKey();
@@ -271,6 +273,7 @@ class _QrPosterBuilderPageState extends State<QrPosterBuilderPage> {
 
   // ====== PDF生成（プレビューをそのままキャプチャ） ======
   Future<void> _makePdfAndDownload() async {
+    if (_exporting) return;
     if (_qrData.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -281,59 +284,162 @@ class _QrPosterBuilderPageState extends State<QrPosterBuilderPage> {
       return;
     }
 
-    final boundary =
-        _previewKey.currentContext?.findRenderObject()
-            as RenderRepaintBoundary?;
-    if (boundary == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'プレビューを準備中です',
-            style: TextStyle(fontFamily: 'LINEseed'),
+    setState(() => _exporting = true);
+
+    try {
+      final boundary =
+          _previewKey.currentContext?.findRenderObject()
+              as RenderRepaintBoundary?;
+      if (boundary == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'プレビューを準備中です',
+              style: TextStyle(fontFamily: 'LINEseed'),
+            ),
+            backgroundColor: Color(0xFFFCC400),
           ),
-          backgroundColor: Color(0xFFFCC400),
+        );
+        return;
+      }
+
+      // 用紙に応じたターゲット解像度（重すぎ防止のため 6〜10 px/mm 目安）
+      final pdef = _paperDefs[_paper]!;
+      final mmW = _landscape ? pdef.heightMm : pdef.widthMm;
+      final pxPerMmTarget = 8.0;
+      final targetWidth = (mmW * pxPerMmTarget).round();
+      final logicalW = boundary.size.width;
+      final pixelRatio = (logicalW > 0)
+          ? (targetWidth / logicalW)
+          : 3.0; // フォールバック
+
+      final ui.Image image = await boundary.toImage(
+        pixelRatio: pixelRatio.clamp(2.0, 8.0),
+      );
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      final pngBytes = byteData!.buffer.asUint8List();
+
+      final pdf = pw.Document();
+      final pageFormat = _landscape ? pdef.format.landscape : pdef.format;
+      final memImg = pw.MemoryImage(pngBytes);
+
+      pdf.addPage(
+        pw.Page(
+          pageFormat: pageFormat,
+          margin: pw.EdgeInsets.zero,
+          build: (_) => pw.Container(
+            width: double.infinity,
+            height: double.infinity,
+            child: pw.FittedBox(
+              fit: pw.BoxFit.cover, // プレビューとページ比率は同じなのでそのまま全面
+              child: pw.Image(memImg),
+            ),
+          ),
         ),
       );
-      return;
+
+      final fname = 'staff_qr_${employeeId ?? ""}.pdf';
+      await Printing.sharePdf(bytes: await pdf.save(), filename: fname);
+    } catch (e) {
+      debugPrint('Export error: $e');
+    } finally {
+      if (mounted) setState(() => _exporting = false);
     }
+  }
 
-    // 用紙に応じたターゲット解像度（重すぎ防止のため 6〜10 px/mm 目安）
-    final pdef = _paperDefs[_paper]!;
-    final mmW = _landscape ? pdef.heightMm : pdef.widthMm;
-    final pxPerMmTarget = 8.0;
-    final targetWidth = (mmW * pxPerMmTarget).round();
-    final logicalW = boundary.size.width;
-    final pixelRatio = (logicalW > 0)
-        ? (targetWidth / logicalW)
-        : 3.0; // フォールバック
+  Future<void> _makeQrOnlyPdfAndDownload() async {
+    if (_exporting) return;
+    if (_qrData.isEmpty) return;
 
-    final ui.Image image = await boundary.toImage(
-      pixelRatio: pixelRatio.clamp(2.0, 8.0),
-    );
-    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-    final pngBytes = byteData!.buffer.asUint8List();
+    setState(() => _exporting = true);
 
-    final pdf = pw.Document();
-    final pageFormat = _landscape ? pdef.format.landscape : pdef.format;
-    final memImg = pw.MemoryImage(pngBytes);
+    try {
+      final pdef = _paperDefs[_paper]!;
+      final pageFormat = _landscape ? pdef.format.landscape : pdef.format;
 
-    pdf.addPage(
-      pw.Page(
-        pageFormat: pageFormat,
-        margin: pw.EdgeInsets.zero,
-        build: (_) => pw.Container(
-          width: double.infinity,
-          height: double.infinity,
-          child: pw.FittedBox(
-            fit: pw.BoxFit.cover, // プレビューとページ比率は同じなのでそのまま全面
-            child: pw.Image(memImg),
-          ),
+      final painter = QrPainter(
+        data: _qrData,
+        version: QrVersions.auto,
+        gapless: true,
+        color: const Color(0xFF000000),
+        emptyColor: const Color(0x00FFFFFF),
+        eyeStyle: QrEyeStyle(
+          color: const Color(0xFF000000),
+          eyeShape: _qrDesign == _QrDesign.dots || _qrDesign == _QrDesign.roundEyes
+              ? QrEyeShape.circle
+              : QrEyeShape.square,
         ),
-      ),
-    );
+        dataModuleStyle: QrDataModuleStyle(
+          color: const Color(0xFF000000),
+          dataModuleShape: _qrDesign == _QrDesign.dots
+              ? QrDataModuleShape.circle
+              : QrDataModuleShape.square,
+        ),
+      );
 
-    final fname = 'staff_qr_${employeeId ?? ""}.pdf';
-    await Printing.sharePdf(bytes: await pdf.save(), filename: fname);
+      final ui.Image qrImage = await painter.toImage(1024);
+      final ByteData? qrByteData = await qrImage.toByteData(format: ui.ImageByteFormat.png);
+      final Uint8List qrBytes = qrByteData!.buffer.asUint8List();
+      final qrProvider = pw.MemoryImage(qrBytes);
+
+      final doc = pw.Document();
+      doc.addPage(
+        pw.Page(
+          pageFormat: pageFormat,
+          margin: const pw.EdgeInsets.all(30),
+          build: (ctx) {
+            return pw.Center(
+              child: pw.Image(qrProvider, fit: pw.BoxFit.contain),
+            );
+          },
+        ),
+      );
+
+      final fname = 'staff_qr_only_${employeeId ?? ""}.pdf';
+      await Printing.sharePdf(bytes: await doc.save(), filename: fname);
+    } catch (e) {
+      debugPrint('Export QR only error: $e');
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
+  void _showDownloadOptionsDialog() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Text('ダウンロード形式を選択してください', style: TextStyle(fontFamily: 'LINEseed', fontWeight: FontWeight.bold, fontSize: 16)),
+              ),
+              ListTile(
+                leading: const Icon(Icons.picture_in_picture),
+                title: const Text('ポスター全体をダウンロード', style: TextStyle(fontFamily: 'LINEseed')),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _makePdfAndDownload();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.qr_code),
+                title: const Text('QRコードのみをダウンロード', style: TextStyle(fontFamily: 'LINEseed')),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _makeQrOnlyPdfAndDownload();
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   // ====== 便利: Offset正規化のクランプ ======
@@ -608,18 +714,87 @@ class _QrPosterBuilderPageState extends State<QrPosterBuilderPage> {
                     ),
               ),
             );
-            final pdfBtn = FilledButton.icon(
-              onPressed: _makePdfAndDownload,
-              icon: const Icon(Icons.file_download),
-              label: const Text(
-                'PDFをダウンロード',
-                style: TextStyle(fontFamily: 'LINEseed'),
+            final copyBtn = Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () async {
+                  final url = _qrData;
+                  if (url.isEmpty) return;
+                  await Clipboard.setData(ClipboardData(text: url));
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'URLをコピーしました',
+                          style: TextStyle(
+                            fontFamily: 'LINEseed',
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        backgroundColor: Color(0xFFFCC400),
+                      ),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.copy, size: 18),
+                label: const Text(
+                  'URLコピー',
+                  style: TextStyle(
+                    fontFamily: 'LINEseed',
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.black87,
+                  side: const BorderSide(color: Colors.black26, width: 2),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
               ),
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFFFCC400),
-                foregroundColor: Colors.black,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+            );
+            final pdfBtn = Expanded(
+              child: FilledButton.icon(
+                onPressed: _exporting ? null : _showDownloadOptionsDialog,
+                icon: _exporting
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 3,
+                          color: Colors.black,
+                        ),
+                      )
+                    : const Icon(Icons.file_download, size: 18),
+                label: Text(
+                  _exporting ? 'ダウンロード中...' : 'ダウンロード',
+                  style: const TextStyle(
+                    fontFamily: 'LINEseed',
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFFFCC400),
+                  foregroundColor: Colors.black,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  side: const BorderSide(color: Colors.black, width: 2),
+                ).copyWith(
+                  backgroundColor: WidgetStateProperty.resolveWith<Color?>(
+                    (states) => states.contains(WidgetState.disabled)
+                        ? Colors.grey.shade200
+                        : null,
+                  ),
+                  foregroundColor: WidgetStateProperty.resolveWith<Color?>(
+                    (states) => states.contains(WidgetState.disabled)
+                        ? Colors.black26
+                        : null,
+                  ),
+                  side: WidgetStateProperty.resolveWith<BorderSide>(
+                    (states) => states.contains(WidgetState.disabled)
+                        ? const BorderSide(color: Colors.black12, width: 2)
+                        : const BorderSide(color: Colors.black, width: 2),
+                  ),
                 ),
               ),
             );
@@ -628,11 +803,19 @@ class _QrPosterBuilderPageState extends State<QrPosterBuilderPage> {
                 children: [
                   Row(children: [pickBtn]),
                   const SizedBox(height: 8),
-                  SizedBox(width: double.infinity, child: pdfBtn),
+                  Row(children: [copyBtn]),
+                  const SizedBox(height: 8),
+                  Row(children: [pdfBtn]),
                 ],
               );
             } else {
-              return Row(children: [pickBtn, const SizedBox(width: 8), pdfBtn]);
+              return Column(
+                children: [
+                  Row(children: [pickBtn]),
+                  const SizedBox(height: 8),
+                  Row(children: [copyBtn, const SizedBox(width: 8), pdfBtn]),
+                ],
+              );
             }
           },
         ),

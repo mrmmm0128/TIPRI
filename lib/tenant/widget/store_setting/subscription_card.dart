@@ -17,15 +17,6 @@ class CardShellHome extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
 
         border: Border.all(width: 3, color: Colors.black),
-        // boxShadow: const [
-        //   // 全方向に広がる柔らかい影
-        //   BoxShadow(
-        //     color: Color(0x1A000000), // 黒10%くらい
-        //     blurRadius: 16,
-        //     spreadRadius: 2, // ★ 影を全方向に“にじませる”
-        //     offset: Offset(0, 0), // ★ 0 にして全方向へ
-        //   ),
-        // ],
       ),
       child: child,
     );
@@ -94,7 +85,7 @@ class _PlanPickerState extends State<PlanPicker> {
         title: 'Aプラン',
         monthly: 0,
         feePct: 50,
-        features: const ['決済手数料50%'],
+        features: const ['決済手数料50%', '月額無料'],
       ),
       // PlanDef(
       //   code: 'B',
@@ -152,8 +143,8 @@ class _PlanPickerState extends State<PlanPicker> {
         // childAspectRatio は「幅/高さ」
         // 値を大きくすると縦が低くなる
         final double childAspectRatio = () {
-          if (crossAxisCount == 1) return 1.5; // スマホ：少し縦長
-          if (crossAxisCount == 2) return 2.1; // タブレット/PC：かなり横長にして高さ↓
+          if (crossAxisCount == 1) return 1.3; // スマホ：少し縦長
+          if (crossAxisCount == 2) return 2.4; // タブレット/PC：かなり横長にして高さ↓
           return 2.4; // 3列になったときはさらに平たく
         }();
 

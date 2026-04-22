@@ -320,9 +320,9 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
-    // ★ 同意両方必須
-    if (_isSignUp && (!(_agreeTerms) || !(_agreePrivacy))) {
-      setState(() => _error = '利用規約とプライバシーポリシーに同意してください');
+    // ★ 同意3点必須
+    if (_isSignUp && (!(_agreeTerms) || !(_agreePrivacy) || !(_agreeNotAntisocial))) {
+      setState(() => _error = '利用規約、プライバシーポリシー、反社排除条項にすべて同意してください');
       return;
     }
 
@@ -1178,7 +1178,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                               ? null
                                               : (_isSignUp &&
                                                         (!(_agreeTerms) ||
-                                                            !(_agreePrivacy))
+                                                            !(_agreePrivacy) ||
+                                                            !(_agreeNotAntisocial))
                                                     ? null
                                                     : _submit),
                                           child: _loading

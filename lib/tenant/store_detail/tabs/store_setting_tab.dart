@@ -259,7 +259,7 @@ class _StoreSettingsTabState extends State<StoreSettingsTab>
       barrierDismissible: false,
       builder: (ctx) {
         return AlertDialog(
-          backgroundColor: Colors.white60,
+          backgroundColor: Colors.white,
           title: const Text('プラン変更の確認'),
           content: Column(
             mainAxisSize: MainAxisSize.min,

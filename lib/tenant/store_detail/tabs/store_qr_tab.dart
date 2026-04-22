@@ -5,17 +5,17 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
-import 'package:barcode/barcode.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 import 'package:yourpay/tenant/method/fetchPlan.dart';
 import 'package:yourpay/tenant/method/image_scrol.dart';
 import 'package:yourpay/tenant/newTenant/onboardingSheet.dart';
 import 'dart:async'; // 追加
+import 'dart:ui' as ui;
 
 class StoreQrTab extends StatefulWidget {
   final String tenantId;
@@ -568,6 +568,34 @@ class _StoreQrTabState extends State<StoreQrTab> {
     final pdef = _paperDefs[_paperVN.value]!;
     final pageFormat = _landscape ? pdef.format.landscape : pdef.format;
 
+    final painter = QrPainter(
+      data: _publicStoreUrl!,
+      version: QrVersions.auto,
+      gapless: true,
+      color: const Color(0xFF000000),
+      emptyColor: const Color(0x00FFFFFF),
+      eyeStyle: QrEyeStyle(
+        color: const Color(0xFF000000),
+        eyeShape:
+            _qrDesign == _QrDesign.dots || _qrDesign == _QrDesign.roundEyes
+            ? QrEyeShape.circle
+            : QrEyeShape.square,
+      ),
+      dataModuleStyle: QrDataModuleStyle(
+        color: const Color(0xFF000000),
+        dataModuleShape: _qrDesign == _QrDesign.dots
+            ? QrDataModuleShape.circle
+            : QrDataModuleShape.square,
+      ),
+    );
+
+    final ui.Image qrImage = await painter.toImage(1024);
+    final ByteData? qrByteData = await qrImage.toByteData(
+      format: ui.ImageByteFormat.png,
+    );
+    final Uint8List qrBytes = qrByteData!.buffer.asUint8List();
+    final qrProvider = pw.MemoryImage(qrBytes);
+
     final doc = pw.Document();
 
     doc.addPage(
@@ -598,14 +626,7 @@ class _StoreQrTabState extends State<StoreQrTab> {
             ),
           );
 
-          final qr = pw.BarcodeWidget(
-            barcode: Barcode.qrCode(),
-            data: _publicStoreUrl!,
-            width: qrSidePt,
-            height: qrSidePt,
-            drawText: false,
-            color: PdfColors.black, // ← QR自体も黒
-          );
+          final qr = pw.Image(qrProvider, width: qrSidePt, height: qrSidePt);
 
           final qrBox = pw.Container(
             padding: _putWhiteBg
@@ -679,6 +700,70 @@ class _StoreQrTabState extends State<StoreQrTab> {
     setState(() {
       _exporting = false;
     });
+  }
+
+  Future<void> _exportQrOnlyPdf() async {
+    if (_publicStoreUrl == null || _exporting) return;
+    setState(() {
+      _exporting = true;
+    });
+
+    try {
+      final pdef = _paperDefs[_paperVN.value]!;
+      final pageFormat = _landscape ? pdef.format.landscape : pdef.format;
+
+      final painter = QrPainter(
+        data: _publicStoreUrl!,
+        version: QrVersions.auto,
+        gapless: true,
+        color: const Color(0xFF000000),
+        emptyColor: const Color(0x00FFFFFF),
+        eyeStyle: QrEyeStyle(
+          color: const Color(0xFF000000),
+          eyeShape: _qrDesign == _QrDesign.dots || _qrDesign == _QrDesign.roundEyes
+              ? QrEyeShape.circle
+              : QrEyeShape.square,
+        ),
+        dataModuleStyle: QrDataModuleStyle(
+          color: const Color(0xFF000000),
+          dataModuleShape: _qrDesign == _QrDesign.dots
+              ? QrDataModuleShape.circle
+              : QrDataModuleShape.square,
+        ),
+      );
+
+      final ui.Image qrImage = await painter.toImage(1024);
+      final ByteData? qrByteData = await qrImage.toByteData(format: ui.ImageByteFormat.png);
+      final Uint8List qrBytes = qrByteData!.buffer.asUint8List();
+      final qrProvider = pw.MemoryImage(qrBytes);
+
+      final doc = pw.Document();
+
+      doc.addPage(
+        pw.Page(
+          pageFormat: pageFormat,
+          margin: const pw.EdgeInsets.all(30),
+          build: (ctx) {
+            return pw.Center(
+              child: pw.Image(qrProvider, fit: pw.BoxFit.contain),
+            );
+          },
+        ),
+      );
+
+      await Printing.sharePdf(
+        bytes: await doc.save(),
+        filename: 'qr_only_${widget.tenantId}.pdf',
+      );
+    } catch (e, st) {
+      debugPrint('QR Only PDF generation error: $e\n$st');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _exporting = false;
+        });
+      }
+    }
   }
 
   // ---------- オンボーディング ----------
@@ -945,6 +1030,44 @@ class _StoreQrTabState extends State<StoreQrTab> {
                 ],
               );
 
+              void _showDownloadOptionsDialog() {
+                showModalBottomSheet(
+                  context: context,
+                  shape: const RoundedRectangleBorder(
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                  ),
+                  builder: (ctx) {
+                    return SafeArea(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Padding(
+                            padding: EdgeInsets.all(16.0),
+                            child: Text('ダウンロード形式を選択してください', style: TextStyle(fontFamily: 'LINEseed', fontWeight: FontWeight.bold, fontSize: 16)),
+                          ),
+                          ListTile(
+                            leading: const Icon(Icons.picture_in_picture),
+                            title: const Text('ポスター全体をダウンロード', style: TextStyle(fontFamily: 'LINEseed')),
+                            onTap: () {
+                              Navigator.pop(ctx);
+                              _exportPdf(options);
+                            },
+                          ),
+                          ListTile(
+                            leading: const Icon(Icons.qr_code),
+                            title: const Text('QRコードのみをダウンロード', style: TextStyle(fontFamily: 'LINEseed')),
+                            onTap: () {
+                              Navigator.pop(ctx);
+                              _exportQrOnlyPdf();
+                            },
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                );
+              }
+
               // ▼ PDFダウンロード（FilledButton）
               Widget pdfButton() => FilledButton.icon(
                 style: primary.copyWith(
@@ -971,7 +1094,7 @@ class _StoreQrTabState extends State<StoreQrTab> {
                 ),
                 onPressed:
                     (!_exporting && _connected! && _publicStoreUrl != null)
-                    ? () => _exportPdf(options)
+                    ? _showDownloadOptionsDialog
                     : null,
                 icon: _exporting
                     ? const SizedBox(
@@ -983,9 +1106,9 @@ class _StoreQrTabState extends State<StoreQrTab> {
                         ),
                       )
                     : const Icon(Icons.file_download),
-                label: const Text(
-                  'ダウンロード',
-                  style: TextStyle(fontFamily: 'LINEseed'),
+                label: Text(
+                  _exporting ? 'ダウンロード中...' : 'ダウンロード',
+                  style: const TextStyle(fontFamily: 'LINEseed', fontWeight: FontWeight.bold),
                 ),
               );
 
@@ -1136,40 +1259,92 @@ class _StoreQrTabState extends State<StoreQrTab> {
                 final url = _publicStoreUrl;
                 if (url == null || url.isEmpty) return const SizedBox.shrink();
 
-                return FilledButton.icon(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Color(0xFFFCC400),
-                    foregroundColor: Colors.black,
-
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    side: BorderSide(color: Colors.black, width: 3),
-                  ),
-                  onPressed: () async {
-                    final ok = await launchUrlString(
-                      url,
-                      mode: LaunchMode.externalApplication,
-                      webOnlyWindowName: '_self',
-                    );
-                    if (!ok && context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'リンクを開けませんでした',
-                            style: TextStyle(fontFamily: 'LINEseed'),
+                return Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.black87,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 12,
                           ),
-                          backgroundColor: Color(0xFFFCC400),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          side: const BorderSide(color: Colors.black26, width: 2),
                         ),
-                      );
-                    }
-                  },
-                  icon: const Icon(Icons.open_in_new),
-                  label: const Text('ページ確認'),
+                        onPressed: () async {
+                          await Clipboard.setData(ClipboardData(text: url));
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'URLをコピーしました',
+                                  style: TextStyle(
+                                    fontFamily: 'LINEseed',
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                backgroundColor: Color(0xFFFCC400),
+                              ),
+                            );
+                          }
+                        },
+                        icon: const Icon(Icons.copy, size: 18),
+                        label: const Text(
+                          'URLコピー',
+                          style: TextStyle(
+                            fontFamily: 'LINEseed',
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFFFCC400),
+                          foregroundColor: Colors.black,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 12,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          side: const BorderSide(color: Colors.black, width: 3),
+                        ),
+                        onPressed: () async {
+                          final ok = await launchUrlString(
+                            url,
+                            mode: LaunchMode.externalApplication,
+                            webOnlyWindowName: '_self',
+                          );
+                          if (!ok && context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'リンクを開けませんでした',
+                                  style: TextStyle(fontFamily: 'LINEseed'),
+                                ),
+                                backgroundColor: Color(0xFFFCC400),
+                              ),
+                            );
+                          }
+                        },
+                        icon: const Icon(Icons.open_in_new, size: 18),
+                        label: const Text(
+                          'ページ確認',
+                          style: TextStyle(
+                            fontFamily: 'LINEseed',
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 );
               }
 

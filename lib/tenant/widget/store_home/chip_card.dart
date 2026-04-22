@@ -139,7 +139,7 @@ class SplitMetricsRow extends StatelessWidget {
             onHelpTap: () => _showPayoutInfoSheet(context, isStore: true),
           ),
         ),
-
+        const SizedBox(width: 12),
         Expanded(
           child: _MetricCardMini(
             icon: Icons.person,
@@ -174,73 +174,78 @@ class _MetricCardMini extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CardShellHome(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 本体（ここだけ InkWell）
-            Expanded(
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: onCardTap,
-                  borderRadius: BorderRadius.circular(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          CircleAvatar(
-                            backgroundColor: Colors.black,
-                            foregroundColor: Colors.white,
-                            radius: 16,
-                            child: Icon(icon, size: 18),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              label,
-                              style: const TextStyle(
-                                color: Colors.black87,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        value,
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(sub, style: const TextStyle(color: Colors.black54)),
-                    ],
+    return SizedBox(
+      height: 200,
+      child: CardShellHome(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  CircleAvatar(
+                    backgroundColor: Colors.black,
+                    foregroundColor: Colors.white,
+                    radius: 16,
+                    child: Icon(icon, size: 18),
                   ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      label,
+                      style: const TextStyle(
+                        color: Colors.black87,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                        fontFamily: 'LINEseed',
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (onHelpTap != null)
+                    GestureDetector(
+                      onTap: onHelpTap,
+                      child: const Icon(
+                        Icons.help_outline,
+                        size: 20,
+                        color: Colors.black54,
+                      ),
+                    ),
+                ],
+              ),
+              const Spacer(),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.black87,
+                  fontFamily: 'LINEseed',
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 2),
+              Text(sub, style: const TextStyle(color: Colors.black54, fontFamily: 'LINEseed')),
+              const Spacer(),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: onCardTap,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFFFCC400),
+                    foregroundColor: Colors.black,
+                    side: const BorderSide(color: Colors.black, width: 3),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 0),
+                  ),
+                  child: const Text('詳細', style: TextStyle(fontFamily: 'LINEseed', fontWeight: FontWeight.bold)),
                 ),
               ),
-            ),
-            if (onHelpTap != null)
-              IconButton(
-                onPressed: onHelpTap, // ← 完全に独立したボタン
-                icon: const Icon(
-                  Icons.help_outline,
-                  size: 20,
-                  color: Colors.black54,
-                ),
-                tooltip: '説明',
-                padding: const EdgeInsets.only(left: 2, top: 2),
-                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -356,97 +361,63 @@ class TotalsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
+    return SizedBox(
+      height: 200,
       child: CardShellHome(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: Row(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 左：総チップ金額
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.payments_outlined,
-                          size: 16,
-                          color: Colors.black54,
-                        ),
-                        const SizedBox(width: 6),
-                        const Text(
-                          '総チップ金額',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Colors.black54,
-                            fontFamily: 'LINEseed',
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      _yen(totalYen),
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.black,
+              Row(
+                children: const [
+                  CircleAvatar(
+                    backgroundColor: Colors.black,
+                    foregroundColor: Colors.white,
+                    radius: 16,
+                    child: Icon(Icons.payments, size: 18),
+                  ),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '全体',
+                      style: TextStyle(
+                        color: Colors.black87,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
                         fontFamily: 'LINEseed',
                       ),
                     ),
-                  ],
+                  ),
+                ],
+              ),
+              const Spacer(),
+              Text(
+                _yen(totalYen),
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.black87,
+                  fontFamily: 'LINEseed',
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-              // 仕切り線
-              Container(
-                width: 1,
-                height: 36,
-                color: Colors.black12,
-                margin: const EdgeInsets.symmetric(horizontal: 12),
-              ),
-              // 右：取引回数
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.receipt_long_outlined,
-                          size: 16,
-                          color: Colors.black54,
-                        ),
-                        const SizedBox(width: 6),
-                        const Text(
-                          '取引回数',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Colors.black54,
-                            fontFamily: 'LINEseed',
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      '$count 件',
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.black,
-                        fontFamily: 'LINEseed',
-                      ),
-                    ),
-                  ],
+              const SizedBox(height: 2),
+              Text('$count 件', style: const TextStyle(color: Colors.black54, fontFamily: 'LINEseed')),
+              const Spacer(),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: onTap,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFFFCC400),
+                    foregroundColor: Colors.black,
+                    side: const BorderSide(color: Colors.black, width: 3),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 0),
+                  ),
+                  child: const Text('詳細', style: TextStyle(fontFamily: 'LINEseed', fontWeight: FontWeight.bold)),
                 ),
               ),
             ],
@@ -471,96 +442,72 @@ class PayerRankingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
+    return SizedBox(
+      height: 200,
       child: CardShellHome(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start, // 左寄せ
-            mainAxisAlignment: MainAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: const [
-                  Icon(
-                    Icons.emoji_events_outlined,
-                    size: 18,
-                    color: Colors.black54,
+                  CircleAvatar(
+                    backgroundColor: Colors.black,
+                    foregroundColor: Colors.white,
+                    radius: 16,
+                    child: Icon(Icons.emoji_events, size: 18),
                   ),
                   SizedBox(width: 8),
                   Text(
-                    '送金者ランキング',
+                    '送金者',
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
-                      color: Colors.black54,
+                      color: Colors.black87,
                       fontFamily: 'LINEseed',
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-              if (topPayers.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.only(top: 8, bottom: 8),
-                  child: Text(
-                    'データがありません',
-                    style: TextStyle(
-                      color: Colors.black45,
-                      fontSize: 13,
-                      fontFamily: 'LINEseed',
-                    ),
-                  ),
-                )
-              else
-                ...topPayers.take(3).map((e) {
-                  // 上位3名を表示
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            e.name.isEmpty ? 'ゲスト' : e.name,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.black87,
-                              fontFamily: 'LINEseed',
+              const SizedBox(height: 8),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: topPayers.isEmpty
+                    ? [const Text('データがありません', style: TextStyle(color: Colors.black45, fontSize: 13, fontFamily: 'LINEseed'))]
+                    : topPayers.take(3).map((e) => Padding(
+                        padding: const EdgeInsets.only(bottom: 2),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                e.name.isEmpty ? 'ゲスト' : e.name,
+                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, fontFamily: 'LINEseed'),
+                                maxLines: 1, overflow: TextOverflow.ellipsis,
+                              ),
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                            Text('¥${e.total}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, fontFamily: 'LINEseed')),
+                          ],
                         ),
-                        Text(
-                          '¥${e.total}',
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.black87,
-                            fontFamily: 'LINEseed',
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }).toList(),
-
-              if (topPayers.length > 3)
-                const Padding(
-                  padding: EdgeInsets.only(top: 4),
-                  child: Text(
-                    'ほか...',
-                    style: TextStyle(
-                      color: Colors.black45,
-                      fontSize: 11,
-                      fontFamily: 'LINEseed',
-                    ),
-                  ),
+                      )).toList(),
                 ),
+              ),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: onTap,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFFFCC400),
+                    foregroundColor: Colors.black,
+                    side: const BorderSide(color: Colors.black, width: 3),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 0),
+                  ),
+                  child: const Text('詳細', style: TextStyle(fontFamily: 'LINEseed', fontWeight: FontWeight.bold)),
+                ),
+              ),
             ],
           ),
         ),
